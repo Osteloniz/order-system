@@ -101,7 +101,7 @@ export function LoginPage() {
           </form>
 
           <p className="text-xs text-center text-muted-foreground mt-6">
-            Senha padrão da POC: admin123
+            {/* Senha padrão da POC: admin123 */}
           </p>
         </CardContent>
       </Card>
