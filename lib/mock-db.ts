@@ -20,9 +20,9 @@ export const produtos: Produto[] = [
     nome: 'Queridinha',
     descricao: 'Molho artesanal, pimenta dedo de moça e especiarias',
     categoriaId: 'cat-1',
-    preco: 1200, // R$ 25,00
+    preco: 1200, // R$ 12,00
     ativo: true,
-    imagens: ['./Queridinha.png', '/placeholder.svg'],
+    imagens: ['./QUERIDINHA.png', '/placeholder.svg'],
     ordem: 1,
   },
   {
