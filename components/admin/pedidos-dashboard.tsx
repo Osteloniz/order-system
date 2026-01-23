@@ -1,0 +1,324 @@
+'use client'
+
+import { useState } from 'react'
+import useSWR, { mutate } from 'swr'
+import { 
+  Clock, Check, ChefHat, Truck, RefreshCw, 
+  MapPin, Phone, CreditCard, User, Package, ChevronRight
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
+import type { Pedido, StatusPedido } from '@/lib/types'
+
+const fetcher = (url: string) => fetch(url).then(res => res.json())
+
+const statusConfig: Record<StatusPedido, { 
+  label: string
+  color: string 
+  icon: typeof Clock
+  nextStatus?: StatusPedido
+  nextLabel?: string
+}> = {
+  FEITO: { 
+    label: 'Novo', 
+    color: 'bg-warning text-warning-foreground',
+    icon: Clock,
+    nextStatus: 'ACEITO',
+    nextLabel: 'Aceitar Pedido'
+  },
+  ACEITO: { 
+    label: 'Aceito', 
+    color: 'bg-accent text-accent-foreground',
+    icon: Check,
+    nextStatus: 'PREPARACAO',
+    nextLabel: 'Iniciar Preparo'
+  },
+  PREPARACAO: { 
+    label: 'Preparando', 
+    color: 'bg-primary text-primary-foreground',
+    icon: ChefHat,
+    nextStatus: 'ENTREGUE',
+    nextLabel: 'Marcar Entregue'
+  },
+  ENTREGUE: { 
+    label: 'Entregue', 
+    color: 'bg-success text-success-foreground',
+    icon: Truck
+  }
+}
+
+const pagamentoLabels = {
+  PIX: 'PIX',
+  CARTAO: 'Cartão',
+  DINHEIRO: 'Dinheiro'
+}
+
+export function PedidosDashboard() {
+  const [activeTab, setActiveTab] = useState<string>('todos')
+  const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+
+  const { data: pedidos, isLoading } = useSWR<Pedido[]>(
+    '/api/admin/pedidos',
+    fetcher,
+    { refreshInterval: 5000 }
+  )
+
+  const filteredPedidos = pedidos?.filter(p => {
+    if (activeTab === 'todos') return true
+    if (activeTab === 'novos') return p.status === 'FEITO'
+    if (activeTab === 'preparando') return p.status === 'ACEITO' || p.status === 'PREPARACAO'
+    if (activeTab === 'entregues') return p.status === 'ENTREGUE'
+    return true
+  }) || []
+
+  const contadores = {
+    novos: pedidos?.filter(p => p.status === 'FEITO').length || 0,
+    preparando: pedidos?.filter(p => p.status === 'ACEITO' || p.status === 'PREPARACAO').length || 0,
+    entregues: pedidos?.filter(p => p.status === 'ENTREGUE').length || 0,
+    todos: pedidos?.length || 0
+  }
+
+  const handleUpdateStatus = async (pedidoId: string, newStatus: StatusPedido) => {
+    setUpdatingStatus(pedidoId)
+    try {
+      await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+      mutate('/api/admin/pedidos')
+      if (selectedPedido?.id === pedidoId) {
+        setSelectedPedido(prev => prev ? { ...prev, status: newStatus } : null)
+      }
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  const handleRefresh = () => {
+    mutate('/api/admin/pedidos')
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Pedidos</h1>
+        <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Atualizar
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="novos" className="relative">
+            Novos
+            {contadores.novos > 0 && (
+              <Badge className="ml-2 bg-warning text-warning-foreground h-5 w-5 p-0 flex items-center justify-center text-xs">
+                {contadores.novos}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="preparando">
+            Em Preparo
+            {contadores.preparando > 0 && (
+              <Badge className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                {contadores.preparando}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="entregues">Entregues</TabsTrigger>
+          <TabsTrigger value="todos">Todos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="mt-6">
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : filteredPedidos.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum pedido encontrado</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {filteredPedidos.map(pedido => {
+                const status = statusConfig[pedido.status]
+                const StatusIcon = status.icon
+                
+                return (
+                  <Card 
+                    key={pedido.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setSelectedPedido(pedido)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className={`p-2 rounded-full ${status.color}`}>
+                            <StatusIcon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold truncate">{pedido.clienteNome}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {pedido.tipoEntrega === 'ENTREGA' ? 'Entrega' : 'Retirada'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatarHora(pedido.criadoEm)}
+                              </span>
+                              <span className="font-medium text-foreground">
+                                {formatarMoeda(pedido.total)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!selectedPedido} onOpenChange={() => setSelectedPedido(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {selectedPedido && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center justify-between">
+                  <span>Pedido #{selectedPedido.id.slice(-6).toUpperCase()}</span>
+                  <Badge className={statusConfig[selectedPedido.status].color}>
+                    {statusConfig[selectedPedido.status].label}
+                  </Badge>
+                </SheetTitle>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {/* Status Action */}
+                {statusConfig[selectedPedido.status].nextStatus && (
+                  <Button
+                    className="w-full"
+                    onClick={() => handleUpdateStatus(
+                      selectedPedido.id, 
+                      statusConfig[selectedPedido.status].nextStatus!
+                    )}
+                    disabled={updatingStatus === selectedPedido.id}
+                  >
+                    {updatingStatus === selectedPedido.id ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
+                    {statusConfig[selectedPedido.status].nextLabel}
+                  </Button>
+                )}
+
+                {/* Itens */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Itens
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {selectedPedido.itens.map(item => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span>{item.quantidade}x {item.nomeProdutoSnapshot}</span>
+                        <span className="font-medium">{formatarMoeda(item.totalItem)}</span>
+                      </div>
+                    ))}
+                    <Separator />
+                    <div className="flex justify-between text-sm">
+                      <span>Subtotal</span>
+                      <span>{formatarMoeda(selectedPedido.subtotal)}</span>
+                    </div>
+                    {selectedPedido.frete > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span>Frete</span>
+                        <span>{formatarMoeda(selectedPedido.frete)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold pt-2">
+                      <span>Total</span>
+                      <span className="text-primary">{formatarMoeda(selectedPedido.total)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Cliente */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Cliente
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span>{selectedPedido.clienteNome}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <a 
+                        href={`tel:${selectedPedido.clienteTelefone}`}
+                        className="text-primary hover:underline"
+                      >
+                        {formatarTelefone(selectedPedido.clienteTelefone)}
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      <span>{pagamentoLabels[selectedPedido.pagamento]}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Entrega */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      {selectedPedido.tipoEntrega === 'ENTREGA' ? 'Entregar em' : 'Retirada em'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm">
+                      {selectedPedido.tipoEntrega === 'ENTREGA'
+                        ? selectedPedido.enderecoEntrega
+                        : selectedPedido.enderecoRetirada}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  )
+}
