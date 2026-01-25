@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { categorias } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
+
+export const runtime = 'nodejs'
 
 async function verificarAuth() {
   const cookieStore = await cookies()
@@ -14,30 +16,32 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   try {
     const { id } = await params
     const body = await request.json()
 
-    const categoriaIndex = categorias.findIndex(c => c.id === id)
-    if (categoriaIndex === -1) {
+    const categoria = await prisma.categoria.findUnique({ where: { id } })
+    if (!categoria) {
       return NextResponse.json(
-        { error: 'Categoria não encontrada' },
+        { error: 'Categoria nao encontrada' },
         { status: 404 }
       )
     }
 
-    categorias[categoriaIndex] = {
-      ...categorias[categoriaIndex],
-      nome: body.nome ?? categorias[categoriaIndex].nome,
-      ordem: body.ordem ?? categorias[categoriaIndex].ordem
-    }
+    const categoriaAtualizada = await prisma.categoria.update({
+      where: { id },
+      data: {
+        nome: body.nome ?? categoria.nome,
+        ordem: body.ordem ?? categoria.ordem
+      }
+    })
 
     console.log(`[v0] Categoria atualizada: ${id}`)
 
-    return NextResponse.json(categorias[categoriaIndex])
+    return NextResponse.json(categoriaAtualizada)
   } catch (error) {
     console.error('[v0] Erro ao atualizar categoria:', error)
     return NextResponse.json(
@@ -53,22 +57,30 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const { id } = await params
-  const categoriaIndex = categorias.findIndex(c => c.id === id)
-  
-  if (categoriaIndex === -1) {
+  const produtosCount = await prisma.produto.count({ where: { categoriaId: id } })
+  if (produtosCount > 0) {
     return NextResponse.json(
-      { error: 'Categoria não encontrada' },
+      { error: 'Categoria possui produtos e nao pode ser removida' },
+      { status: 400 }
+    )
+  }
+
+  const categoria = await prisma.categoria.findUnique({ where: { id } })
+  if (!categoria) {
+    return NextResponse.json(
+      { error: 'Categoria nao encontrada' },
       { status: 404 }
     )
   }
 
-  categorias.splice(categoriaIndex, 1)
+  await prisma.categoria.delete({ where: { id } })
 
   console.log(`[v0] Categoria removida: ${id}`)
 
   return NextResponse.json({ success: true })
 }
+

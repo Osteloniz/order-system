@@ -1,8 +1,9 @@
 // Tipos do sistema de pedidos
 
-export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE'
+export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
 export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 export type TipoEntrega = 'ENTREGA' | 'RETIRADA'
+export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 
 export interface Categoria {
   id: string
@@ -45,6 +46,10 @@ export interface Pedido {
   subtotal: number // centavos
   total: number // centavos
   criadoEm: string
+  motivoCancelamento?: string | null
+  distanciaKm?: number | null
+  descontoValor?: number | null // centavos
+  cupomCodigoSnapshot?: string | null
   itens: ItemPedido[]
 }
 
@@ -54,9 +59,13 @@ export interface ItemCarrinho {
 }
 
 export interface Configuracao {
-  freteFixo: number // centavos
+  freteBase: number // centavos (ate o raio base)
+  freteRaioKm: number // km
+  freteKmExcedente: number // centavos por km excedente
   enderecoRetirada: string
   nomeEstabelecimento: string
+  estabelecimentoLat: number
+  estabelecimentoLng: number
 }
 
 // Payload para criar pedido
@@ -66,8 +75,23 @@ export interface CriarPedidoPayload {
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   enderecoEntrega?: string
+  distanciaKm?: number
+  cupomCodigo?: string
   itens: {
     produtoId: string
     quantidade: number
   }[]
+}
+
+export interface Cupom {
+  id: string
+  codigo: string
+  tipo: TipoCupom
+  valor: number // centavos ou percentual
+  ativo: boolean
+  expiraEm: string
+  maxUsos: number
+  usos: number
+  criadoEm: string
+  atualizadoEm: string
 }

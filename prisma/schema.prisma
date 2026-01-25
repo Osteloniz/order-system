@@ -1,0 +1,137 @@
+// Prisma schema for Order System
+// Comentarios intencionais para facilitar leitura e manutencao.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")    // Conexao principal (pooling recomendado no Neon)
+  directUrl = env("DIRECT_URL")      // Conexao direta para migrations
+}
+
+// Enums alinhados aos tipos do projeto (lib/types.ts)
+enum StatusPedido {
+  FEITO
+  ACEITO
+  PREPARACAO
+  ENTREGUE
+  CANCELADO
+}
+
+enum TipoPagamento {
+  PIX
+  DINHEIRO
+  CARTAO
+}
+
+enum TipoEntrega {
+  ENTREGA
+  RETIRADA
+}
+
+enum TipoCupom {
+  FIXO
+  PERCENTUAL
+}
+
+model Configuracao {
+  id                  String   @id @default(uuid())
+  nomeEstabelecimento String
+  enderecoRetirada    String
+  freteBase           Int      @default(500) // centavos (ate o raio base)
+  freteRaioKm         Float    @default(3) // km
+  freteKmExcedente    Int      @default(100) // centavos por km excedente
+  estabelecimentoLat  Float    @default(0)
+  estabelecimentoLng  Float    @default(0)
+  criadoEm            DateTime @default(now())
+  atualizadoEm        DateTime @updatedAt
+}
+
+model Categoria {
+  id          String   @id @default(uuid())
+  nome        String
+  ordem       Int
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  produtos    Produto[]
+}
+
+model Produto {
+  id          String   @id @default(uuid())
+  nome        String
+  descricao   String?
+  categoriaId String
+  preco       Int      // centavos
+  ativo       Boolean  @default(true)
+  imagemUrl   String?
+  imagens     String[] @default([])
+  ordem       Int
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  itensPedido ItemPedido[]
+
+  @@index([categoriaId])
+  @@index([ativo])
+}
+
+model Pedido {
+  id              String        @id @default(uuid())
+  status          StatusPedido
+  clienteNome     String
+  clienteTelefone String
+  pagamento       TipoPagamento
+  tipoEntrega     TipoEntrega
+  enderecoEntrega String?
+  enderecoRetirada String
+  frete           Int
+  subtotal        Int
+  total           Int
+  motivoCancelamento String?
+  distanciaKm     Float?
+  descontoValor   Int?
+  cupomCodigoSnapshot String?
+  cupomId         String?
+  criadoEm        DateTime      @default(now())
+  atualizadoEm    DateTime      @updatedAt
+  itens           ItemPedido[]
+
+  cupom           Cupom? @relation(fields: [cupomId], references: [id])
+
+  @@index([clienteTelefone])
+  @@index([status])
+  @@index([criadoEm])
+}
+
+model ItemPedido {
+  id                  String   @id @default(uuid())
+  pedidoId            String
+  produtoId           String
+  nomeProdutoSnapshot String
+  precoUnitarioSnapshot Int
+  quantidade          Int
+  totalItem           Int
+
+  pedido   Pedido  @relation(fields: [pedidoId], references: [id])
+  produto  Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([pedidoId])
+}
+
+model Cupom {
+  id        String     @id @default(uuid())
+  codigo    String     @unique
+  tipo      TipoCupom
+  valor     Int        // centavos (FIXO) ou percentual (PERCENTUAL)
+  ativo     Boolean    @default(true)
+  expiraEm  DateTime
+  maxUsos   Int
+  usos      Int        @default(0)
+  criadoEm  DateTime   @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  pedidos   Pedido[]
+}

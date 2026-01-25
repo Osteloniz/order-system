@@ -1,24 +1,46 @@
 import { NextResponse } from 'next/server'
-import { categorias, produtos, configuracao } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
+
+export const runtime = 'nodejs'
 
 // GET /api/menu - Retorna categorias + produtos ativos
 export async function GET() {
-  const produtosAtivos = produtos
-    .filter(p => p.ativo)
-    .sort((a, b) => a.ordem - b.ordem)
-  
-  const categoriasOrdenadas = categorias
-    .sort((a, b) => a.ordem - b.ordem)
-    .map(cat => ({
-      ...cat,
-      produtos: produtosAtivos.filter(p => p.categoriaId === cat.id)
-    }))
-    .filter(cat => cat.produtos.length > 0)
+  let configuracao = await prisma.configuracao.findFirst()
+  if (!configuracao) {
+    configuracao = await prisma.configuracao.create({
+      data: {
+        nomeEstabelecimento: 'Estabelecimento',
+        enderecoRetirada: 'Endereco nao configurado',
+        freteBase: 500,
+        freteRaioKm: 3,
+        freteKmExcedente: 100,
+        estabelecimentoLat: 0,
+        estabelecimentoLng: 0
+      }
+    })
+  }
+
+  // Busca categorias com produtos ativos ordenados.
+  const categoriasOrdenadas = await prisma.categoria.findMany({
+    orderBy: { ordem: 'asc' },
+    include: {
+      produtos: {
+        where: { ativo: true },
+        orderBy: { ordem: 'asc' }
+      }
+    }
+  })
+
+  const categoriasComProdutos = categoriasOrdenadas.filter(cat => cat.produtos.length > 0)
 
   return NextResponse.json({
-    estabelecimento: configuracao.nomeEstabelecimento,
-    enderecoRetirada: configuracao.enderecoRetirada,
-    freteFixo: configuracao.freteFixo,
-    categorias: categoriasOrdenadas
+    estabelecimento: configuracao?.nomeEstabelecimento ?? 'Estabelecimento',
+    enderecoRetirada: configuracao?.enderecoRetirada ?? 'Endereco nao configurado',
+    freteBase: configuracao?.freteBase ?? 500,
+    freteRaioKm: configuracao?.freteRaioKm ?? 3,
+    freteKmExcedente: configuracao?.freteKmExcedente ?? 100,
+    estabelecimentoLat: configuracao?.estabelecimentoLat ?? 0,
+    estabelecimentoLng: configuracao?.estabelecimentoLng ?? 0,
+    categorias: categoriasComProdutos
   })
 }

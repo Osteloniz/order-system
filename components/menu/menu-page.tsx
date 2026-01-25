@@ -13,7 +13,11 @@ import type { Produto, Categoria } from '@/lib/types'
 interface MenuData {
   estabelecimento: string
   enderecoRetirada: string
-  freteFixo: number
+  freteBase: number
+  freteRaioKm: number
+  freteKmExcedente: number
+  estabelecimentoLat: number
+  estabelecimentoLng: number
   categorias: (Categoria & { produtos: Produto[] })[]
 }
 

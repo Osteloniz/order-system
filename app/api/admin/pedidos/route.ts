@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { pedidos } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 
-// Middleware de autenticação
+export const runtime = 'nodejs'
+
+// Middleware de autenticacao
 async function verificarAuth() {
   const cookieStore = await cookies()
   const session = cookieStore.get('admin_session')
@@ -13,20 +15,18 @@ async function verificarAuth() {
 // GET /api/admin/pedidos?status=... - Lista pedidos
 export async function GET(request: NextRequest) {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const searchParams = request.nextUrl.searchParams
   const status = searchParams.get('status') as StatusPedido | null
 
-  let resultado = [...pedidos]
-
-  if (status) {
-    resultado = resultado.filter(p => p.status === status)
-  }
-
-  // Ordenar por data de criação (mais recente primeiro)
-  resultado.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+  const resultado = await prisma.pedido.findMany({
+    where: status ? { status } : undefined,
+    include: { itens: true },
+    orderBy: { criadoEm: 'desc' }
+  })
 
   return NextResponse.json(resultado)
 }
+

@@ -17,7 +17,8 @@ const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
   FEITO: { label: 'Pedido Recebido', color: 'bg-warning text-warning-foreground' },
   ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground' },
   PREPARACAO: { label: 'Em Preparação', color: 'bg-primary text-primary-foreground' },
-  ENTREGUE: { label: 'Entregue', color: 'bg-success text-success-foreground' }
+  ENTREGUE: { label: 'Entregue', color: 'bg-success text-success-foreground' },
+  CANCELADO: { label: 'Cancelado', color: 'bg-destructive text-destructive-foreground' }
 }
 
 const pagamentoLabels = {
@@ -132,6 +133,12 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
                 <span>{formatarMoeda(pedido.frete)}</span>
               </div>
             )}
+            {pedido.descontoValor && pedido.descontoValor > 0 && (
+              <div className="flex justify-between text-sm text-success">
+                <span>Desconto</span>
+                <span>-{formatarMoeda(pedido.descontoValor)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-lg pt-2">
               <span>Total</span>
               <span className="text-primary">{formatarMoeda(pedido.total)}</span>
@@ -153,6 +160,11 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
                 ? pedido.enderecoEntrega 
                 : pedido.enderecoRetirada}
             </p>
+            {pedido.tipoEntrega === 'ENTREGA' && pedido.distanciaKm && (
+              <p className="text-xs text-muted-foreground mt-2">
+                DistÃ¢ncia: {pedido.distanciaKm.toFixed(2)} km
+              </p>
+            )}
           </CardContent>
         </Card>
 

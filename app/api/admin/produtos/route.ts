@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { produtos, categorias, gerarId } from '@/lib/mock-db'
-import type { Produto } from '@/lib/types'
+import { prisma } from '@/lib/db'
+
+export const runtime = 'nodejs'
 
 async function verificarAuth() {
   const cookieStore = await cookies()
@@ -12,12 +13,16 @@ async function verificarAuth() {
 // GET /api/admin/produtos - Lista todos os produtos
 export async function GET() {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
+
+  const produtos = await prisma.produto.findMany({
+    include: { categoria: true }
+  })
 
   const produtosComCategoria = produtos.map(p => ({
     ...p,
-    categoriaNome: categorias.find(c => c.id === p.categoriaId)?.nome || 'Sem categoria'
+    categoriaNome: p.categoria?.nome || 'Sem categoria'
   }))
 
   return NextResponse.json(produtosComCategoria)
@@ -26,28 +31,37 @@ export async function GET() {
 // POST /api/admin/produtos - Cria novo produto
 export async function POST(request: NextRequest) {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   try {
     const body = await request.json()
     const imagens = Array.isArray(body.imagens)
       ? body.imagens.filter((url: unknown) => typeof url === 'string' && url.trim().length > 0)
-      : undefined
-    
-    const novoProduto: Produto = {
-      id: gerarId('prod'),
-      nome: body.nome,
-      descricao: body.descricao || '',
-      categoriaId: body.categoriaId,
-      preco: Math.round(body.preco), // Garantir inteiro (centavos)
-      ativo: body.ativo ?? true,
-      imagemUrl: body.imagemUrl,
-      imagens,
-      ordem: produtos.filter(p => p.categoriaId === body.categoriaId).length + 1
+      : []
+
+    const categoria = await prisma.categoria.findUnique({ where: { id: body.categoriaId } })
+    if (!categoria) {
+      return NextResponse.json(
+        { error: 'Categoria nao encontrada' },
+        { status: 400 }
+      )
     }
 
-    produtos.push(novoProduto)
+    const ordem = await prisma.produto.count({ where: { categoriaId: body.categoriaId } }) + 1
+
+    const novoProduto = await prisma.produto.create({
+      data: {
+        nome: body.nome,
+        descricao: body.descricao || '',
+        categoriaId: body.categoriaId,
+        preco: Math.round(body.preco),
+        ativo: body.ativo ?? true,
+        imagemUrl: body.imagemUrl,
+        imagens,
+        ordem
+      }
+    })
 
     console.log(`[v0] Produto criado: ${novoProduto.id}`)
 

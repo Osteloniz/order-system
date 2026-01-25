@@ -22,6 +22,44 @@ export function calcularTotal(subtotal: number, frete: number): number {
 }
 
 /**
+ * Calcula distancia em km entre 2 coordenadas (Haversine)
+ */
+export function calcularDistanciaKm(
+  origem: { lat: number; lng: number },
+  destino: { lat: number; lng: number }
+): number {
+  const toRad = (valor: number) => (valor * Math.PI) / 180
+  const R = 6371 // raio medio da terra em km
+  const dLat = toRad(destino.lat - origem.lat)
+  const dLng = toRad(destino.lng - origem.lng)
+  const lat1 = toRad(origem.lat)
+  const lat2 = toRad(destino.lat)
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+/**
+ * Calcula frete baseado na distancia e regras do negocio.
+ */
+export function calcularFretePorDistancia(params: {
+  distanciaKm: number
+  freteBase: number
+  freteRaioKm: number
+  freteKmExcedente: number
+}): number {
+  const distanciaValida = Math.max(0, params.distanciaKm)
+  if (distanciaValida <= params.freteRaioKm) {
+    return params.freteBase
+  }
+  const excedente = Math.ceil(distanciaValida - params.freteRaioKm)
+  return params.freteBase + excedente * params.freteKmExcedente
+}
+
+/**
  * Formata valor em centavos para moeda brasileira
  */
 export function formatarMoeda(centavos: number): string {

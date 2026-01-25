@@ -2,9 +2,13 @@ import type { Categoria, Produto, Pedido, Configuracao } from './types'
 
 // Configuração do estabelecimento
 export const configuracao: Configuracao = {
-  freteFixo: 0, // R$ 5,00
-  enderecoRetirada: 'Endereço de Retirada Exemplo, 123 - Centro',
-  nomeEstabelecimento: 'Nossa Pimenta'
+  freteBase: 500, // R$ 5,00
+  freteRaioKm: 3,
+  freteKmExcedente: 100,
+  enderecoRetirada: 'EndereÃ§o de Retirada Exemplo, 123 - Centro',
+  nomeEstabelecimento: 'Nossa Pimenta',
+  estabelecimentoLat: 0,
+  estabelecimentoLng: 0
 }
 
 // Categorias mockadas

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { categorias, gerarId } from '@/lib/mock-db'
-import type { Categoria } from '@/lib/types'
+import { prisma } from '@/lib/db'
+
+export const runtime = 'nodejs'
 
 async function verificarAuth() {
   const cookieStore = await cookies()
@@ -12,29 +13,31 @@ async function verificarAuth() {
 // GET /api/admin/categorias - Lista todas as categorias
 export async function GET() {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
-  const categoriasOrdenadas = [...categorias].sort((a, b) => a.ordem - b.ordem)
+  const categoriasOrdenadas = await prisma.categoria.findMany({
+    orderBy: { ordem: 'asc' }
+  })
   return NextResponse.json(categoriasOrdenadas)
 }
 
 // POST /api/admin/categorias - Cria nova categoria
 export async function POST(request: NextRequest) {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   try {
     const body = await request.json()
-    
-    const novaCategoria: Categoria = {
-      id: gerarId('cat'),
-      nome: body.nome,
-      ordem: categorias.length + 1
-    }
 
-    categorias.push(novaCategoria)
+    const ordem = await prisma.categoria.count() + 1
+    const novaCategoria = await prisma.categoria.create({
+      data: {
+        nome: body.nome,
+        ordem
+      }
+    })
 
     console.log(`[v0] Categoria criada: ${novaCategoria.id}`)
 
@@ -47,3 +50,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

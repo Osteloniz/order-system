@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
 import { 
-  Clock, Check, ChefHat, Truck, RefreshCw, 
+  Clock, Check, ChefHat, Truck, RefreshCw, X,
   MapPin, Phone, CreditCard, User, Package, ChevronRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog'
 import {
   Sheet,
   SheetContent,
@@ -55,6 +67,11 @@ const statusConfig: Record<StatusPedido, {
     label: 'Entregue', 
     color: 'bg-success text-success-foreground',
     icon: Truck
+  },
+  CANCELADO: {
+    label: 'Cancelado',
+    color: 'bg-destructive text-destructive-foreground',
+    icon: X
   }
 }
 
@@ -68,6 +85,9 @@ export function PedidosDashboard() {
   const [activeTab, setActiveTab] = useState<string>('todos')
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [deletingPedidoId, setDeletingPedidoId] = useState<string | null>(null)
 
   const { data: pedidos, isLoading } = useSWR<Pedido[]>(
     '/api/admin/pedidos',
@@ -80,6 +100,7 @@ export function PedidosDashboard() {
     if (activeTab === 'novos') return p.status === 'FEITO'
     if (activeTab === 'preparando') return p.status === 'ACEITO' || p.status === 'PREPARACAO'
     if (activeTab === 'entregues') return p.status === 'ENTREGUE'
+    if (activeTab === 'cancelados') return p.status === 'CANCELADO'
     return true
   }) || []
 
@@ -87,6 +108,7 @@ export function PedidosDashboard() {
     novos: pedidos?.filter(p => p.status === 'FEITO').length || 0,
     preparando: pedidos?.filter(p => p.status === 'ACEITO' || p.status === 'PREPARACAO').length || 0,
     entregues: pedidos?.filter(p => p.status === 'ENTREGUE').length || 0,
+    cancelados: pedidos?.filter(p => p.status === 'CANCELADO').length || 0,
     todos: pedidos?.length || 0
   }
 
@@ -111,6 +133,44 @@ export function PedidosDashboard() {
     mutate('/api/admin/pedidos')
   }
 
+  const handleCancelPedido = async (pedidoId: string) => {
+    if (!cancelReason.trim()) return
+    setIsCancelling(true)
+    try {
+      await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELADO', motivoCancelamento: cancelReason })
+      })
+      mutate('/api/admin/pedidos')
+      if (selectedPedido?.id === pedidoId) {
+        setSelectedPedido(prev => prev ? { 
+          ...prev, 
+          status: 'CANCELADO', 
+          motivoCancelamento: cancelReason.trim() 
+        } : null)
+      }
+      setCancelReason('')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  const handleDeletePedido = async (pedidoId: string) => {
+    setDeletingPedidoId(pedidoId)
+    try {
+      await fetch(`/api/admin/pedidos/${pedidoId}`, {
+        method: 'DELETE'
+      })
+      mutate('/api/admin/pedidos')
+      if (selectedPedido?.id === pedidoId) {
+        setSelectedPedido(null)
+      }
+    } finally {
+      setDeletingPedidoId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -122,7 +182,7 @@ export function PedidosDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="novos" className="relative">
             Novos
             {contadores.novos > 0 && (
@@ -140,6 +200,14 @@ export function PedidosDashboard() {
             )}
           </TabsTrigger>
           <TabsTrigger value="entregues">Entregues</TabsTrigger>
+          <TabsTrigger value="cancelados">
+            Cancelados
+            {contadores.cancelados > 0 && (
+              <Badge className="ml-2 bg-destructive text-destructive-foreground h-5 w-5 p-0 flex items-center justify-center text-xs">
+                {contadores.cancelados}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="todos">Todos</TabsTrigger>
         </TabsList>
 
@@ -167,7 +235,10 @@ export function PedidosDashboard() {
                   <Card 
                     key={pedido.id} 
                     className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => setSelectedPedido(pedido)}
+                    onClick={() => {
+                      setSelectedPedido(pedido)
+                      setCancelReason('')
+                    }}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between gap-4">
@@ -205,7 +276,10 @@ export function PedidosDashboard() {
       </Tabs>
 
       {/* Detail Sheet */}
-      <Sheet open={!!selectedPedido} onOpenChange={() => setSelectedPedido(null)}>
+      <Sheet open={!!selectedPedido} onOpenChange={() => {
+        setSelectedPedido(null)
+        setCancelReason('')
+      }}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {selectedPedido && (
             <>
@@ -236,6 +310,37 @@ export function PedidosDashboard() {
                   </Button>
                 )}
 
+                {/* Cancelar pedido */}
+                {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <X className="h-4 w-4" />
+                        Cancelamento
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Textarea
+                        placeholder="Informe o motivo do cancelamento"
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        rows={3}
+                      />
+                      <Button
+                        variant="destructive"
+                        className="w-full"
+                        onClick={() => handleCancelPedido(selectedPedido.id)}
+                        disabled={isCancelling || !cancelReason.trim()}
+                      >
+                        {isCancelling ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : null}
+                        Cancelar Pedido
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Itens */}
                 <Card>
                   <CardHeader className="pb-3">
@@ -260,6 +365,18 @@ export function PedidosDashboard() {
                       <div className="flex justify-between text-sm">
                         <span>Frete</span>
                         <span>{formatarMoeda(selectedPedido.frete)}</span>
+                      </div>
+                    )}
+                    {selectedPedido.descontoValor && selectedPedido.descontoValor > 0 && (
+                      <div className="flex justify-between text-sm text-success">
+                        <span>Desconto</span>
+                        <span>-{formatarMoeda(selectedPedido.descontoValor)}</span>
+                      </div>
+                    )}
+                    {selectedPedido.cupomCodigoSnapshot && (
+                      <div className="flex justify-between text-sm">
+                        <span>Cupom</span>
+                        <span>{selectedPedido.cupomCodigoSnapshot}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-bold pt-2">
@@ -312,8 +429,55 @@ export function PedidosDashboard() {
                         ? selectedPedido.enderecoEntrega
                         : selectedPedido.enderecoRetirada}
                     </p>
+                    {selectedPedido.tipoEntrega === 'ENTREGA' && selectedPedido.distanciaKm && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        DistÃ¢ncia: {selectedPedido.distanciaKm.toFixed(2)} km
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
+
+                {/* Motivo e exclusao */}
+                {selectedPedido.status === 'CANCELADO' && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <X className="h-4 w-4" />
+                        Pedido Cancelado
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Motivo: {selectedPedido.motivoCancelamento || 'Nao informado'}
+                      </p>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" className="w-full">
+                            Excluir Pedido
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir pedido cancelado?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta acao remove o pedido definitivamente. Nao e possivel desfazer.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Voltar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeletePedido(selectedPedido.id)}
+                              disabled={deletingPedidoId === selectedPedido.id}
+                            >
+                              {deletingPedidoId === selectedPedido.id ? 'Excluindo...' : 'Excluir'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </>
           )}

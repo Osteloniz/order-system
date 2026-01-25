@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { produtos } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
+
+export const runtime = 'nodejs'
 
 async function verificarAuth() {
   const cookieStore = await cookies()
@@ -14,26 +16,29 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!await verificarAuth()) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   try {
     const { id } = await params
     const body = await request.json()
 
-    const produtoIndex = produtos.findIndex(p => p.id === id)
-    if (produtoIndex === -1) {
+    const produto = await prisma.produto.findUnique({ where: { id } })
+    if (!produto) {
       return NextResponse.json(
-        { error: 'Produto não encontrado' },
+        { error: 'Produto nao encontrado' },
         { status: 404 }
       )
     }
 
-    produtos[produtoIndex].ativo = body.ativo
+    const produtoAtualizado = await prisma.produto.update({
+      where: { id },
+      data: { ativo: body.ativo }
+    })
 
     console.log(`[v0] Produto ${id} ativo: ${body.ativo}`)
 
-    return NextResponse.json(produtos[produtoIndex])
+    return NextResponse.json(produtoAtualizado)
   } catch (error) {
     console.error('[v0] Erro ao atualizar status do produto:', error)
     return NextResponse.json(
@@ -42,3 +47,4 @@ export async function PATCH(
     )
   }
 }
+

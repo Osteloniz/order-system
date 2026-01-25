@@ -15,6 +15,8 @@ com dados mockados via rotas de API internas.
 - Tailwind CSS
 - SWR
 - Radix UI
+- Prisma (planejado)
+- Postgres (Neon)
 
 ## Como rodar
 1) Instale as dependencias:
@@ -43,6 +45,7 @@ http://localhost:3000
 - `build`: build de producao
 - `start`: inicia o build
 - `lint`: lint do projeto
+- `prisma db seed`: popula dados iniciais no banco
 
 ## Estrutura (principais pastas)
 - `app/`: rotas e paginas
@@ -50,6 +53,11 @@ http://localhost:3000
 - `contexts/`: contextos de estado
 - `lib/`: utilitarios e dados mockados
 - `public/`: assets e imagens
+- `docs/`: PRD, API e modelo de dados
+- `prisma/`: schema Prisma
+- `scripts/`: scripts auxiliares (deploy/migrations)
 
 ## Observacoes
 - Os dados sao mockados nas rotas de `app/api/`.
+- Para configurar Neon + Prisma, veja `docs/NEON.md`.
+- Checklist de deploy: `docs/DEPLOY.md`.

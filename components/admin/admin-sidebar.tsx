@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Package, Tags, Settings, LogOut, Store, Menu, X } from 'lucide-react'
+import { ClipboardList, Package, Tags, Settings, LogOut, Store, Menu, X, BadgePercent } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
@@ -12,6 +12,7 @@ const menuItems = [
   { href: '/admin', label: 'Pedidos', icon: ClipboardList },
   { href: '/admin/produtos', label: 'Produtos', icon: Package },
   { href: '/admin/categorias', label: 'Categorias', icon: Tags },
+  { href: '/admin/cupons', label: 'Cupons', icon: BadgePercent },
   { href: '/admin/config', label: 'Configurações', icon: Settings },
 ]
 
