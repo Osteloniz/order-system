@@ -219,8 +219,10 @@ export function CuponsPage() {
 
             <div className="flex gap-2">
               <Button type="submit" disabled={isSaving}>
-                <Save className="h-4 w-4 mr-2" />
-                {editingId ? 'Salvar alteraÃ§Ãµes' : 'Criar cupom'}
+                <Save className="h-4 w-4 mr-0 md:mr-2" />
+                <span className="hidden md:inline">
+                  {editingId ? 'Salvar alteraÃ§Ãµes' : 'Criar cupom'}
+                </span>
               </Button>
               {editingId && (
                 <Button type="button" variant="outline" onClick={resetForm}>

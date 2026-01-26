@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
 import { 
-  Clock, Check, ChefHat, Truck, RefreshCw, X,
+  Clock, Check, ChefHat, Truck, RefreshCw, X, Trash2,
   MapPin, Phone, CreditCard, User, Package, ChevronRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -176,15 +176,18 @@ export function PedidosDashboard() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Pedidos</h1>
         <Button variant="outline" size="sm" onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Atualizar
+          <RefreshCw className="h-4 w-4 mr-0 md:mr-2" />
+          <span className="hidden md:inline">Atualizar</span>
         </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="novos" className="relative">
-            Novos
+            <span className="md:hidden inline-flex items-center justify-center">
+              <Clock className="h-4 w-4" />
+            </span>
+            <span className="hidden md:inline">Novos</span>
             {contadores.novos > 0 && (
               <Badge className="ml-2 bg-warning text-warning-foreground h-5 w-5 p-0 flex items-center justify-center text-xs">
                 {contadores.novos}
@@ -192,23 +195,39 @@ export function PedidosDashboard() {
             )}
           </TabsTrigger>
           <TabsTrigger value="preparando">
-            Em Preparo
+            <span className="md:hidden inline-flex items-center justify-center">
+              <ChefHat className="h-4 w-4" />
+            </span>
+            <span className="hidden md:inline">Em Preparo</span>
             {contadores.preparando > 0 && (
               <Badge className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
                 {contadores.preparando}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="entregues">Entregues</TabsTrigger>
+          <TabsTrigger value="entregues">
+            <span className="md:hidden inline-flex items-center justify-center">
+              <Truck className="h-4 w-4" />
+            </span>
+            <span className="hidden md:inline">Entregues</span>
+          </TabsTrigger>
           <TabsTrigger value="cancelados">
-            Cancelados
+            <span className="md:hidden inline-flex items-center justify-center">
+              <X className="h-4 w-4" />
+            </span>
+            <span className="hidden md:inline">Cancelados</span>
             {contadores.cancelados > 0 && (
               <Badge className="ml-2 bg-destructive text-destructive-foreground h-5 w-5 p-0 flex items-center justify-center text-xs">
                 {contadores.cancelados}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="todos">Todos</TabsTrigger>
+          <TabsTrigger value="todos">
+            <span className="md:hidden inline-flex items-center justify-center">
+              <Package className="h-4 w-4" />
+            </span>
+            <span className="hidden md:inline">Todos</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
@@ -465,12 +484,22 @@ export function PedidosDashboard() {
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Voltar</AlertDialogCancel>
+                            <AlertDialogCancel>
+                              <X className="h-4 w-4 mr-0 md:mr-2" />
+                              <span className="hidden md:inline">Voltar</span>
+                            </AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleDeletePedido(selectedPedido.id)}
                               disabled={deletingPedidoId === selectedPedido.id}
                             >
-                              {deletingPedidoId === selectedPedido.id ? 'Excluindo...' : 'Excluir'}
+                              {deletingPedidoId === selectedPedido.id ? (
+                                <RefreshCw className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
+                              )}
+                              <span className="hidden md:inline">
+                                {deletingPedidoId === selectedPedido.id ? 'Excluindo...' : 'Excluir'}
+                              </span>
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

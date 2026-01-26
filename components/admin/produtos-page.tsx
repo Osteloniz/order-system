@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Plus, Pencil, Trash2, Package, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Loader2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -172,8 +172,8 @@ export function ProdutosPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Produtos</h1>
         <Button onClick={openNewDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Produto
+          <Plus className="h-4 w-4 mr-0 md:mr-2" />
+          <span className="hidden md:inline">Novo Produto</span>
         </Button>
       </div>
 
@@ -189,8 +189,8 @@ export function ProdutosPage() {
             <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Nenhum produto cadastrado</p>
             <Button variant="outline" className="mt-4 bg-transparent" onClick={openNewDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar primeiro produto
+              <Plus className="h-4 w-4 mr-0 md:mr-2" />
+              <span className="hidden md:inline">Adicionar primeiro produto</span>
             </Button>
           </CardContent>
         </Card>
@@ -331,11 +331,16 @@ export function ProdutosPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
+                <X className="h-4 w-4 mr-0 md:mr-2" />
+                <span className="hidden md:inline">Cancelar</span>
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingProduto ? 'Salvar' : 'Criar'}
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-0 md:mr-2" />
+                )}
+                <span className="hidden md:inline">{editingProduto ? 'Salvar' : 'Criar'}</span>
               </Button>
             </DialogFooter>
           </form>
@@ -353,13 +358,20 @@ export function ProdutosPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>
+              <X className="h-4 w-4 mr-0 md:mr-2" />
+              <span className="hidden md:inline">Cancelar</span>
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Excluir
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
+              )}
+              <span className="hidden md:inline">Excluir</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

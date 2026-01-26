@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Plus, Pencil, Trash2, Tags, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Tags, Loader2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -107,8 +107,8 @@ export function CategoriasPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Categorias</h1>
         <Button onClick={openNewDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Categoria
+          <Plus className="h-4 w-4 mr-0 md:mr-2" />
+          <span className="hidden md:inline">Nova Categoria</span>
         </Button>
       </div>
 
@@ -124,8 +124,8 @@ export function CategoriasPage() {
             <Tags className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Nenhuma categoria cadastrada</p>
             <Button variant="outline" className="mt-4 bg-transparent" onClick={openNewDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar primeira categoria
+              <Plus className="h-4 w-4 mr-0 md:mr-2" />
+              <span className="hidden md:inline">Adicionar primeira categoria</span>
             </Button>
           </CardContent>
         </Card>
@@ -189,11 +189,16 @@ export function CategoriasPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
+                <X className="h-4 w-4 mr-0 md:mr-2" />
+                <span className="hidden md:inline">Cancelar</span>
               </Button>
               <Button type="submit" disabled={isSubmitting || !nome.trim()}>
-                {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingCategoria ? 'Salvar' : 'Criar'}
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-0 md:mr-2" />
+                )}
+                <span className="hidden md:inline">{editingCategoria ? 'Salvar' : 'Criar'}</span>
               </Button>
             </DialogFooter>
           </form>
@@ -211,13 +216,20 @@ export function CategoriasPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>
+              <X className="h-4 w-4 mr-0 md:mr-2" />
+              <span className="hidden md:inline">Cancelar</span>
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Excluir
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
+              )}
+              <span className="hidden md:inline">Excluir</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

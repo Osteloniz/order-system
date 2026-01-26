@@ -186,14 +186,14 @@ export function ConfigPage() {
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
+                  <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+                  <span className="hidden md:inline">Salvando...</span>
                 </>
               ) : saved ? (
-                'Salvo!'
+                <span className="hidden md:inline">Salvo!</span>
               ) : (
                 <>
-                  <Save className="h-4 w-4 mr-2" />
+                  <Save className="h-4 w-4 mr-0 md:mr-2" />
                   Salvar Configurações
                 </>
               )}
