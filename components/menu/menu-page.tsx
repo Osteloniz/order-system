@@ -9,6 +9,7 @@ import { CartButton } from './cart-button'
 import { CartSheet } from './cart-sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import type { Produto, Categoria } from '@/lib/types'
 
 interface MenuData {
@@ -82,15 +83,18 @@ export function MenuPage() {
                     <span>{data?.enderecoRetirada}</span>
                   </div>
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleSwitchTenant}
-                  disabled={isSwitching}
-                >
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
-                  Trocar loja
-                </Button>
+                <div className="flex items-center gap-2">
+                  <ThemeToggle />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSwitchTenant}
+                    disabled={isSwitching}
+                  >
+                    <ArrowLeftRight className="h-4 w-4 mr-2" />
+                    Trocar loja
+                  </Button>
+                </div>
               </div>
             </>
           )}

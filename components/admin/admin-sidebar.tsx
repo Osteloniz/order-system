@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
 import { useState } from 'react'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 const menuItems = [
   { href: '/admin', label: 'Pedidos', icon: ClipboardList },
@@ -39,9 +40,12 @@ export function AdminSidebar() {
           <Store className="h-5 w-5" />
           <span className="font-bold">{tenantNome}</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+        </div>
       </div>
 
       {/* Mobile Overlay */}
@@ -109,6 +113,10 @@ export function AdminSidebar() {
         </nav>
 
         <div className="p-4 border-t border-border">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-muted-foreground">Tema</span>
+            <ThemeToggle />
+          </div>
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"

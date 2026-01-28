@@ -1,6 +1,6 @@
 # Neon + Prisma (setup inicial)
 
-Ultima atualizacao: 2026-01-25
+Ultima atualizacao: 2026-01-28
 
 ## 1) Criar projeto no Neon
 1. Crie um projeto no Neon (Postgres).
@@ -14,10 +14,15 @@ Ultima atualizacao: 2026-01-25
 2. Preencha:
    - `DATABASE_URL` com a string do pooler.
    - `DIRECT_URL` com a string direta (sem pooler).
+   - `NEXTAUTH_SECRET` com uma chave forte (necessario para o login admin).
+   - `NEXTAUTH_URL` com a URL do projeto (local ou Vercel).
+   - `SEED_ADMIN_PASSWORD` (opcional) para definir a senha inicial do admin.
 
 ## 3) Instalar dependencias
 ```bash
 npm install
+# ou
+pnpm install
 ```
 
 ## 4) Gerar Prisma Client
@@ -35,12 +40,12 @@ Se voce adicionar campos/enum novos (ex: CANCELADO), rode uma nova migration:
 npx prisma migrate dev --name add-cancelamento
 ```
 
-Para esta etapa (frete por distancia + cupons), rode:
+## 6) Aplicar migrations em producao
 ```bash
-npx prisma migrate dev --name add-frete-cupons
+npx prisma migrate deploy
 ```
 
-## 6) Testar conexao
+## 7) Testar conexao
 1. Rode o projeto:
 ```bash
 npm run dev
@@ -51,8 +56,8 @@ npm run dev
 ```
 Se retornar `{ "ok": true }`, a conexao esta ativa.
 
-## 7) Configuracao inicial (seed)
-Opcional: inserir 1 registro em `Configuracao` e algumas categorias/produtos.
+## 8) Configuracao inicial (seed)
+Opcional: inserir tenants, configuracoes e dados iniciais.
 Para rodar o seed:
 ```bash
 npx prisma db seed

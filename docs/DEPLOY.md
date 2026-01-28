@@ -14,24 +14,28 @@ Configurar no projeto:
 - `NEXTAUTH_URL` (URL do projeto na Vercel)
 - `SEED_ADMIN_PASSWORD` (opcional, usado no seed)
 
-## 3) Migrations em producao
+## 3) Build command
+No projeto, o build ja inclui Prisma:
+- `pnpm run vercel-build` (prisma generate + next build)
+
+## 4) Migrations em producao
 Em producao use:
 ```bash
 npx prisma migrate deploy
 ```
 
-## 4) Seed (opcional)
+## 5) Seed (opcional)
 Se precisar criar tenants e admin em producao:
 ```bash
 SEED_ADMIN_PASSWORD=uma_senha_forte npx prisma db seed
 ```
 
-## 5) Build/Deploy
+## 6) Build/Deploy
 - Fazer push no Git.
 - Vercel vai buildar automaticamente.
 
-## 6) Validacoes
+## 7) Validacoes
 - Acessar `/api/health/db` e verificar `{ "ok": true }`.
-- Testar fluxo de pedido (menu -> checkout -> confirmacao).
-- Testar admin (login, cupons, config).
+- Testar fluxo cliente (selecionar loja -> cardapio -> checkout -> confirmacao).
+- Testar fluxo admin (login -> pedidos/produtos/categorias/cupons/config).
 - Validar que empresas nao veem dados uma da outra.
