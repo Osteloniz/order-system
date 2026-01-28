@@ -1,22 +1,55 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, Loader2, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+type TenantOption = { id: string; nome: string; slug: string }
 
 export function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth()
+  const [tenant, setTenant] = useState('')
+  const [username, setUsername] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [tenants, setTenants] = useState<TenantOption[]>([])
+
+  useEffect(() => {
+    async function loadTenants() {
+      try {
+        const res = await fetch('/api/tenants')
+        const data = await res.json()
+        setTenants(Array.isArray(data) ? data : [])
+      } catch {
+        setTenants([])
+      }
+    }
+    loadTenants()
+  }, [])
+
+  useEffect(() => {
+    const tenantFromQuery = searchParams.get('tenant')?.trim()
+    if (tenantFromQuery && !tenant) {
+      setTenant(tenantFromQuery)
+    }
+  }, [searchParams, tenant])
 
   // Redireciona se já autenticado
   if (!authLoading && isAuthenticated) {
@@ -29,14 +62,14 @@ export function LoginPage() {
     setError('')
     setIsSubmitting(true)
 
-    const result = await login(senha)
-    
+    const result = await login({ tenant, username, password: senha })
+
     if (result.success) {
       router.push('/admin')
     } else {
       setError(result.error || 'Senha incorreta')
     }
-    
+
     setIsSubmitting(false)
   }
 
@@ -63,6 +96,33 @@ export function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
+              <Label>Empresa</Label>
+              <Select value={tenant} onValueChange={setTenant}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map(t => (
+                    <SelectItem key={t.id} value={t.slug}>
+                      {t.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Usuário</Label>
+              <Input
+                id="username"
+                placeholder="Digite seu usuário"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="senha">Senha</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -73,7 +133,6 @@ export function LoginPage() {
                   value={senha}
                   onChange={e => setSenha(e.target.value)}
                   className="pl-9"
-                  autoFocus
                 />
               </div>
             </div>
@@ -84,10 +143,10 @@ export function LoginPage() {
               </div>
             )}
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full"
-              disabled={isSubmitting || !senha}
+              disabled={isSubmitting || !tenant || !username || !senha}
             >
               {isSubmitting ? (
                 <>
@@ -99,10 +158,6 @@ export function LoginPage() {
               )}
             </Button>
           </form>
-
-          <p className="text-xs text-center text-muted-foreground mt-6">
-            {/* Senha padrão da POC: admin123 */}
-          </p>
         </CardContent>
       </Card>
     </div>

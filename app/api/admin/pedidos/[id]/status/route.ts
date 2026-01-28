@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
-
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
 
 const statusValidos: StatusPedido[] = ['FEITO', 'ACEITO', 'PREPARACAO', 'ENTREGUE', 'CANCELADO']
 
@@ -18,7 +12,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
@@ -37,7 +32,7 @@ export async function PATCH(
       )
     }
 
-    const pedidoAtual = await prisma.pedido.findUnique({ where: { id } })
+    const pedidoAtual = await prisma.pedido.findFirst({ where: { id, tenantId: admin.tenantId } })
     if (!pedidoAtual) {
       return NextResponse.json(
         { error: 'Pedido nao encontrado' },
@@ -98,4 +93,3 @@ export async function PATCH(
     )
   }
 }
-

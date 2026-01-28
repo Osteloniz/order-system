@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import useSWR from 'swr'
 import Link from 'next/link'
@@ -162,7 +162,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
             </p>
             {pedido.tipoEntrega === 'ENTREGA' && pedido.distanciaKm && (
               <p className="text-xs text-muted-foreground mt-2">
-                DistÃ¢ncia: {pedido.distanciaKm.toFixed(2)} km
+                Distância: {pedido.distanciaKm.toFixed(2)} km
               </p>
             )}
           </CardContent>
@@ -202,3 +202,11 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
     </div>
   )
 }
+
+
+
+
+
+
+
+

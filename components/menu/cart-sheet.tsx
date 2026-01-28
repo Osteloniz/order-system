@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,9 +16,10 @@ interface CartSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCheckout: () => void
+  canCheckout?: boolean
 }
 
-export function CartSheet({ open, onOpenChange, onCheckout }: CartSheetProps) {
+export function CartSheet({ open, onOpenChange, onCheckout, canCheckout = true }: CartSheetProps) {
   const { itens, subtotal, atualizarQuantidade, removerItem } = useCart()
 
   return (
@@ -99,9 +100,15 @@ export function CartSheet({ open, onOpenChange, onCheckout }: CartSheetProps) {
                   <span>Subtotal</span>
                   <span className="text-primary">{formatarMoeda(subtotal)}</span>
                 </div>
+                {!canCheckout && (
+                  <p className="text-sm text-destructive">
+                    Estamos fechados no momento. Volte em outro horário.
+                  </p>
+                )}
                 <Button
                   className="w-full h-12 text-base"
                   onClick={onCheckout}
+                  disabled={!canCheckout}
                 >
                   Finalizar Pedido
                 </Button>

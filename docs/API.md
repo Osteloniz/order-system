@@ -1,32 +1,35 @@
-# API - Order System (rotas atuais)
+﻿# API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-01-25
+Ultima atualizacao: 2026-01-27
 
-Observacao: rotas usam dados mockados em memoria.
+Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
 ## Publico (cliente)
+- GET `/api/tenants`
+  - Lista empresas disponiveis.
+- POST `/api/tenant/select`
+  - Body: `{ slug }`
+  - Define o cookie `tenant_slug`.
 - GET `/api/menu`
-  - Retorna estabelecimento, endereco de retirada, parametros de frete (base/raio/km) e categorias com produtos ativos.
+  - Retorna estabelecimento, endereco de retirada, parametros de frete e categorias.
+  - Requer `tenant_slug`.
 - POST `/api/pedidos`
   - Cria pedido.
   - Body: `CriarPedidoPayload` (ver `lib/types`).
   - Observacao: `distanciaKm` obrigatoria quando tipoEntrega = ENTREGA.
   - Observacao: `cupomCodigo` opcional (apenas 1 por pedido).
+  - Observacao: retorna 403 se o estabelecimento estiver fechado.
 - GET `/api/cupons/validar?codigo=...&subtotal=...`
   - Valida cupom e retorna `descontoValor`.
 - GET `/api/pedidos?telefone=...`
-  - Lista pedidos do cliente por telefone.
+  - Lista pedidos do cliente por telefone (tenant atual).
 - GET `/api/pedidos/:id`
-  - Retorna detalhe de um pedido.
+  - Retorna detalhe de um pedido (tenant atual).
 
-## Admin (cookie admin_session)
-- POST `/api/admin/login`
-  - Body: `{ senha: string }`
-  - Cria cookie `admin_session`.
-- POST `/api/admin/logout`
-  - Remove cookie.
-- GET `/api/admin/session`
-  - Verifica autenticacao.
+## Admin (NextAuth - cookie de sessao)
+Autenticacao:
+- Login via `/admin/login` (usa `/api/auth` internamente).
+- As rotas antigas `/api/admin/login`, `/api/admin/logout`, `/api/admin/session` estao desativadas (410).
 
 Pedidos:
 - GET `/api/admin/pedidos?status=FEITO|ACEITO|PREPARACAO|ENTREGUE|CANCELADO`
@@ -60,6 +63,11 @@ Configuracoes:
 - GET `/api/admin/config`
 - PUT `/api/admin/config`
   - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento? }`
+
+Tenant:
+- GET `/api/admin/tenant`
+- PUT `/api/admin/tenant`
+  - Body: `{ isOpen: boolean }`
 
 Cupons:
 - GET `/api/admin/cupons`

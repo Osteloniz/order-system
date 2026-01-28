@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
 
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
-
 // GET /api/admin/categorias - Lista todas as categorias
 export async function GET() {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const categoriasOrdenadas = await prisma.categoria.findMany({
+    where: { tenantId: admin.tenantId },
     orderBy: { ordem: 'asc' }
   })
   return NextResponse.json(categoriasOrdenadas)
@@ -24,18 +20,20 @@ export async function GET() {
 
 // POST /api/admin/categorias - Cria nova categoria
 export async function POST(request: NextRequest) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   try {
     const body = await request.json()
 
-    const ordem = await prisma.categoria.count() + 1
+    const ordem = await prisma.categoria.count({ where: { tenantId: admin.tenantId } }) + 1
     const novaCategoria = await prisma.categoria.create({
       data: {
         nome: body.nome,
-        ordem
+        ordem,
+        tenantId: admin.tenantId
       }
     })
 
@@ -50,4 +48,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

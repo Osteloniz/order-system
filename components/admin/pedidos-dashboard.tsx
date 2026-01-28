@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
@@ -450,7 +450,7 @@ export function PedidosDashboard() {
                     </p>
                     {selectedPedido.tipoEntrega === 'ENTREGA' && selectedPedido.distanciaKm && (
                       <p className="text-xs text-muted-foreground mt-2">
-                        DistÃ¢ncia: {selectedPedido.distanciaKm.toFixed(2)} km
+                        Distância: {selectedPedido.distanciaKm.toFixed(2)} km
                       </p>
                     )}
                   </CardContent>
@@ -515,3 +515,5 @@ export function PedidosDashboard() {
     </div>
   )
 }
+
+

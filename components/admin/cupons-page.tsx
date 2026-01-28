@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import useSWR, { mutate } from 'swr'
@@ -221,7 +221,7 @@ export function CuponsPage() {
               <Button type="submit" disabled={isSaving}>
                 <Save className="h-4 w-4 mr-0 md:mr-2" />
                 <span className="hidden md:inline">
-                  {editingId ? 'Salvar alteraÃ§Ãµes' : 'Criar cupom'}
+                  {editingId ? 'Salvar alterações' : 'Criar cupom'}
                 </span>
               </Button>
               {editingId && (
@@ -278,3 +278,5 @@ export function CuponsPage() {
     </div>
   )
 }
+
+

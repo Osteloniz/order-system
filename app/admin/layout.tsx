@@ -1,5 +1,5 @@
-import React from "react"
-import { AdminAuthProvider } from '@/contexts/admin-auth-context'
+import React from 'react'
+import { AdminProviders } from '@/components/admin/admin-providers'
 
 export default function AdminRootLayout({
   children,
@@ -7,8 +7,6 @@ export default function AdminRootLayout({
   children: React.ReactNode
 }) {
   return (
-    <AdminAuthProvider>
-      {children}
-    </AdminAuthProvider>
+    <AdminProviders>{children}</AdminProviders>
   )
 }

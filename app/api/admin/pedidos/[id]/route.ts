@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
-
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
 
 // DELETE /api/admin/pedidos/:id - Remove pedido (apenas se CANCELADO)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const { id } = await params
-  const pedido = await prisma.pedido.findUnique({
-    where: { id },
+  const pedido = await prisma.pedido.findFirst({
+    where: { id, tenantId: admin.tenantId },
     select: { status: true }
   })
 
@@ -31,6 +26,7 @@ export async function DELETE(
       { status: 404 }
     )
   }
+
 
   if (pedido.status !== 'CANCELADO') {
     return NextResponse.json(
@@ -48,4 +44,3 @@ export async function DELETE(
 
   return NextResponse.json({ success: true })
 }
-

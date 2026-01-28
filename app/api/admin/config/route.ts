@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
 
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
-
 // GET /api/admin/config - Retorna configuracoes
 export async function GET() {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
-  let configuracao = await prisma.configuracao.findFirst()
+  let configuracao = await prisma.configuracao.findFirst({
+    where: { tenantId: admin.tenantId }
+  })
   if (!configuracao) {
     configuracao = await prisma.configuracao.create({
       data: {
@@ -26,7 +23,8 @@ export async function GET() {
         freteRaioKm: 3,
         freteKmExcedente: 100,
         estabelecimentoLat: 0,
-        estabelecimentoLng: 0
+        estabelecimentoLng: 0,
+        tenantId: admin.tenantId
       }
     })
   }
@@ -36,13 +34,16 @@ export async function GET() {
 
 // PUT /api/admin/config - Atualiza configuracoes
 export async function PUT(request: NextRequest) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   try {
     const body = await request.json()
-    let configuracao = await prisma.configuracao.findFirst()
+    let configuracao = await prisma.configuracao.findFirst({
+      where: { tenantId: admin.tenantId }
+    })
 
     if (!configuracao) {
       configuracao = await prisma.configuracao.create({
@@ -53,7 +54,8 @@ export async function PUT(request: NextRequest) {
           freteRaioKm: body.freteRaioKm !== undefined ? Number(body.freteRaioKm) : 3,
           freteKmExcedente: body.freteKmExcedente !== undefined ? Math.round(body.freteKmExcedente) : 100,
           estabelecimentoLat: body.estabelecimentoLat !== undefined ? Number(body.estabelecimentoLat) : 0,
-          estabelecimentoLng: body.estabelecimentoLng !== undefined ? Number(body.estabelecimentoLng) : 0
+          estabelecimentoLng: body.estabelecimentoLng !== undefined ? Number(body.estabelecimentoLng) : 0,
+          tenantId: admin.tenantId
         }
       })
       return NextResponse.json(configuracao)

@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
-
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
 
 // PATCH /api/admin/produtos/:id/ativo - Toggle ativo/inativo
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
@@ -23,7 +18,7 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
 
-    const produto = await prisma.produto.findUnique({ where: { id } })
+    const produto = await prisma.produto.findFirst({ where: { id, tenantId: admin.tenantId } })
     if (!produto) {
       return NextResponse.json(
         { error: 'Produto nao encontrado' },
@@ -47,4 +42,3 @@ export async function PATCH(
     )
   }
 }
-

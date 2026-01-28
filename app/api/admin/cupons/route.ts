@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
 
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
-
 // GET /api/admin/cupons - Lista cupons
 export async function GET() {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const cupons = await prisma.cupom.findMany({
+    where: { tenantId: admin.tenantId },
     orderBy: { criadoEm: 'desc' }
   })
   return NextResponse.json(cupons)
@@ -24,7 +20,8 @@ export async function GET() {
 
 // POST /api/admin/cupons - Cria cupom
 export async function POST(request: NextRequest) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
@@ -53,6 +50,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Percentual nao pode ser maior que 100' }, { status: 400 })
     }
 
+    const existing = await prisma.cupom.findFirst({
+      where: { codigo, tenantId: admin.tenantId }
+    })
+    if (existing) {
+      return NextResponse.json({ error: 'Codigo de cupom ja existe' }, { status: 400 })
+    }
+
     const novoCupom = await prisma.cupom.create({
       data: {
         codigo,
@@ -60,7 +64,8 @@ export async function POST(request: NextRequest) {
         valor: Math.round(valor),
         maxUsos,
         expiraEm,
-        ativo: true
+        ativo: true,
+        tenantId: admin.tenantId
       }
     })
 
@@ -70,4 +75,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao criar cupom' }, { status: 500 })
   }
 }
-

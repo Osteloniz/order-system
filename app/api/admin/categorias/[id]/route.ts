@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
-
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
 
 // PUT /api/admin/categorias/:id - Atualiza categoria
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
@@ -23,7 +18,7 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
 
-    const categoria = await prisma.categoria.findUnique({ where: { id } })
+    const categoria = await prisma.categoria.findFirst({ where: { id, tenantId: admin.tenantId } })
     if (!categoria) {
       return NextResponse.json(
         { error: 'Categoria nao encontrada' },
@@ -56,12 +51,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const { id } = await params
-  const produtosCount = await prisma.produto.count({ where: { categoriaId: id } })
+  const produtosCount = await prisma.produto.count({ where: { categoriaId: id, tenantId: admin.tenantId } })
   if (produtosCount > 0) {
     return NextResponse.json(
       { error: 'Categoria possui produtos e nao pode ser removida' },
@@ -69,7 +65,7 @@ export async function DELETE(
     )
   }
 
-  const categoria = await prisma.categoria.findUnique({ where: { id } })
+  const categoria = await prisma.categoria.findFirst({ where: { id, tenantId: admin.tenantId } })
   if (!categoria) {
     return NextResponse.json(
       { error: 'Categoria nao encontrada' },
@@ -83,4 +79,3 @@ export async function DELETE(
 
   return NextResponse.json({ success: true })
 }
-

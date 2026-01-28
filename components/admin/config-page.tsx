@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 
@@ -10,13 +10,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import type { Configuracao } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export function ConfigPage() {
   const { data: config, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher)
-  
+  const { data: tenantData } = useSWR('/api/admin/tenant', fetcher)
+
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState('')
   const [enderecoRetirada, setEnderecoRetirada] = useState('')
   const [freteBase, setFreteBase] = useState('')
@@ -24,6 +26,7 @@ export function ConfigPage() {
   const [freteKmExcedente, setFreteKmExcedente] = useState('')
   const [estabelecimentoLat, setEstabelecimentoLat] = useState('')
   const [estabelecimentoLng, setEstabelecimentoLng] = useState('')
+  const [isOpen, setIsOpen] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -38,6 +41,12 @@ export function ConfigPage() {
       setEstabelecimentoLng(String(config.estabelecimentoLng))
     }
   }, [config])
+
+  useEffect(() => {
+    if (tenantData && typeof tenantData.isOpen === 'boolean') {
+      setIsOpen(tenantData.isOpen)
+    }
+  }, [tenantData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,7 +80,13 @@ export function ConfigPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
+      await fetch('/api/admin/tenant', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isOpen })
+      })
       mutate('/api/admin/config')
+      mutate('/api/admin/tenant')
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } finally {
@@ -125,7 +140,7 @@ export function ConfigPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="freteBase">Frete base atÃ© o raio (R$)</Label>
+              <Label htmlFor="freteBase">Frete base até o raio (R$)</Label>
               <Input
                 id="freteBase"
                 value={freteBase}
@@ -179,8 +194,24 @@ export function ConfigPage() {
                 placeholder="-46.633308"
               />
               <p className="text-xs text-muted-foreground">
-                NecessÃ¡rio para calcular frete por geolocalizaÃ§Ã£o
+                Necessário para calcular frete por geolocalização
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <Label htmlFor="aberto">Aberto para pedidos</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Quando fechado, o cliente não consegue finalizar pedidos.
+                  </p>
+                </div>
+                <Switch
+                  id="aberto"
+                  checked={isOpen}
+                  onCheckedChange={setIsOpen}
+                />
+              </div>
             </div>
 
             <Button type="submit" disabled={isSubmitting}>

@@ -1,15 +1,9 @@
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+﻿import { NextResponse } from 'next/server'
 
+// Rota antiga de sessão desativada. Use NextAuth (/api/auth).
 export async function GET() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-
-  console.log('[v0] Session check - cookie value:', session?.value)
-
-  if (session?.value === 'authenticated') {
-    return NextResponse.json({ authenticated: true })
-  }
-
-  return NextResponse.json({ authenticated: false })
+  return NextResponse.json(
+    { error: 'Rota desativada. Use /admin/login.' },
+    { status: 410 }
+  )
 }

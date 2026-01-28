@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ClipboardList, Package, Tags, Settings, LogOut, Store, Menu, X, BadgePercent } from 'lucide-react'
+import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
@@ -16,10 +17,14 @@ const menuItems = [
   { href: '/admin/config', label: 'Configurações', icon: Settings },
 ]
 
+const fetcher = (url: string) => fetch(url).then(res => res.json())
+
 export function AdminSidebar() {
   const pathname = usePathname()
   const { logout } = useAdminAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { data: tenantData } = useSWR('/api/admin/tenant', fetcher)
+  const tenantNome = tenantData?.nome ?? 'Painel Admin'
 
   const isActive = (href: string) => {
     if (href === '/admin') return pathname === '/admin'
@@ -32,7 +37,7 @@ export function AdminSidebar() {
       <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b border-border flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-2 text-primary">
           <Store className="h-5 w-5" />
-          <span className="font-bold">Nossa Pimenta</span>
+          <span className="font-bold">{tenantNome}</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -41,7 +46,7 @@ export function AdminSidebar() {
 
       {/* Mobile Overlay */}
       {mobileOpen && (
-        <div 
+        <div
           className="md:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-40 pt-14"
           onClick={() => setMobileOpen(false)}
         >
@@ -63,8 +68,8 @@ export function AdminSidebar() {
               </Link>
             ))}
             <div className="pt-4 border-t border-border">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
                 onClick={logout}
               >
@@ -81,7 +86,7 @@ export function AdminSidebar() {
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-2 text-primary">
             <Store className="h-6 w-6" />
-            <span className="text-xl font-bold">Nossa Pimenta</span>
+            <span className="text-xl font-bold">{tenantNome}</span>
           </div>
         </div>
 
@@ -104,8 +109,8 @@ export function AdminSidebar() {
         </nav>
 
         <div className="p-4 border-t border-border">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
             onClick={logout}
           >

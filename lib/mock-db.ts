@@ -1,11 +1,11 @@
-import type { Categoria, Produto, Pedido, Configuracao } from './types'
+﻿import type { Categoria, Produto, Pedido, Configuracao } from './types'
 
 // Configuração do estabelecimento
 export const configuracao: Configuracao = {
   freteBase: 500, // R$ 5,00
   freteRaioKm: 3,
   freteKmExcedente: 100,
-  enderecoRetirada: 'EndereÃ§o de Retirada Exemplo, 123 - Centro',
+  enderecoRetirada: 'Endereço de Retirada Exemplo, 123 - Centro',
   nomeEstabelecimento: 'Nossa Pimenta',
   estabelecimentoLat: 0,
   estabelecimentoLng: 0
@@ -191,3 +191,5 @@ export const pedidos: Pedido[] = [
 export function gerarId(prefixo: string): string {
   return `${prefixo}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
+
+

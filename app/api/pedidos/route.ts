@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getTenantFromCookie } from '@/lib/tenant'
 import { calcularTotalItem, calcularSubtotal, calcularTotal, calcularFretePorDistancia } from '@/lib/calc'
 import type { CriarPedidoPayload } from '@/lib/types'
 
@@ -17,6 +18,13 @@ type ItemPedidoCreate = {
 export async function POST(request: NextRequest) {
   try {
     const body: CriarPedidoPayload = await request.json()
+    const tenant = await getTenantFromCookie()
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
+    }
+    if (!tenant.isOpen) {
+      return NextResponse.json({ error: 'Estabelecimento fechado' }, { status: 403 })
+    }
 
     // Validacoes basicas
     if (!body.clienteNome || !body.clienteTelefone || !body.pagamento || !body.tipoEntrega) {
@@ -51,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Criar itens do pedido com snapshot
     for (const item of body.itens) {
       const produto = await prisma.produto.findFirst({
-        where: { id: item.produtoId, ativo: true }
+        where: { id: item.produtoId, ativo: true, tenantId: tenant.id }
       })
       if (!produto) {
         return NextResponse.json(
@@ -72,7 +80,9 @@ export async function POST(request: NextRequest) {
     }
 
     const subtotal = calcularSubtotal(itens)
-    const configuracao = await prisma.configuracao.findFirst()
+    const configuracao = await prisma.configuracao.findFirst({
+      where: { tenantId: tenant.id }
+    })
     const frete = body.tipoEntrega === 'ENTREGA' && configuracao
       ? calcularFretePorDistancia({
           distanciaKm: body.distanciaKm ?? 0,
@@ -88,8 +98,8 @@ export async function POST(request: NextRequest) {
 
     if (body.cupomCodigo) {
       const codigo = body.cupomCodigo.trim().toUpperCase()
-      const cupom = await prisma.cupom.findUnique({
-        where: { codigo }
+      const cupom = await prisma.cupom.findFirst({
+        where: { codigo, tenantId: tenant.id }
       })
 
       const agora = new Date()
@@ -133,6 +143,7 @@ export async function POST(request: NextRequest) {
           descontoValor: descontoValor > 0 ? descontoValor : null,
           cupomCodigoSnapshot: cupomCodigoSnapshot ?? null,
           cupomId: cupomId ?? null,
+          tenantId: tenant.id,
           itens: {
             create: itens.map(item => ({
               produtoId: item.produtoId,
@@ -174,9 +185,13 @@ export async function GET(request: NextRequest) {
   const telefone = searchParams.get('telefone')
 
   if (telefone) {
+    const tenant = await getTenantFromCookie()
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
+    }
     const telefoneLimpo = telefone.replace(/\D/g, '')
     const pedidosCliente = await prisma.pedido.findMany({
-      where: { clienteTelefone: telefoneLimpo },
+      where: { clienteTelefone: telefoneLimpo, tenantId: tenant.id },
       include: { itens: true },
       orderBy: { criadoEm: 'desc' }
     })

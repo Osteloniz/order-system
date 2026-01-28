@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
 
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
-
 // GET /api/admin/produtos - Lista todos os produtos
 export async function GET() {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const produtos = await prisma.produto.findMany({
+    where: { tenantId: admin.tenantId },
     include: { categoria: true }
   })
 
@@ -30,7 +26,8 @@ export async function GET() {
 
 // POST /api/admin/produtos - Cria novo produto
 export async function POST(request: NextRequest) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
@@ -40,7 +37,7 @@ export async function POST(request: NextRequest) {
       ? body.imagens.filter((url: unknown) => typeof url === 'string' && url.trim().length > 0)
       : []
 
-    const categoria = await prisma.categoria.findUnique({ where: { id: body.categoriaId } })
+    const categoria = await prisma.categoria.findFirst({ where: { id: body.categoriaId, tenantId: admin.tenantId } })
     if (!categoria) {
       return NextResponse.json(
         { error: 'Categoria nao encontrada' },
@@ -48,7 +45,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const ordem = await prisma.produto.count({ where: { categoriaId: body.categoriaId } }) + 1
+    const ordem = await prisma.produto.count({ where: { categoriaId: body.categoriaId, tenantId: admin.tenantId } }) + 1
 
     const novoProduto = await prisma.produto.create({
       data: {
@@ -59,7 +56,8 @@ export async function POST(request: NextRequest) {
         ativo: body.ativo ?? true,
         imagemUrl: body.imagemUrl,
         imagens,
-        ordem
+        ordem,
+        tenantId: admin.tenantId
       }
     })
 

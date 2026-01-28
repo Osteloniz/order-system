@@ -47,6 +47,11 @@ model Configuracao {
   estabelecimentoLng  Float    @default(0)
   criadoEm            DateTime @default(now())
   atualizadoEm        DateTime @updatedAt
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId])
 }
 
 model Categoria {
@@ -56,6 +61,9 @@ model Categoria {
   criadoEm    DateTime @default(now())
   atualizadoEm DateTime @updatedAt
   produtos    Produto[]
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 }
 
 model Produto {
@@ -73,6 +81,9 @@ model Produto {
 
   categoria   Categoria @relation(fields: [categoriaId], references: [id])
   itensPedido ItemPedido[]
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   @@index([categoriaId])
   @@index([ativo])
@@ -101,6 +112,9 @@ model Pedido {
 
   cupom           Cupom? @relation(fields: [cupomId], references: [id])
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
   @@index([clienteTelefone])
   @@index([status])
   @@index([criadoEm])
@@ -123,7 +137,7 @@ model ItemPedido {
 
 model Cupom {
   id        String     @id @default(uuid())
-  codigo    String     @unique
+  codigo    String
   tipo      TipoCupom
   valor     Int        // centavos (FIXO) ou percentual (PERCENTUAL)
   ativo     Boolean    @default(true)
@@ -134,4 +148,39 @@ model Cupom {
   atualizadoEm DateTime @updatedAt
 
   pedidos   Pedido[]
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, codigo])
+}
+
+model Tenant {
+  id          String   @id @default(uuid())
+  nome        String
+  slug        String   @unique
+  isOpen      Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  categorias  Categoria[]
+  produtos    Produto[]
+  pedidos     Pedido[]
+  cupons      Cupom[]
+  configuracao Configuracao[]
+  adminUsers  AdminUser[]
+}
+
+model AdminUser {
+  id         String   @id @default(uuid())
+  tenantId   String
+  nome       String
+  username   String
+  passwordHash String
+  criadoEm   DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, username])
 }

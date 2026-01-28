@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getTenantFromCookie } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
 
@@ -18,7 +19,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Subtotal invalido' }, { status: 400 })
   }
 
-  const cupom = await prisma.cupom.findUnique({ where: { codigo } })
+  const tenant = await getTenantFromCookie()
+  if (!tenant) {
+    return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
+  }
+
+  const cupom = await prisma.cupom.findFirst({ where: { codigo, tenantId: tenant.id } })
   const agora = new Date()
 
   if (!cupom || !cupom.ativo) {
@@ -44,4 +50,3 @@ export async function GET(request: NextRequest) {
     codigo: cupom.codigo
   })
 }
-

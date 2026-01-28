@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
+import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
-
-async function verificarAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  return session?.value === 'authenticated'
-}
 
 // PUT /api/admin/cupons/:id - Atualiza cupom
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
@@ -23,7 +18,7 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
 
-    const cupom = await prisma.cupom.findUnique({ where: { id } })
+    const cupom = await prisma.cupom.findFirst({ where: { id, tenantId: admin.tenantId } })
     if (!cupom) {
       return NextResponse.json({ error: 'Cupom nao encontrado' }, { status: 404 })
     }
@@ -54,6 +49,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Percentual nao pode ser maior que 100' }, { status: 400 })
     }
 
+    if (codigo !== cupom.codigo) {
+      const existing = await prisma.cupom.findFirst({
+        where: { codigo, tenantId: admin.tenantId, NOT: { id } }
+      })
+      if (existing) {
+        return NextResponse.json({ error: 'Codigo de cupom ja existe' }, { status: 400 })
+      }
+    }
+
     const cupomAtualizado = await prisma.cupom.update({
       where: { id },
       data: {
@@ -78,12 +82,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await verificarAuth()) {
+  const admin = await getAdminSession()
+  if (!admin) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
   const { id } = await params
-  const cupom = await prisma.cupom.findUnique({ where: { id } })
+  const cupom = await prisma.cupom.findFirst({ where: { id, tenantId: admin.tenantId } })
 
   if (!cupom) {
     return NextResponse.json({ error: 'Cupom nao encontrado' }, { status: 404 })
