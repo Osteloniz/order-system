@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "start": "next start",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && next build"
+    "vercel-build": "prisma generate && next build",
+    "db:reset-prod-data": "node scripts/reset-prod-data.js"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

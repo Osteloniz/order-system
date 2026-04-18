@@ -7,8 +7,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")    // Conexao principal (pooling recomendado no Neon)
-  directUrl = env("DIRECT_URL")      // Conexao direta para migrations
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Enums alinhados aos tipos do projeto (lib/types.ts)
@@ -29,6 +29,7 @@ enum TipoPagamento {
 enum TipoEntrega {
   ENTREGA
   RETIRADA
+  RESERVA_PAULISTANO
 }
 
 enum TipoCupom {
@@ -91,9 +92,12 @@ model Produto {
 
 model Pedido {
   id              String        @id @default(uuid())
-  status          StatusPedido
+  status          StatusPedido  @default(FEITO)
   clienteNome     String
   clienteTelefone String
+  clienteWhatsapp String?
+  clienteBloco    String?
+  clienteApartamento String?
   pagamento       TipoPagamento
   tipoEntrega     TipoEntrega
   enderecoEntrega String?
@@ -167,7 +171,7 @@ model Tenant {
   produtos    Produto[]
   pedidos     Pedido[]
   cupons      Cupom[]
-  configuracao Configuracao[]
+  configuracao Configuracao?
   adminUsers  AdminUser[]
 }
 

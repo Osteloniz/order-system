@@ -18,8 +18,18 @@ if (Test-Path $EnvFile) {
 }
 
 Write-Host "Running prisma migrate deploy..."
+$runtimeDatabaseUrl = [System.Environment]::GetEnvironmentVariable("DATABASE_URL")
+$directDatabaseUrl = [System.Environment]::GetEnvironmentVariable("DIRECT_URL")
+if ($directDatabaseUrl) {
+  [System.Environment]::SetEnvironmentVariable("DATABASE_URL", $directDatabaseUrl)
+}
+
 & npx prisma migrate deploy
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+if ($runtimeDatabaseUrl) {
+  [System.Environment]::SetEnvironmentVariable("DATABASE_URL", $runtimeDatabaseUrl)
+}
 
 Write-Host "Generating Prisma Client..."
 & npx prisma generate
