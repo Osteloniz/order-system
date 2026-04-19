@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
+
+const imageUrlSchema = z.string().trim().max(500).refine((url) => {
+  if (url.startsWith('/')) return true
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}, 'URL de imagem invalida')
+
+const produtoUpdateSchema = z.object({
+  nome: z.string().trim().min(2).max(100).optional(),
+  descricao: z.string().trim().max(500).nullable().optional(),
+  categoriaId: z.string().uuid().optional(),
+  preco: z.number().finite().min(1).max(1_000_000).optional(),
+  ativo: z.boolean().optional(),
+  ordem: z.number().int().min(0).max(10_000).optional(),
+  imagemUrl: imageUrlSchema.nullable().optional(),
+  imagens: z.array(imageUrlSchema).max(10).optional()
+}).strict()
 
 // PUT /api/admin/produtos/:id - Atualiza produto
 export async function PUT(
@@ -16,7 +38,12 @@ export async function PUT(
 
   try {
     const { id } = await params
-    const body = await request.json()
+    const parsed = produtoUpdateSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
+
+    const body = parsed.data
 
     const produto = await prisma.produto.findFirst({ where: { id, tenantId: admin.tenantId } })
     if (!produto) {
@@ -36,9 +63,7 @@ export async function PUT(
       }
     }
 
-    const imagens = Array.isArray(body.imagens)
-      ? body.imagens.filter((url: unknown) => typeof url === 'string' && url.trim().length > 0)
-      : produto.imagens
+    const imagens = body.imagens ?? produto.imagens
 
     const produtoAtualizado = await prisma.produto.update({
       where: { id },

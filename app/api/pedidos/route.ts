@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
-import { calcularTotalItem, calcularSubtotal, calcularTotal, calcularFretePorDistancia } from '@/lib/calc'
+import { calcularTotalItem, calcularSubtotal, calcularTotal } from '@/lib/calc'
 import type { CriarPedidoPayload } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -14,44 +15,60 @@ type ItemPedidoCreate = {
   totalItem: number
 }
 
+const pedidoSchema = z.object({
+  clienteNome: z.string().trim().min(2).max(80),
+  clienteTelefone: z.string().trim().min(8).max(20),
+  clienteWhatsapp: z.string().trim().max(20).optional(),
+  clienteBloco: z.string().trim().max(20).optional(),
+  clienteApartamento: z.string().trim().max(20).optional(),
+  pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
+  tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA']),
+  enderecoEntrega: z.string().trim().max(200).optional(),
+  distanciaKm: z.number().finite().nonnegative().max(100).optional(),
+  cupomCodigo: z.string().trim().max(40).optional(),
+  itens: z.array(z.object({
+    produtoId: z.string().uuid(),
+    quantidade: z.number().int().min(1).max(99)
+  })).min(1).max(50)
+}).strict().superRefine((data, ctx) => {
+  if (data.tipoEntrega !== 'RESERVA_PAULISTANO') return
+
+  if (!data.clienteBloco?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteBloco'], message: 'Bloco obrigatorio' })
+  }
+  if (!data.clienteApartamento?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteApartamento'], message: 'Apartamento obrigatorio' })
+  }
+})
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, '')
+}
+
 // POST /api/pedidos - Cria um novo pedido
 export async function POST(request: NextRequest) {
   try {
-    const body: CriarPedidoPayload = await request.json()
+    const parsed = pedidoSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
+
+    const body: CriarPedidoPayload = parsed.data
+    const telefoneLimpo = normalizePhone(body.clienteTelefone)
+    const whatsappLimpo = body.clienteWhatsapp ? normalizePhone(body.clienteWhatsapp) : ''
+    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 13) {
+      return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
+    }
+    if (body.clienteWhatsapp && (whatsappLimpo.length < 10 || whatsappLimpo.length > 13)) {
+      return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
+    }
+
     const tenant = await getTenantFromCookie()
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
     if (!tenant.isOpen) {
       return NextResponse.json({ error: 'Estabelecimento fechado' }, { status: 403 })
-    }
-
-    // Validacoes basicas
-    if (!body.clienteNome || !body.clienteTelefone || !body.pagamento || !body.tipoEntrega) {
-      return NextResponse.json(
-        { error: 'Dados incompletos' },
-        { status: 400 }
-      )
-    }
-
-    if (body.tipoEntrega === 'ENTREGA' && !body.enderecoEntrega) {
-      return NextResponse.json(
-        { error: 'Endereco de entrega e obrigatorio' },
-        { status: 400 }
-      )
-    }
-    if (body.tipoEntrega === 'ENTREGA' && (!body.distanciaKm || body.distanciaKm <= 0)) {
-      return NextResponse.json(
-        { error: 'Distancia e obrigatoria para calcular o frete' },
-        { status: 400 }
-      )
-    }
-
-    if (!body.itens || body.itens.length === 0) {
-      return NextResponse.json(
-        { error: 'Pedido deve ter pelo menos um item' },
-        { status: 400 }
-      )
     }
 
     const itens: ItemPedidoCreate[] = []
@@ -83,14 +100,7 @@ export async function POST(request: NextRequest) {
     const configuracao = await prisma.configuracao.findFirst({
       where: { tenantId: tenant.id }
     })
-    const frete = body.tipoEntrega === 'ENTREGA' && configuracao
-      ? calcularFretePorDistancia({
-          distanciaKm: body.distanciaKm ?? 0,
-          freteBase: configuracao.freteBase,
-          freteRaioKm: configuracao.freteRaioKm,
-          freteKmExcedente: configuracao.freteKmExcedente
-        })
-      : 0
+    const frete = 0 // Sem taxa de entrega agora
 
     let cupomId: string | undefined
     let cupomCodigoSnapshot: string | undefined
@@ -129,17 +139,20 @@ export async function POST(request: NextRequest) {
       const pedido = await tx.pedido.create({
         data: {
           status: 'FEITO',
-          clienteNome: body.clienteNome,
-          clienteTelefone: body.clienteTelefone.replace(/\D/g, ''),
+          clienteNome: body.clienteNome.trim(),
+          clienteTelefone: telefoneLimpo,
+          clienteWhatsapp: whatsappLimpo || null,
+          clienteBloco: body.clienteBloco?.trim() ?? null,
+          clienteApartamento: body.clienteApartamento?.trim() ?? null,
           pagamento: body.pagamento,
           tipoEntrega: body.tipoEntrega,
-          enderecoEntrega: body.enderecoEntrega,
+          enderecoEntrega: null,
           enderecoRetirada: configuracao?.enderecoRetirada ?? '',
           frete,
           subtotal,
           total: Math.max(0, total),
           motivoCancelamento: null,
-          distanciaKm: body.distanciaKm ?? null,
+          distanciaKm: null,
           descontoValor: descontoValor > 0 ? descontoValor : null,
           cupomCodigoSnapshot: cupomCodigoSnapshot ?? null,
           cupomId: cupomId ?? null,
@@ -179,24 +192,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/pedidos?telefone=... - Historico por telefone (opcional)
+// Historico por telefone foi desativado para evitar exposicao de dados pessoais.
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams
-  const telefone = searchParams.get('telefone')
-
-  if (telefone) {
-    const tenant = await getTenantFromCookie()
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
-    }
-    const telefoneLimpo = telefone.replace(/\D/g, '')
-    const pedidosCliente = await prisma.pedido.findMany({
-      where: { clienteTelefone: telefoneLimpo, tenantId: tenant.id },
-      include: { itens: true },
-      orderBy: { criadoEm: 'desc' }
-    })
-    return NextResponse.json(pedidosCliente)
-  }
-
-  return NextResponse.json({ error: 'Telefone nao informado' }, { status: 400 })
+  return NextResponse.json({ error: 'Metodo nao permitido' }, { status: 405 })
 }

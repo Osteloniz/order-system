@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
+
+const categoriaSchema = z.object({
+  nome: z.string().trim().min(2).max(80)
+}).strict()
 
 // GET /api/admin/categorias - Lista todas as categorias
 export async function GET() {
@@ -26,12 +31,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
+    const parsed = categoriaSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
 
     const ordem = await prisma.categoria.count({ where: { tenantId: admin.tenantId } }) + 1
     const novaCategoria = await prisma.categoria.create({
       data: {
-        nome: body.nome,
+        nome: parsed.data.nome,
         ordem,
         tenantId: admin.tenantId
       }

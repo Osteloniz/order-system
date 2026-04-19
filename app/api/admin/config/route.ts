@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
+
+const configSchema = z.object({
+  nomeEstabelecimento: z.string().trim().min(2).max(100).optional(),
+  enderecoRetirada: z.string().trim().min(2).max(200).optional(),
+  freteBase: z.number().finite().min(0).max(100_000).optional(),
+  freteRaioKm: z.number().finite().min(0).max(100).optional(),
+  freteKmExcedente: z.number().finite().min(0).max(100_000).optional(),
+  estabelecimentoLat: z.number().finite().min(-90).max(90).optional(),
+  estabelecimentoLng: z.number().finite().min(-180).max(180).optional()
+}).strict()
 
 // GET /api/admin/config - Retorna configuracoes
 export async function GET() {
@@ -40,7 +51,12 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
+    const parsed = configSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
+
+    const body = parsed.data
     let configuracao = await prisma.configuracao.findFirst({
       where: { tenantId: admin.tenantId }
     })
@@ -51,10 +67,10 @@ export async function PUT(request: NextRequest) {
           nomeEstabelecimento: body.nomeEstabelecimento ?? 'Estabelecimento',
           enderecoRetirada: body.enderecoRetirada ?? 'Endereco nao configurado',
           freteBase: body.freteBase !== undefined ? Math.round(body.freteBase) : 500,
-          freteRaioKm: body.freteRaioKm !== undefined ? Number(body.freteRaioKm) : 3,
+          freteRaioKm: body.freteRaioKm ?? 3,
           freteKmExcedente: body.freteKmExcedente !== undefined ? Math.round(body.freteKmExcedente) : 100,
-          estabelecimentoLat: body.estabelecimentoLat !== undefined ? Number(body.estabelecimentoLat) : 0,
-          estabelecimentoLng: body.estabelecimentoLng !== undefined ? Number(body.estabelecimentoLng) : 0,
+          estabelecimentoLat: body.estabelecimentoLat ?? 0,
+          estabelecimentoLng: body.estabelecimentoLng ?? 0,
           tenantId: admin.tenantId
         }
       })
@@ -65,12 +81,12 @@ export async function PUT(request: NextRequest) {
       where: { id: configuracao.id },
       data: {
         freteBase: body.freteBase !== undefined ? Math.round(body.freteBase) : configuracao.freteBase,
-        freteRaioKm: body.freteRaioKm !== undefined ? Number(body.freteRaioKm) : configuracao.freteRaioKm,
+        freteRaioKm: body.freteRaioKm ?? configuracao.freteRaioKm,
         freteKmExcedente: body.freteKmExcedente !== undefined ? Math.round(body.freteKmExcedente) : configuracao.freteKmExcedente,
         enderecoRetirada: body.enderecoRetirada ?? configuracao.enderecoRetirada,
         nomeEstabelecimento: body.nomeEstabelecimento ?? configuracao.nomeEstabelecimento,
-        estabelecimentoLat: body.estabelecimentoLat !== undefined ? Number(body.estabelecimentoLat) : configuracao.estabelecimentoLat,
-        estabelecimentoLng: body.estabelecimentoLng !== undefined ? Number(body.estabelecimentoLng) : configuracao.estabelecimentoLng
+        estabelecimentoLat: body.estabelecimentoLat ?? configuracao.estabelecimentoLat,
+        estabelecimentoLng: body.estabelecimentoLng ?? configuracao.estabelecimentoLng
       }
     })
 

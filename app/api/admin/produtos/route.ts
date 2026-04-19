@@ -1,8 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
+
+const imageUrlSchema = z.string().trim().max(500).refine((url) => {
+  if (url.startsWith('/')) return true
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}, 'URL de imagem invalida')
+
+const produtoSchema = z.object({
+  nome: z.string().trim().min(2).max(100),
+  descricao: z.string().trim().max(500).optional(),
+  categoriaId: z.string().uuid(),
+  preco: z.number().finite().min(1).max(1_000_000),
+  ativo: z.boolean().optional(),
+  imagemUrl: imageUrlSchema.optional(),
+  imagens: z.array(imageUrlSchema).max(10).optional()
+}).strict()
 
 // GET /api/admin/produtos - Lista todos os produtos
 export async function GET() {
@@ -32,10 +53,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
-    const imagens = Array.isArray(body.imagens)
-      ? body.imagens.filter((url: unknown) => typeof url === 'string' && url.trim().length > 0)
-      : []
+    const parsed = produtoSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
+
+    const body = parsed.data
+    const imagens = body.imagens ?? []
 
     const categoria = await prisma.categoria.findFirst({ where: { id: body.categoriaId, tenantId: admin.tenantId } })
     if (!categoria) {

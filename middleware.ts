@@ -2,6 +2,14 @@
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
+function withSecurityHeaders(response: NextResponse) {
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  return response
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const defaultTenantSlug = 'brookie-pregiato'
@@ -16,7 +24,7 @@ export async function middleware(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 30
     })
-    return response
+    return withSecurityHeaders(response)
   }
 
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
@@ -27,11 +35,11 @@ export async function middleware(req: NextRequest) {
     })
     if (!token) {
       const loginUrl = new URL('/admin/login', req.url)
-      return NextResponse.redirect(loginUrl)
+      return withSecurityHeaders(NextResponse.redirect(loginUrl))
     }
   }
 
-  return NextResponse.next()
+  return withSecurityHeaders(NextResponse.next())
 }
 
 export const config = {

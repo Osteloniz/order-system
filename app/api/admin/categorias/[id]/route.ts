@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
+
+const categoriaUpdateSchema = z.object({
+  nome: z.string().trim().min(2).max(80).optional(),
+  ordem: z.number().int().min(0).max(10_000).optional()
+}).strict()
 
 // PUT /api/admin/categorias/:id - Atualiza categoria
 export async function PUT(
@@ -16,7 +22,12 @@ export async function PUT(
 
   try {
     const { id } = await params
-    const body = await request.json()
+    const parsed = categoriaUpdateSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
+
+    const body = parsed.data
 
     const categoria = await prisma.categoria.findFirst({ where: { id, tenantId: admin.tenantId } })
     if (!categoria) {
