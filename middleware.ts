@@ -4,6 +4,20 @@ import { getToken } from 'next-auth/jwt'
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+  const defaultTenantSlug = 'brookie-pregiato'
+  
+  // Garante que o cookie de tenant sempre aponta para o tenant unico atual.
+  if (req.cookies.get('tenant_slug')?.value !== defaultTenantSlug) {
+    const response = NextResponse.next()
+    response.cookies.set('tenant_slug', defaultTenantSlug, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 30
+    })
+    return response
+  }
 
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
@@ -17,5 +31,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*']
+  matcher: ['/(cliente)/:path*', '/admin/:path*', '/api/:path*']
 }
