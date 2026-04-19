@@ -1,14 +1,16 @@
 ﻿'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { Store, MapPin } from 'lucide-react'
 import { CategorySection } from './category-section'
 import { CartButton } from './cart-button'
 import { CartSheet } from './cart-sheet'
+import { RecentOrders } from './recent-orders'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { restoreMenuScrollPosition, saveMenuScrollPosition } from '@/lib/customer-session'
 import type { Produto, Categoria } from '@/lib/types'
 
 interface MenuData {
@@ -42,7 +44,14 @@ export function MenuPage() {
   const categorias = Array.isArray(data?.categorias) ? data.categorias : []
   const canCheckout = data?.isOpen ?? true
 
+  useEffect(() => {
+    if (!isLoading) {
+      restoreMenuScrollPosition()
+    }
+  }, [isLoading])
+
   const handleCheckout = () => {
+    saveMenuScrollPosition()
     setCartOpen(false)
     router.push('/checkout')
   }
@@ -97,6 +106,8 @@ export function MenuPage() {
           </div>
         </div>
       )}
+
+      <RecentOrders />
 
       {/* Category Navigation */}
       {categorias.length > 0 && (

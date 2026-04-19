@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { ArrowLeft, Truck, Store, CreditCard, Banknote, QrCode, Loader2 } from 'lucide-react'
@@ -13,7 +13,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { useCart } from '@/contexts/cart-context'
-import { formatarMoeda, calcularFretePorDistancia } from '@/lib/calc'
+import { formatarMoeda } from '@/lib/calc'
+import { getCustomerProfile, saveCustomerProfile, saveRecentOrder } from '@/lib/customer-session'
 import type { TipoPagamento, TipoEntrega, CriarPedidoPayload } from '@/lib/types'
 
 interface MenuData {
@@ -49,6 +50,17 @@ export function CheckoutPage() {
   const freteKmExcedente = menuData?.freteKmExcedente ?? 100
   const frete = 0 // Sem taxa de entrega agora
   const total = Math.max(0, subtotal + frete - descontoValor)
+
+  useEffect(() => {
+    const profile = getCustomerProfile()
+    if (!profile) return
+
+    setNome(profile.nome)
+    setTelefone(profile.telefone)
+    setWhatsapp(profile.whatsapp)
+    setBloco(profile.bloco)
+    setApartamento(profile.apartamento)
+  }, [])
 
   const formatTelefone = (value: string) => {
     const numeros = value.replace(/\D/g, '')
@@ -120,6 +132,14 @@ export function CheckoutPage() {
     setIsSubmitting(true)
 
     try {
+      saveCustomerProfile({
+        nome: nome.trim(),
+        telefone,
+        whatsapp,
+        bloco: bloco.trim(),
+        apartamento: apartamento.trim()
+      })
+
       const payload: CriarPedidoPayload = {
         clienteNome: nome.trim(),
         clienteTelefone: telefone.replace(/\D/g, ''),
@@ -147,7 +167,7 @@ export function CheckoutPage() {
       }
 
       const pedido = await response.json()
-      limparCarrinho()
+      saveRecentOrder(pedido)
 
       if (pagamento === 'PIX' || pagamento === 'CARTAO') {
         const paymentResponse = await fetch('/api/pagamentos/mercado-pago/preference', {
@@ -161,10 +181,12 @@ export function CheckoutPage() {
           throw new Error(paymentData.error || 'Erro ao iniciar pagamento')
         }
 
+        limparCarrinho()
         window.location.href = paymentData.checkoutUrl
         return
       }
 
+      limparCarrinho()
       router.push(`/confirmacao/${pedido.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar pedido')
@@ -191,7 +213,7 @@ export function CheckoutPage() {
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-bold">Finalizar Pedido</h1>

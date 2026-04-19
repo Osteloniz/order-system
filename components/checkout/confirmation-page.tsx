@@ -3,13 +3,14 @@
 import useSWR from 'swr'
 import Link from 'next/link'
 import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda, formatarDataHora, formatarTelefone } from '@/lib/calc'
+import { saveRecentOrder } from '@/lib/customer-session'
 import type { Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -49,6 +50,12 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
     fetcher,
     { refreshInterval: 10000 } // Atualiza a cada 10s para ver mudanças de status
   )
+
+  useEffect(() => {
+    if (pedido) {
+      saveRecentOrder(pedido)
+    }
+  }, [pedido])
 
   if (error) {
     return (
