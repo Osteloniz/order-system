@@ -6,6 +6,13 @@ import { getAdminSession } from '@/lib/auth-helpers'
 export const runtime = 'nodejs'
 
 const statusValidos: StatusPedido[] = ['FEITO', 'ACEITO', 'PREPARACAO', 'ENTREGUE', 'CANCELADO']
+const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
+  FEITO: ['ACEITO', 'CANCELADO'],
+  ACEITO: ['PREPARACAO', 'CANCELADO'],
+  PREPARACAO: ['ENTREGUE', 'CANCELADO'],
+  ENTREGUE: [],
+  CANCELADO: []
+}
 
 // PATCH /api/admin/pedidos/:id/status - Atualiza status do pedido
 export async function PATCH(
@@ -50,6 +57,13 @@ export async function PATCH(
     if (pedidoAtual.status === 'CANCELADO') {
       return NextResponse.json(
         { error: 'Pedido cancelado nao pode ser alterado' },
+        { status: 400 }
+      )
+    }
+
+    if (!transicoesPermitidas[pedidoAtual.status].includes(status)) {
+      return NextResponse.json(
+        { error: 'Transicao de status nao permitida' },
         { status: 400 }
       )
     }
