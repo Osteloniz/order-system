@@ -20,7 +20,11 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: 'next-auth.session-token',
+    })
     if (!token) {
       const loginUrl = new URL('/admin/login', req.url)
       return NextResponse.redirect(loginUrl)
