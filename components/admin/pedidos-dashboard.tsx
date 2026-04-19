@@ -1,10 +1,10 @@
 ﻿'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
 import { 
   Clock, Check, ChefHat, Truck, RefreshCw, X, Trash2,
-  MapPin, Phone, CreditCard, User, Package, ChevronRight
+  MapPin, Phone, CreditCard, User, Package, ChevronRight, Bell, BellRing
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -99,6 +99,8 @@ const statusPagamentoColors = {
   REEMBOLSADO: 'bg-accent text-accent-foreground'
 }
 
+const ADMIN_ALERTS_STORAGE_KEY = 'brookie-admin-alertas-pedidos'
+
 function getPedidoWhatsapp(pedido: Pedido) {
   return (pedido.clienteWhatsapp || pedido.clienteTelefone || '').replace(/\D/g, '')
 }
@@ -168,6 +170,14 @@ function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido) {
   )
 }
 
+function getNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported'
+  }
+
+  return Notification.permission
+}
+
 export function PedidosDashboard() {
   const [activeTab, setActiveTab] = useState<string>('todos')
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
@@ -175,12 +185,127 @@ export function PedidosDashboard() {
   const [cancelReason, setCancelReason] = useState('')
   const [isCancelling, setIsCancelling] = useState(false)
   const [deletingPedidoId, setDeletingPedidoId] = useState<string | null>(null)
+  const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null)
+  const [alertsEnabled, setAlertsEnabled] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission)
+  const [lastAlertMessage, setLastAlertMessage] = useState<string | null>(null)
+  const seenPedidoIdsRef = useRef<Set<string>>(new Set())
+  const initialPedidosLoadedRef = useRef(false)
+  const audioContextRef = useRef<AudioContext | null>(null)
 
   const { data: pedidos, isLoading } = useSWR<Pedido[]>(
     '/api/admin/pedidos',
     fetcher,
     { refreshInterval: 5000 }
   )
+
+  const unlockAlertSound = async () => {
+    if (audioContextRef.current) {
+      await audioContextRef.current.resume()
+      return
+    }
+
+    const AudioContextConstructor = window.AudioContext || (window as typeof window & {
+      webkitAudioContext: typeof AudioContext
+    }).webkitAudioContext
+    audioContextRef.current = new AudioContextConstructor()
+    await audioContextRef.current.resume()
+  }
+
+  const playAlertSound = () => {
+    const audioContext = audioContextRef.current
+    if (!audioContext) return
+
+    const oscillator = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime)
+    oscillator.frequency.setValueAtTime(660, audioContext.currentTime + 0.18)
+    gain.gain.setValueAtTime(0.001, audioContext.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.2, audioContext.currentTime + 0.03)
+    gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.42)
+
+    oscillator.connect(gain)
+    gain.connect(audioContext.destination)
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.45)
+  }
+
+  useEffect(() => {
+    const savedPreference = window.localStorage.getItem(ADMIN_ALERTS_STORAGE_KEY)
+
+    if (savedPreference === 'enabled' && getNotificationPermission() !== 'denied') {
+      setAlertsEnabled(true)
+    }
+
+    setNotificationPermission(getNotificationPermission())
+  }, [])
+
+  useEffect(() => {
+    if (!pedidos) return
+
+    if (!initialPedidosLoadedRef.current) {
+      seenPedidoIdsRef.current = new Set(pedidos.map(pedido => pedido.id))
+      initialPedidosLoadedRef.current = true
+      return
+    }
+
+    const novosPedidos = pedidos.filter(pedido => {
+      return pedido.status === 'FEITO' && !seenPedidoIdsRef.current.has(pedido.id)
+    })
+
+    pedidos.forEach(pedido => seenPedidoIdsRef.current.add(pedido.id))
+
+    if (novosPedidos.length === 0 || !alertsEnabled) return
+
+    const message = novosPedidos.length === 1
+      ? `Novo pedido de ${novosPedidos[0].clienteNome}`
+      : `${novosPedidos.length} novos pedidos aguardando aceite`
+
+    setLastAlertMessage(message)
+    playAlertSound()
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification('Brookie Pregiato', {
+        body: message,
+        icon: '/favicon.ico',
+        tag: 'novo-pedido'
+      })
+
+      notification.onclick = () => {
+        window.focus()
+        setActiveTab('novos')
+        notification.close()
+      }
+    }
+  }, [alertsEnabled, pedidos])
+
+  const handleEnableAlerts = async () => {
+    await unlockAlertSound()
+
+    let permission = getNotificationPermission()
+    if ('Notification' in window && Notification.permission === 'default') {
+      permission = await Notification.requestPermission()
+    }
+
+    setNotificationPermission(permission)
+
+    if (permission === 'denied') {
+      setLastAlertMessage('Notificacoes bloqueadas no navegador. O som interno continua ativo.')
+    } else {
+      setLastAlertMessage('Alertas ativados para novos pedidos.')
+    }
+
+    setAlertsEnabled(true)
+    window.localStorage.setItem(ADMIN_ALERTS_STORAGE_KEY, 'enabled')
+  }
+
+  const handleDisableAlerts = () => {
+    setAlertsEnabled(false)
+    window.localStorage.setItem(ADMIN_ALERTS_STORAGE_KEY, 'disabled')
+    setLastAlertMessage('Alertas pausados.')
+  }
 
   const filteredPedidos = pedidos?.filter(p => {
     if (activeTab === 'todos') return true
@@ -260,15 +385,72 @@ export function PedidosDashboard() {
     }
   }
 
+  const handleConfirmPayment = async (pedidoId: string) => {
+    setConfirmingPaymentId(pedidoId)
+    try {
+      const response = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statusPagamento: 'APROVADO' })
+      })
+
+      if (!response.ok) return
+
+      const pedidoAtualizado = await response.json()
+      mutate('/api/admin/pedidos')
+      if (selectedPedido?.id === pedidoId) {
+        setSelectedPedido(pedidoAtualizado)
+      }
+    } finally {
+      setConfirmingPaymentId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Pedidos</h1>
-        <Button variant="outline" size="sm" onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4 mr-0 md:mr-2" />
-          <span className="hidden md:inline">Atualizar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={alertsEnabled ? 'default' : 'outline'}
+            size="sm"
+            onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}
+          >
+            {alertsEnabled ? (
+              <BellRing className="h-4 w-4 mr-0 md:mr-2" />
+            ) : (
+              <Bell className="h-4 w-4 mr-0 md:mr-2" />
+            )}
+            <span className="hidden md:inline">
+              {alertsEnabled ? 'Alertas ativos' : 'Ativar alertas'}
+            </span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="h-4 w-4 mr-0 md:mr-2" />
+            <span className="hidden md:inline">Atualizar</span>
+          </Button>
+        </div>
       </div>
+
+      {lastAlertMessage && (
+        <Card className={alertsEnabled ? 'border-primary/40 bg-primary/5' : 'border-muted'}>
+          <CardContent className="flex items-center justify-between gap-3 p-3 text-sm">
+            <div className="flex items-center gap-2">
+              {alertsEnabled ? (
+                <BellRing className="h-4 w-4 text-primary" />
+              ) : (
+                <Bell className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span>{lastAlertMessage}</span>
+            </div>
+            {notificationPermission === 'denied' && (
+              <span className="text-xs text-muted-foreground">
+                Permissao do navegador bloqueada
+              </span>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5">
@@ -424,6 +606,23 @@ export function PedidosDashboard() {
                       Atualiza o status e abre o WhatsApp com a mensagem pronta.
                     </p>
                   </div>
+                )}
+
+                {/* Cancelar pedido */}
+                {selectedPedido.status !== 'CANCELADO' && selectedPedido.statusPagamento !== 'APROVADO' && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => handleConfirmPayment(selectedPedido.id)}
+                    disabled={confirmingPaymentId === selectedPedido.id}
+                  >
+                    {confirmingPaymentId === selectedPedido.id ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    Confirmar pagamento manualmente
+                  </Button>
                 )}
 
                 {/* Cancelar pedido */}
@@ -622,5 +821,6 @@ export function PedidosDashboard() {
     </div>
   )
 }
+
 
 
