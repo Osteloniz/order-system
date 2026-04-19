@@ -39,6 +39,8 @@ NEXTAUTH_SECRET="sua-chave-forte-gerada-com-openssl-rand-base64-32"
 NEXTAUTH_URL="http://localhost:3000"
 DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
 DIRECT_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+MERCADO_PAGO_ACCESS_TOKEN="APP_USR-ou-TEST..."
 ```
 
 3) Sincronize o banco de dados:

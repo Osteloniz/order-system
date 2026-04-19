@@ -2,7 +2,8 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
-import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft } from 'lucide-react'
+import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -32,6 +33,8 @@ interface ConfirmationPageProps {
 }
 
 export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
+  const [isPaying, setIsPaying] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   const { data: pedido, isLoading, error } = useSWR<Pedido>(
     `/api/pedidos/${pedidoId}`,
     fetcher,
@@ -67,6 +70,30 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
   if (!pedido) return null
 
   const statusInfo = statusConfig[pedido.status]
+  const shouldShowPaymentButton = pedido.status === 'FEITO' && (pedido.pagamento === 'PIX' || pedido.pagamento === 'CARTAO')
+
+  const handlePayNow = async () => {
+    setPaymentError('')
+    setIsPaying(true)
+
+    try {
+      const response = await fetch('/api/pagamentos/mercado-pago/preference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: pedido.id })
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao iniciar pagamento')
+      }
+
+      window.location.href = data.checkoutUrl
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Erro ao iniciar pagamento')
+      setIsPaying(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background pb-8">
@@ -94,7 +121,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
           <CardContent className="py-6 text-center">
             <p className="text-sm text-muted-foreground">Número do pedido</p>
             <p className="text-2xl font-mono font-bold text-primary mt-1">
-              {pedido.id.toUpperCase()}
+              {pedido.id.slice(-8).toUpperCase()}
             </p>
             <p className="text-sm text-muted-foreground mt-2 flex items-center justify-center gap-1">
               <Clock className="h-4 w-4" />
@@ -151,18 +178,24 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              {pedido.tipoEntrega === 'ENTREGA' ? 'Entrega' : 'Retirada'}
+              {pedido.tipoEntrega === 'RESERVA_PAULISTANO' ? 'Entrega Reserva Paulistano' : 'Retirada'}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm">
-              {pedido.tipoEntrega === 'ENTREGA' 
-                ? pedido.enderecoEntrega 
-                : pedido.enderecoRetirada}
-            </p>
-            {pedido.tipoEntrega === 'ENTREGA' && pedido.distanciaKm && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Distância: {pedido.distanciaKm.toFixed(2)} km
+          <CardContent className="space-y-2">
+            {pedido.tipoEntrega === 'RESERVA_PAULISTANO' ? (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Bloco</span>
+                  <span className="font-medium">{pedido.clienteBloco}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Apartamento</span>
+                  <span className="font-medium">{pedido.clienteApartamento}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm">
+                {pedido.enderecoRetirada}
               </p>
             )}
           </CardContent>
@@ -191,6 +224,31 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
 
         {/* Actions */}
         <div className="space-y-3">
+          {shouldShowPaymentButton && (
+            <>
+              <Button className="w-full h-12" onClick={handlePayNow} disabled={isPaying}>
+                <CreditCard className="h-4 w-4 mr-2" />
+                {isPaying ? 'Abrindo pagamento...' : `Pagar agora com ${pagamentoLabels[pedido.pagamento]}`}
+              </Button>
+              {paymentError && (
+                <p className="text-sm text-destructive text-center">{paymentError}</p>
+              )}
+            </>
+          )}
+          {pedido.clienteWhatsapp && (
+            <Button 
+              className="w-full h-12 bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => {
+                const mensagem = `Olá! Gostaria de saber mais sobre o status do meu pedido #${pedido.id.slice(-8).toUpperCase()}. Obrigado!`
+                const mensagemCodificada = encodeURIComponent(mensagem)
+                const url = `https://wa.me/55${pedido.clienteWhatsapp}?text=${mensagemCodificada}`
+                window.open(url, '_blank')
+              }}
+            >
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Acompanhar Pedido
+            </Button>
+          )}
           <Link href="/" className="block">
             <Button variant="outline" className="w-full h-12 bg-transparent">
               <ArrowLeft className="h-4 w-4 mr-2" />

@@ -1,0 +1,105 @@
+import type { Pedido, ItemPedido } from '@prisma/client'
+
+type PedidoComItens = Pedido & { itens: ItemPedido[] }
+
+type PreferenceResponse = {
+  id: string
+  init_point?: string
+  sandbox_init_point?: string
+}
+
+function getBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    'http://localhost:3000'
+  ).replace(/\/$/, '')
+}
+
+function getExcludedPaymentTypes(pagamento: Pedido['pagamento']) {
+  if (pagamento === 'PIX') {
+    return [
+      { id: 'credit_card' },
+      { id: 'debit_card' },
+      { id: 'ticket' },
+      { id: 'atm' },
+    ]
+  }
+
+  if (pagamento === 'CARTAO') {
+    return [
+      { id: 'ticket' },
+      { id: 'atm' },
+      { id: 'bank_transfer' },
+    ]
+  }
+
+  return []
+}
+
+export async function createMercadoPagoPreference(pedido: PedidoComItens) {
+  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN
+  if (!accessToken) {
+    throw new Error('MERCADO_PAGO_ACCESS_TOKEN nao configurado')
+  }
+
+  if (pedido.pagamento !== 'PIX' && pedido.pagamento !== 'CARTAO') {
+    throw new Error('Forma de pagamento nao usa Mercado Pago')
+  }
+
+  const baseUrl = getBaseUrl()
+  const shortOrderId = pedido.id.slice(-8).toUpperCase()
+
+  const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      items: pedido.itens.map((item) => ({
+        id: item.produtoId,
+        title: item.nomeProdutoSnapshot,
+        quantity: item.quantidade,
+        unit_price: item.precoUnitarioSnapshot / 100,
+        currency_id: 'BRL',
+      })),
+      payer: {
+        name: pedido.clienteNome,
+      },
+      external_reference: pedido.id,
+      statement_descriptor: 'BROOKIE PREGIATO',
+      back_urls: {
+        success: `${baseUrl}/confirmacao/${pedido.id}?mp_status=success`,
+        pending: `${baseUrl}/confirmacao/${pedido.id}?mp_status=pending`,
+        failure: `${baseUrl}/confirmacao/${pedido.id}?mp_status=failure`,
+      },
+      auto_return: 'approved',
+      payment_methods: {
+        excluded_payment_types: getExcludedPaymentTypes(pedido.pagamento),
+        installments: 3,
+      },
+      metadata: {
+        pedido_id: pedido.id,
+        pedido_numero: shortOrderId,
+      },
+    }),
+  })
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    console.error('[mercado-pago] Erro ao criar preferencia:', data)
+    throw new Error('Erro ao criar pagamento no Mercado Pago')
+  }
+
+  const preference = data as PreferenceResponse
+  const checkoutUrl = preference.init_point || preference.sandbox_init_point
+  if (!checkoutUrl) {
+    throw new Error('Mercado Pago nao retornou URL de checkout')
+  }
+
+  return {
+    preferenceId: preference.id,
+    checkoutUrl,
+  }
+}

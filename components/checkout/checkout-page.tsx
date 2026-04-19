@@ -33,20 +33,11 @@ export function CheckoutPage() {
   
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [bloco, setBloco] = useState('')
+  const [apartamento, setApartamento] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('PIX')
-  const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('ENTREGA')
-  const [cep, setCep] = useState('')
-  const [rua, setRua] = useState('')
-  const [numero, setNumero] = useState('')
-  const [bairro, setBairro] = useState('')
-  const [cidade, setCidade] = useState('')
-  const [uf, setUf] = useState('')
-  const [complemento, setComplemento] = useState('')
-  const [cepError, setCepError] = useState('')
-  const [cepLoading, setCepLoading] = useState(false)
-  const [distanciaKm, setDistanciaKm] = useState<number | null>(null)
-  const [distanciaManual, setDistanciaManual] = useState('')
-  const [freteCalculado, setFreteCalculado] = useState<number | null>(null)
+  const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [cupomCodigo, setCupomCodigo] = useState('')
   const [cupomErro, setCupomErro] = useState('')
   const [descontoValor, setDescontoValor] = useState(0)
@@ -56,7 +47,7 @@ export function CheckoutPage() {
   const freteBase = menuData?.freteBase ?? 500
   const freteRaioKm = menuData?.freteRaioKm ?? 3
   const freteKmExcedente = menuData?.freteKmExcedente ?? 100
-  const frete = tipoEntrega === 'ENTREGA' ? (freteCalculado ?? 0) : 0
+  const frete = 0 // Sem taxa de entrega agora
   const total = Math.max(0, subtotal + frete - descontoValor)
 
   const formatTelefone = (value: string) => {
@@ -69,56 +60,6 @@ export function CheckoutPage() {
   const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatTelefone(e.target.value)
     setTelefone(formatted)
-  }
-
-  const handleCepChange = async (value: string) => {
-    const somenteNumeros = value.replace(/\D/g, '').slice(0, 8)
-    setCep(somenteNumeros)
-    setCepError('')
-
-    if (somenteNumeros.length !== 8) {
-      return
-    }
-
-    setCepLoading(true)
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${somenteNumeros}/json/`)
-      const data = await response.json()
-      if (data.erro) {
-        setCepError('CEP nao encontrado')
-        return
-      }
-      setRua(data.logradouro || '')
-      setBairro(data.bairro || '')
-      setCidade(data.localidade || '')
-      setUf(data.uf || '')
-    } catch {
-      setCepError('Erro ao buscar CEP')
-    } finally {
-      setCepLoading(false)
-    }
-  }
-
-  const calcularFrete = (km: number) => {
-    const valorFrete = calcularFretePorDistancia({
-      distanciaKm: km,
-      freteBase,
-      freteRaioKm,
-      freteKmExcedente
-    })
-    setFreteCalculado(valorFrete)
-  }
-
-  const handleDistanciaManual = (value: string) => {
-    setDistanciaManual(value)
-    const parsed = Number.parseFloat(value.replace(',', '.'))
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      setDistanciaKm(parsed)
-      calcularFrete(parsed)
-    } else {
-      setDistanciaKm(null)
-      setFreteCalculado(null)
-    }
   }
 
   const handleAplicarCupom = async () => {
@@ -156,19 +97,20 @@ export function CheckoutPage() {
     if (telefone.replace(/\D/g, '').length < 10) {
       setError('Informe um telefone válido')
       return
-    }    if (tipoEntrega === 'ENTREGA') {
-      if (cep.length !== 8) {
-        setError('Informe um CEP valido')
-        return
-      }
-      if (!rua.trim() || !numero.trim() || !bairro.trim() || !cidade.trim() || !uf.trim()) {
-        setError('Preencha o endereco completo')
-        return
-      }
     }
-    if (tipoEntrega === 'ENTREGA' && (!distanciaKm || distanciaKm <= 0)) {
-      setError('Informe a distancia para calcular o frete')
-      return
+    if (tipoEntrega === 'RESERVA_PAULISTANO') {
+      if (!whatsapp.trim()) {
+        setError('Informe um WhatsApp válido')
+        return
+      }
+      if (!bloco.trim()) {
+        setError('Informe o bloco')
+        return
+      }
+      if (!apartamento.trim()) {
+        setError('Informe o apartamento')
+        return
+      }
     }
     if (itens.length === 0) {
       setError('Seu carrinho está vazio')
@@ -178,14 +120,14 @@ export function CheckoutPage() {
     setIsSubmitting(true)
 
     try {
-      const enderecoEntrega = `${rua}, ${numero}${complemento ? ` - ${complemento}` : ''} - ${bairro}, ${cidade} - ${uf}, CEP ${cep}`
       const payload: CriarPedidoPayload = {
         clienteNome: nome.trim(),
         clienteTelefone: telefone.replace(/\D/g, ''),
+        clienteWhatsapp: tipoEntrega === 'RESERVA_PAULISTANO' ? whatsapp.replace(/\D/g, '') : undefined,
+        clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() : undefined,
+        clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() : undefined,
         pagamento,
         tipoEntrega,
-        enderecoEntrega: tipoEntrega === 'ENTREGA' ? enderecoEntrega : undefined,
-        distanciaKm: tipoEntrega === 'ENTREGA' ? (distanciaKm ?? undefined) : undefined,
         cupomCodigo: cupomCodigo.trim() ? cupomCodigo.trim().toUpperCase() : undefined,
         itens: itens.map(item => ({
           produtoId: item.produto.id,
@@ -206,6 +148,23 @@ export function CheckoutPage() {
 
       const pedido = await response.json()
       limparCarrinho()
+
+      if (pagamento === 'PIX' || pagamento === 'CARTAO') {
+        const paymentResponse = await fetch('/api/pagamentos/mercado-pago/preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pedidoId: pedido.id })
+        })
+        const paymentData = await paymentResponse.json()
+
+        if (!paymentResponse.ok) {
+          throw new Error(paymentData.error || 'Erro ao iniciar pagamento')
+        }
+
+        window.location.href = paymentData.checkoutUrl
+        return
+      }
+
       router.push(`/confirmacao/${pedido.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar pedido')
@@ -261,12 +220,6 @@ export function CheckoutPage() {
               <span>Subtotal</span>
               <span>{formatarMoeda(subtotal)}</span>
             </div>
-            {tipoEntrega === 'ENTREGA' && (
-              <div className="flex justify-between text-sm">
-                <span>Taxa de entrega</span>
-                <span>{formatarMoeda(frete)}</span>
-              </div>
-            )}
             {descontoValor > 0 && (
               <div className="flex justify-between text-sm text-success">
                 <span>Desconto</span>
@@ -312,7 +265,7 @@ export function CheckoutPage() {
         {/* Tipo de Entrega */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Entrega ou Retirada</CardTitle>
+            <CardTitle className="text-base">Tipo de Entrega</CardTitle>
           </CardHeader>
           <CardContent>
             <RadioGroup
@@ -321,19 +274,19 @@ export function CheckoutPage() {
               className="space-y-3"
             >
               <label
-                htmlFor="entrega"
+                htmlFor="reserva"
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                  tipoEntrega === 'ENTREGA' 
+                  tipoEntrega === 'RESERVA_PAULISTANO' 
                     ? 'border-primary bg-primary/5' 
                     : 'border-border hover:bg-secondary/50'
                 }`}
               >
-                <RadioGroupItem value="ENTREGA" id="entrega" />
+                <RadioGroupItem value="RESERVA_PAULISTANO" id="reserva" />
                 <Truck className="h-5 w-5 text-muted-foreground" />
                 <div className="flex-1">
-                  <p className="font-medium">Entrega</p>
+                  <p className="font-medium">Entrega Reserva Paulistano</p>
                   <p className="text-sm text-muted-foreground">
-                    Receba em casa - a partir de {formatarMoeda(freteBase)}
+                    Entrega no condomínio
                   </p>
                 </div>
               </label>
@@ -357,94 +310,52 @@ export function CheckoutPage() {
               </label>
             </RadioGroup>
 
-            {tipoEntrega === 'ENTREGA' && (
+            {tipoEntrega === 'RESERVA_PAULISTANO' && (
               <div className="mt-4 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="cep">CEP</Label>
+                  <Label htmlFor="whatsapp">WhatsApp</Label>
                   <Input
-                    id="cep"
-                    value={cep}
-                    onChange={(e) => handleCepChange(e.target.value)}
-                    placeholder="00000-000"
+                    id="whatsapp"
+                    placeholder="(00) 00000-0000"
+                    value={whatsapp}
+                    onChange={handleTelefoneChange}
+                    onFocus={(e) => {
+                      const input = e.target
+                      input.value = whatsapp
+                      input.onChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
+                        const formatted = formatTelefone(ev.target.value)
+                        setWhatsapp(formatted)
+                      }
+                    }}
+                    onChange={(e) => {
+                      const formatted = formatTelefone(e.target.value)
+                      setWhatsapp(formatted)
+                    }}
                     required
                   />
-                  {cepLoading && (
-                    <p className="text-xs text-muted-foreground">Buscando CEP...</p>
-                  )}
-                  {cepError && (
-                    <p className="text-xs text-destructive">{cepError}</p>
-                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="rua">Rua</Label>
+                    <Label htmlFor="bloco">Bloco</Label>
                     <Input
-                      id="rua"
-                      value={rua}
-                      onChange={e => setRua(e.target.value)}
+                      id="bloco"
+                      placeholder="Ex: A, B, C..."
+                      value={bloco}
+                      onChange={e => setBloco(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="numero">Numero</Label>
+                    <Label htmlFor="apartamento">Apartamento</Label>
                     <Input
-                      id="numero"
-                      value={numero}
-                      onChange={e => setNumero(e.target.value)}
+                      id="apartamento"
+                      placeholder="Ex: 101, 202..."
+                      value={apartamento}
+                      onChange={e => setApartamento(e.target.value)}
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bairro">Bairro</Label>
-                    <Input
-                      id="bairro"
-                      value={bairro}
-                      onChange={e => setBairro(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="complemento">Complemento (opcional)</Label>
-                    <Input
-                      id="complemento"
-                      value={complemento}
-                      onChange={e => setComplemento(e.target.value)}
-                      placeholder="Apartamento, bloco, etc."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cidade">Cidade</Label>
-                    <Input
-                      id="cidade"
-                      value={cidade}
-                      onChange={e => setCidade(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="uf">UF</Label>
-                    <Input
-                      id="uf"
-                      value={uf}
-                      onChange={e => setUf(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="distancia">Distancia (km)</Label>
-                  <Input
-                    id="distancia"
-                    value={distanciaManual}
-                    onChange={(e) => handleDistanciaManual(e.target.value)}
-                    placeholder="Ex: 7"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    O frete e calculado com base na distancia informada.
-                  </p>
                 </div>
               </div>
             )}
