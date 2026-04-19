@@ -99,6 +99,75 @@ const statusPagamentoColors = {
   REEMBOLSADO: 'bg-accent text-accent-foreground'
 }
 
+function getPedidoWhatsapp(pedido: Pedido) {
+  return (pedido.clienteWhatsapp || pedido.clienteTelefone || '').replace(/\D/g, '')
+}
+
+function formatarListaItens(pedido: Pedido) {
+  return pedido.itens
+    .map(item => `- ${item.quantidade}x ${item.nomeProdutoSnapshot}`)
+    .join('\n')
+}
+
+function criarMensagemStatus(pedido: Pedido, status: StatusPedido) {
+  const listaItens = formatarListaItens(pedido)
+  const total = formatarMoeda(pedido.total)
+  const formaPagamento = pagamentoLabels[pedido.pagamento]
+
+  if (status === 'ACEITO') {
+    return [
+      'O seu pedido foi aceito ✅',
+      '',
+      'Resumo do pedido:',
+      listaItens,
+      '',
+      `Total = ${total}`,
+      '',
+      `Pagamento: ${formaPagamento}`,
+    ].join('\n')
+  }
+
+  if (status === 'PREPARACAO') {
+    return [
+      'Seu pedido está em preparo 👨‍🍳',
+      pedido.statusPagamento === 'APROVADO' ? 'Pagamento confirmado.' : 'Estamos aguardando pagamento.',
+      '',
+      'Resumo do pedido:',
+      listaItens,
+      '',
+      `Total = ${total}`,
+    ].join('\n')
+  }
+
+  if (status === 'ENTREGUE') {
+    return [
+      'Seu pedido foi entregue 🚚',
+      '',
+      'Resumo do pedido:',
+      listaItens,
+      '',
+      `Total = ${total}`,
+      '',
+      'Obrigado pela preferência! 💙',
+    ].join('\n')
+  }
+
+  return ''
+}
+
+function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido) {
+  const telefone = getPedidoWhatsapp(pedido)
+  const mensagem = criarMensagemStatus(pedido, status)
+
+  if (!telefone || !mensagem) return
+
+  window.open(
+    `https://wa.me/55${telefone}?text=${encodeURIComponent(mensagem)}`,
+    '_blank',
+    'noopener,noreferrer'
+  )
+}
+
 export function PedidosDashboard() {
   const [activeTab, setActiveTab] = useState<string>('todos')
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
@@ -130,7 +199,8 @@ export function PedidosDashboard() {
     todos: pedidos?.length || 0
   }
 
-  const handleUpdateStatus = async (pedidoId: string, newStatus: StatusPedido) => {
+  const handleUpdateStatus = async (pedido: Pedido, newStatus: StatusPedido) => {
+    const pedidoId = pedido.id
     setUpdatingStatus(pedidoId)
     try {
       await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
@@ -142,6 +212,7 @@ export function PedidosDashboard() {
       if (selectedPedido?.id === pedidoId) {
         setSelectedPedido(prev => prev ? { ...prev, status: newStatus } : null)
       }
+      abrirWhatsappStatus(pedido, newStatus)
     } finally {
       setUpdatingStatus(null)
     }
@@ -335,19 +406,24 @@ export function PedidosDashboard() {
               <div className="mt-6 space-y-6">
                 {/* Status Action */}
                 {statusConfig[selectedPedido.status].nextStatus && (
-                  <Button
-                    className="w-full"
-                    onClick={() => handleUpdateStatus(
-                      selectedPedido.id, 
-                      statusConfig[selectedPedido.status].nextStatus!
-                    )}
-                    disabled={updatingStatus === selectedPedido.id}
-                  >
-                    {updatingStatus === selectedPedido.id ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : null}
-                    {statusConfig[selectedPedido.status].nextLabel}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full"
+                      onClick={() => handleUpdateStatus(
+                        selectedPedido,
+                        statusConfig[selectedPedido.status].nextStatus!
+                      )}
+                      disabled={updatingStatus === selectedPedido.id}
+                    >
+                      {updatingStatus === selectedPedido.id ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      {statusConfig[selectedPedido.status].nextLabel}
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Atualiza o status e abre o WhatsApp com a mensagem pronta.
+                    </p>
+                  </div>
                 )}
 
                 {/* Cancelar pedido */}
