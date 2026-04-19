@@ -2,6 +2,7 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -54,6 +55,7 @@ interface ConfirmationPageProps {
 }
 
 export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
+  const searchParams = useSearchParams()
   const [isPaying, setIsPaying] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [paymentError, setPaymentError] = useState('')
@@ -101,6 +103,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
   const statusInfo = statusConfig[pedido.status]
   const shouldShowPaymentButton = pedido.status === 'FEITO' && (pedido.pagamento === 'PIX' || pedido.pagamento === 'CARTAO')
   const canCancelOrder = pedido.status === 'FEITO' && pedido.statusPagamento !== 'APROVADO'
+  const checkoutUrl = searchParams.get('checkoutUrl')
 
   const handlePayNow = async () => {
     setPaymentError('')
@@ -118,7 +121,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
         throw new Error(data.error || 'Erro ao iniciar pagamento')
       }
 
-      window.location.href = data.checkoutUrl
+      window.location.assign(data.checkoutUrl)
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : 'Erro ao iniciar pagamento')
       setIsPaying(false)
@@ -317,6 +320,11 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
           )}
           {shouldShowPaymentButton && (
             <>
+              {checkoutUrl && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Pedido criado. Toque no botão abaixo para abrir o pagamento com segurança no celular.
+                </p>
+              )}
               <Button className="w-full h-12" onClick={handlePayNow} disabled={isPaying}>
                 <CreditCard className="h-4 w-4 mr-2" />
                 {isPaying ? 'Abrindo pagamento...' : `Pagar agora com ${pagamentoLabels[pedido.pagamento]}`}

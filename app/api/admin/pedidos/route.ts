@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
 
 export const runtime = 'nodejs'
+
+const pedidoAdminSchema = z.object({
+  clienteNome: z.string().trim().min(2).max(80),
+  clienteTelefone: z.string().trim().min(8).max(20),
+  clienteWhatsapp: z.string().trim().max(20).optional(),
+  clienteBloco: z.string().trim().max(20).optional(),
+  clienteApartamento: z.string().trim().max(20).optional(),
+  pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
+  tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA']),
+  statusPagamento: z.enum(['NAO_APLICAVEL', 'PENDENTE', 'APROVADO']).optional(),
+  itens: z.array(z.object({
+    produtoId: z.string().uuid(),
+    quantidade: z.number().int().min(1).max(99)
+  })).min(1).max(50)
+}).strict()
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, '')
+}
 
 // Middleware de autenticacao
 // GET /api/admin/pedidos?status=... - Lista pedidos
@@ -23,4 +44,102 @@ export async function GET(request: NextRequest) {
   })
 
   return NextResponse.json(resultado)
+}
+
+// POST /api/admin/pedidos - Cria pedido manual pelo painel admin.
+export async function POST(request: NextRequest) {
+  const admin = await getAdminSession()
+  if (!admin) {
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
+  }
+
+  try {
+    const parsed = pedidoAdminSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    }
+
+    const body = parsed.data
+    const telefoneLimpo = normalizePhone(body.clienteTelefone)
+    const whatsappLimpo = body.clienteWhatsapp ? normalizePhone(body.clienteWhatsapp) : telefoneLimpo
+
+    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 13) {
+      return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
+    }
+    if (whatsappLimpo.length < 10 || whatsappLimpo.length > 13) {
+      return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
+    }
+
+    const configuracao = await prisma.configuracao.findFirst({
+      where: { tenantId: admin.tenantId }
+    })
+
+    const itens = []
+    for (const item of body.itens) {
+      const produto = await prisma.produto.findFirst({
+        where: { id: item.produtoId, ativo: true, tenantId: admin.tenantId }
+      })
+      if (!produto) {
+        return NextResponse.json(
+          { error: `Produto indisponivel: ${item.produtoId}` },
+          { status: 400 }
+        )
+      }
+
+      itens.push({
+        produtoId: produto.id,
+        nomeProdutoSnapshot: produto.nome,
+        precoUnitarioSnapshot: produto.preco,
+        quantidade: item.quantidade,
+        totalItem: calcularTotalItem(produto.preco, item.quantidade)
+      })
+    }
+
+    const subtotal = calcularSubtotal(itens)
+    const frete = 0
+    const total = calcularTotal(subtotal, frete)
+    const statusPagamento = body.statusPagamento ?? (
+      body.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE'
+    )
+
+    const pedido = await prisma.pedido.create({
+      data: {
+        status: 'FEITO',
+        clienteNome: body.clienteNome.trim(),
+        clienteTelefone: telefoneLimpo,
+        clienteWhatsapp: whatsappLimpo,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        pagamento: body.pagamento,
+        tipoEntrega: body.tipoEntrega,
+        enderecoEntrega: null,
+        enderecoRetirada: configuracao?.enderecoRetirada ?? '',
+        frete,
+        subtotal,
+        total,
+        motivoCancelamento: null,
+        statusPagamento,
+        distanciaKm: null,
+        descontoValor: null,
+        cupomCodigoSnapshot: null,
+        cupomId: null,
+        tenantId: admin.tenantId,
+        itens: {
+          create: itens.map(item => ({
+            produtoId: item.produtoId,
+            nomeProdutoSnapshot: item.nomeProdutoSnapshot,
+            precoUnitarioSnapshot: item.precoUnitarioSnapshot,
+            quantidade: item.quantidade,
+            totalItem: item.totalItem
+          }))
+        }
+      },
+      include: { itens: true }
+    })
+
+    return NextResponse.json(pedido, { status: 201 })
+  } catch (error) {
+    console.error('[api/admin/pedidos] Erro ao criar pedido manual:', error)
+    return NextResponse.json({ error: 'Erro ao criar pedido manual' }, { status: 500 })
+  }
 }

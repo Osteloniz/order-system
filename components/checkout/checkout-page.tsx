@@ -74,6 +74,11 @@ export function CheckoutPage() {
     setTelefone(formatted)
   }
 
+  const handleWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatTelefone(e.target.value)
+    setWhatsapp(formatted)
+  }
+
   const handleAplicarCupom = async () => {
     setCupomErro('')
     setDescontoValor(0)
@@ -182,7 +187,7 @@ export function CheckoutPage() {
         }
 
         limparCarrinho()
-        window.location.href = paymentData.checkoutUrl
+        router.push(`/confirmacao/${pedido.id}?checkoutUrl=${encodeURIComponent(paymentData.checkoutUrl)}`)
         return
       }
 
@@ -340,19 +345,7 @@ export function CheckoutPage() {
                     id="whatsapp"
                     placeholder="(00) 00000-0000"
                     value={whatsapp}
-                    onChange={handleTelefoneChange}
-                    onFocus={(e) => {
-                      const input = e.target
-                      input.value = whatsapp
-                      input.onChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
-                        const formatted = formatTelefone(ev.target.value)
-                        setWhatsapp(formatted)
-                      }
-                    }}
-                    onChange={(e) => {
-                      const formatted = formatTelefone(e.target.value)
-                      setWhatsapp(formatted)
-                    }}
+                    onChange={handleWhatsappChange}
                     required
                   />
                 </div>

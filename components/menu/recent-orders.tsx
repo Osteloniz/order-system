@@ -7,7 +7,7 @@ import { Clock, ReceiptText } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatarMoeda } from '@/lib/calc'
-import { getRecentOrderIds } from '@/lib/customer-session'
+import { clearRecentOrdersForCurrentCustomer, getRecentOrderIds } from '@/lib/customer-session'
 import type { Pedido, StatusPagamento, StatusPedido } from '@/lib/types'
 
 const fetcher = async (url: string) => {
@@ -91,7 +91,7 @@ export function RecentOrders() {
         variant="ghost"
         className="mt-2 h-8 px-2 text-xs"
         onClick={() => {
-          window.localStorage.removeItem('brookie.customer.orders')
+          clearRecentOrdersForCurrentCustomer()
           setOrderIds([])
         }}
       >
