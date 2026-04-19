@@ -3,7 +3,7 @@
 import React from "react"
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Lock, Loader2, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,59 +11,27 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
 import { ThemeToggle } from '@/components/theme-toggle'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-
-type TenantOption = { id: string; nome: string; slug: string }
 
 export function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth()
-  const [tenant, setTenant] = useState('')
   const [username, setUsername] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [tenants, setTenants] = useState<TenantOption[]>([])
 
   useEffect(() => {
-    async function loadTenants() {
-      try {
-        const res = await fetch('/api/tenants')
-        const data = await res.json()
-        setTenants(Array.isArray(data) ? data : [])
-      } catch {
-        setTenants([])
-      }
+    if (!authLoading && isAuthenticated) {
+      router.replace('/admin')
     }
-    loadTenants()
-  }, [])
-
-  useEffect(() => {
-    const tenantFromQuery = searchParams.get('tenant')?.trim()
-    if (tenantFromQuery && !tenant) {
-      setTenant(tenantFromQuery)
-    }
-  }, [searchParams, tenant])
-
-  // Redireciona se já autenticado
-  if (!authLoading && isAuthenticated) {
-    router.push('/admin')
-    return null
-  }
+  }, [authLoading, isAuthenticated, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsSubmitting(true)
 
-    const result = await login({ tenant, username, password: senha })
+    const result = await login({ username, password: senha })
 
     if (result.success) {
       router.push('/admin')
@@ -74,7 +42,7 @@ export function LoginPage() {
     setIsSubmitting(false)
   }
 
-  if (authLoading) {
+  if (authLoading || isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -92,29 +60,13 @@ export function LoginPage() {
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
             <Store className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>Painel Admin</CardTitle>
+          <CardTitle>Painel Admin - Brookie Pregiato</CardTitle>
           <CardDescription>
             Entre com sua senha para acessar o painel
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Empresa</Label>
-              <Select value={tenant} onValueChange={setTenant}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map(t => (
-                    <SelectItem key={t.id} value={t.slug}>
-                      {t.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="username">Usuário</Label>
               <Input
@@ -150,7 +102,7 @@ export function LoginPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting || !tenant || !username || !senha}
+              disabled={isSubmitting || !username || !senha}
             >
               {isSubmitting ? (
                 <>
