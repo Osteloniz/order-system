@@ -4,7 +4,7 @@ import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
 
-// DELETE /api/admin/pedidos/:id - Remove pedido (apenas se CANCELADO)
+// DELETE /api/admin/pedidos/:id - Remove pedido apenas enquanto nao estiver pago.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +17,7 @@ export async function DELETE(
   const { id } = await params
   const pedido = await prisma.pedido.findFirst({
     where: { id, tenantId: admin.tenantId },
-    select: { status: true }
+    select: { statusPagamento: true }
   })
 
   if (!pedido) {
@@ -28,9 +28,9 @@ export async function DELETE(
   }
 
 
-  if (pedido.status !== 'CANCELADO') {
+  if (pedido.statusPagamento === 'APROVADO') {
     return NextResponse.json(
-      { error: 'Somente pedidos cancelados podem ser excluidos' },
+      { error: 'Pedidos pagos nao podem ser excluidos' },
       { status: 400 }
     )
   }

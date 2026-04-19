@@ -656,6 +656,45 @@ export function PedidosDashboard() {
                   </Card>
                 )}
 
+                {/* Exclusao permitida apenas para pedidos sem pagamento confirmado */}
+                {selectedPedido.statusPagamento !== 'APROVADO' && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="w-full">
+                        Excluir Pedido
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir pedido definitivamente?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acao remove o pedido da base e nao e possivel desfazer.
+                          Pedidos marcados como pagos nao podem ser excluidos.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>
+                          <X className="h-4 w-4 mr-0 md:mr-2" />
+                          <span className="hidden md:inline">Voltar</span>
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeletePedido(selectedPedido.id)}
+                          disabled={deletingPedidoId === selectedPedido.id}
+                        >
+                          {deletingPedidoId === selectedPedido.id ? (
+                            <RefreshCw className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
+                          )}
+                          <span className="hidden md:inline">
+                            {deletingPedidoId === selectedPedido.id ? 'Excluindo...' : 'Excluir'}
+                          </span>
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+
                 {/* Itens */}
                 <Card>
                   <CardHeader className="pb-3">
@@ -762,7 +801,7 @@ export function PedidosDashboard() {
                   </CardContent>
                 </Card>
 
-                {/* Motivo e exclusao */}
+                {/* Motivo */}
                 {selectedPedido.status === 'CANCELADO' && (
                   <Card>
                     <CardHeader className="pb-3">
@@ -775,41 +814,6 @@ export function PedidosDashboard() {
                       <p className="text-sm text-muted-foreground">
                         Motivo: {selectedPedido.motivoCancelamento || 'Nao informado'}
                       </p>
-
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" className="w-full">
-                            Excluir Pedido
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir pedido cancelado?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta acao remove o pedido definitivamente. Nao e possivel desfazer.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>
-                              <X className="h-4 w-4 mr-0 md:mr-2" />
-                              <span className="hidden md:inline">Voltar</span>
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeletePedido(selectedPedido.id)}
-                              disabled={deletingPedidoId === selectedPedido.id}
-                            >
-                              {deletingPedidoId === selectedPedido.id ? (
-                                <RefreshCw className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
-                              )}
-                              <span className="hidden md:inline">
-                                {deletingPedidoId === selectedPedido.id ? 'Excluindo...' : 'Excluir'}
-                              </span>
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
                     </CardContent>
                   </Card>
                 )}
