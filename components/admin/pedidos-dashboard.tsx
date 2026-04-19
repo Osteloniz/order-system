@@ -618,7 +618,7 @@ export function PedidosDashboard() {
       </Sheet>
 
       <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
-        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
           <DialogHeader>
             <DialogTitle>Novo pedido manual</DialogTitle>
           </DialogHeader>

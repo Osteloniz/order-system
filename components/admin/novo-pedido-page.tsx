@@ -119,7 +119,7 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-full space-y-6 overflow-x-hidden">
       {!compact && (
         <div>
           <h1 className="text-2xl font-bold">Novo pedido manual</h1>
@@ -127,18 +127,18 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
         </div>
       )}
 
-      <div className={compact ? 'grid gap-6 xl:grid-cols-[1fr_320px]' : 'grid gap-6 xl:grid-cols-[1fr_380px]'}>
-        <div className="space-y-4">
+      <div className={compact ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]' : 'grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]'}>
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader><CardTitle>Dados do cliente</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
-              <div className="space-y-2"><Label>Celular</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
-              <div className="space-y-2"><Label>WhatsApp</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhone(event.target.value))} placeholder="Se vazio, usa o celular" /></div>
-              <div className="space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option></select></div>
-              <div className="space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
-              <div className="space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
-              <div className="space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
+            <CardContent className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
+              <div className="min-w-0 space-y-2"><Label>Celular</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
+              <div className="min-w-0 space-y-2"><Label>WhatsApp</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhone(event.target.value))} placeholder="Se vazio, usa o celular" /></div>
+              <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option></select></div>
+              <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
+              <div className="min-w-0 space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
+              <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
             </CardContent>
           </Card>
 
@@ -146,16 +146,16 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
             <CardHeader><CardTitle>Produtos</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {isLoading ? <p className="text-sm text-muted-foreground">Carregando produtos...</p> : produtosAtivos.map(produto => (
-                <div key={produto.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                <div key={produto.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0"><p className="font-medium">{produto.nome}</p><p className="text-sm text-muted-foreground">{produto.categoriaNome} • {formatarMoeda(produto.preco)}</p></div>
-                  <Button type="button" size="sm" onClick={() => addProduct(produto)}><Plus className="mr-2 h-4 w-4" />Adicionar</Button>
+                  <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={() => addProduct(produto)}><Plus className="mr-2 h-4 w-4" />Adicionar</Button>
                 </div>
               ))}
             </CardContent>
           </Card>
         </div>
 
-        <Card className="h-fit xl:sticky xl:top-6">
+        <Card className="h-fit min-w-0 lg:sticky lg:top-6">
           <CardHeader><CardTitle className="flex items-center gap-2"><ShoppingBag className="h-5 w-5" />Resumo</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {items.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum produto adicionado.</p> : items.map(item => (
