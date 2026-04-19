@@ -4,13 +4,14 @@ import React from "react"
 
 import { useState, useEffect } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Save, Loader2, Settings } from 'lucide-react'
+import { Bell, Save, Loader2, Settings, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertSoundEnabled, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import type { Configuracao } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -29,6 +30,28 @@ export function ConfigPage() {
   const [isOpen, setIsOpen] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [alertsEnabled, setAlertsEnabledState] = useState(false)
+  const [soundEnabled, setSoundEnabledState] = useState(true)
+  const [notificationPermission, setNotificationPermission] = useState('unsupported')
+  const [alertMessage, setAlertMessage] = useState('')
+
+  const playTestSound = () => {
+    const AudioContextConstructor = window.AudioContext || (window as typeof window & {
+      webkitAudioContext: typeof AudioContext
+    }).webkitAudioContext
+    const audioContext = new AudioContextConstructor()
+    const oscillator = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+    oscillator.type = 'square'
+    oscillator.frequency.setValueAtTime(920, audioContext.currentTime)
+    gain.gain.setValueAtTime(0.001, audioContext.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.25, audioContext.currentTime + 0.03)
+    gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.35)
+    oscillator.connect(gain)
+    gain.connect(audioContext.destination)
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.36)
+  }
 
   useEffect(() => {
     if (config) {
@@ -47,6 +70,37 @@ export function ConfigPage() {
       setIsOpen(tenantData.isOpen)
     }
   }, [tenantData])
+
+  useEffect(() => {
+    setAlertsEnabledState(getAdminAlertsEnabled())
+    setSoundEnabledState(getAdminAlertSoundEnabled())
+    setNotificationPermission(getNotificationPermission())
+  }, [])
+
+  const handleToggleAlerts = async (enabled: boolean) => {
+    let permission = getNotificationPermission()
+    if (enabled && 'Notification' in window && Notification.permission === 'default') {
+      permission = await Notification.requestPermission()
+    }
+
+    setNotificationPermission(permission)
+    setAdminAlertsEnabled(enabled)
+    setAlertsEnabledState(enabled)
+    setAlertMessage(
+      permission === 'denied'
+        ? 'Notificacoes bloqueadas no navegador. Libere nas configuracoes do site/navegador.'
+        : enabled
+          ? 'Alertas habilitados neste navegador.'
+          : 'Alertas desabilitados neste navegador.'
+    )
+  }
+
+  const handleToggleSound = (enabled: boolean) => {
+    setAdminAlertSoundEnabled(enabled)
+    setSoundEnabledState(enabled)
+    setAlertMessage(enabled ? 'Som de alerta habilitado.' : 'Som de alerta desabilitado.')
+    if (enabled) playTestSound()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -230,6 +284,70 @@ export function ConfigPage() {
               )}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Alertas e permissões
+          </CardTitle>
+          <CardDescription>
+            Configure os avisos de novos pedidos neste navegador.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <Label htmlFor="alertas">Notificações de novos pedidos</Label>
+              <p className="text-xs text-muted-foreground">
+                Permissão atual: {notificationPermission === 'granted' ? 'permitida' : notificationPermission === 'denied' ? 'bloqueada' : notificationPermission === 'default' ? 'pendente' : 'não suportada'}.
+              </p>
+            </div>
+            <Switch
+              id="alertas"
+              checked={alertsEnabled}
+              onCheckedChange={handleToggleAlerts}
+              disabled={notificationPermission === 'unsupported'}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <Label htmlFor="som-alerta">Som de alerta</Label>
+              <p className="text-xs text-muted-foreground">
+                O som precisa ser reativado por clique quando o navegador recarrega a página.
+              </p>
+            </div>
+            <Switch
+              id="som-alerta"
+              checked={soundEnabled}
+              onCheckedChange={handleToggleSound}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => handleToggleAlerts(true)}>
+              <Bell className="h-4 w-4 mr-2" />
+              Solicitar permissão
+            </Button>
+            <Button type="button" variant="outline" onClick={playTestSound}>
+              <Volume2 className="h-4 w-4 mr-2" />
+              Testar som
+            </Button>
+          </div>
+
+          {alertMessage && (
+            <p className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
+              {alertMessage}
+            </p>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Observação: som customizado com aba minimizada depende das regras do navegador e do sistema operacional.
+            As notificações do sistema são o comportamento mais confiável em segundo plano.
+          </p>
         </CardContent>
       </Card>
     </div>

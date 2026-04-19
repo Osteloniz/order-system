@@ -3,7 +3,7 @@
 import type { DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, Package, Phone, RefreshCw, Search, Trash2, Truck, User, X } from 'lucide-react'
+import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, Package, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,8 +12,11 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { NovoPedidoAdminPage } from '@/components/admin/novo-pedido-page'
 import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
+import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import type { Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -53,8 +56,6 @@ const statusPagamentoColors = {
   REEMBOLSADO: 'bg-accent text-accent-foreground'
 }
 
-const ADMIN_ALERTS_STORAGE_KEY = 'brookie-admin-alertas-pedidos'
-
 function getPedidoWhatsapp(pedido: Pedido) {
   return (pedido.clienteWhatsapp || pedido.clienteTelefone || '').replace(/\D/g, '')
 }
@@ -76,7 +77,17 @@ function criarMensagemStatus(pedido: Pedido, status: StatusPedido) {
 
   if (status === 'ACEITO') return ['O seu pedido foi aceito ✅', '', 'Resumo do pedido:', listaItens, '', `Total = ${total}`, '', `Pagamento: ${formaPagamento}`].join('\n')
   if (status === 'PREPARACAO') return ['Seu pedido está em preparo 👨‍🍳', pedido.statusPagamento === 'APROVADO' ? 'Pagamento confirmado.' : 'Estamos aguardando pagamento.', '', 'Resumo do pedido:', listaItens, '', `Total = ${total}`].join('\n')
-  if (status === 'ENTREGUE') return ['Seu pedido foi entregue 🚚', '', 'Resumo do pedido:', listaItens, '', `Total = ${total}`, '', 'Obrigado pela preferência! 💙'].join('\n')
+  if (status === 'ENTREGUE') return [
+    'Muito obrigado pela sua compra! 💙',
+    '',
+    'A sua opinião é muito importante para nós. Se puder, envie um feedback contando como foi a sua experiência com o pedido.',
+    '',
+    'Dica especial para aproveitar ainda mais os nossos cookies:',
+    '',
+    'Eles já são deliciosos em qualquer momento, mas se você gosta de saborear quentinho, coloque no micro-ondas por apenas 15 segundos. O resultado é sensacional: massa macia, aroma irresistível e sabor ainda mais intenso!',
+    '',
+    'Experiência única garantida 💙',
+  ].join('\n')
   return ''
 }
 
@@ -85,11 +96,6 @@ function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido) {
   const mensagem = criarMensagemStatus(pedido, status)
   if (!telefone || !mensagem) return
   window.open(`https://wa.me/55${telefone}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener,noreferrer')
-}
-
-function getNotificationPermission() {
-  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
-  return Notification.permission
 }
 
 function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
@@ -113,6 +119,8 @@ export function PedidosDashboard() {
   const [paymentFilter, setPaymentFilter] = useState<'TODOS' | Pedido['pagamento']>('TODOS')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'TODOS' | Pedido['statusPagamento']>('TODOS')
   const [dateFilter, setDateFilter] = useState('')
+  const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [soundUnlocked, setSoundUnlocked] = useState(false)
   const seenPedidoIdsRef = useRef<Set<string>>(new Set())
   const initialPedidosLoadedRef = useRef(false)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -205,8 +213,10 @@ export function PedidosDashboard() {
   }
 
   useEffect(() => {
-    const savedPreference = window.localStorage.getItem(ADMIN_ALERTS_STORAGE_KEY)
-    if (savedPreference === 'enabled' && getNotificationPermission() !== 'denied') setAlertsEnabled(true)
+    if (getAdminAlertsEnabled() && getNotificationPermission() !== 'denied') {
+      setAlertsEnabled(true)
+      setLastAlertMessage('Alertas ativos. Clique em "Ativar som" nesta sessao para ouvir o aviso sonoro.')
+    }
     setNotificationPermission(getNotificationPermission())
   }, [])
 
@@ -229,7 +239,9 @@ export function PedidosDashboard() {
 
     const message = totalNovos === 1 ? '1 pedido novo aguardando aceite' : `${totalNovos} pedidos novos aguardando aceite`
     setLastAlertMessage(message)
-    void playAlertSound()
+    if (soundUnlocked && getAdminAlertSoundEnabled()) {
+      void playAlertSound()
+    }
 
     if ('Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('Brookie Pregiato', {
@@ -258,14 +270,22 @@ export function PedidosDashboard() {
     setNotificationPermission(permission)
     setLastAlertMessage(permission === 'denied' ? 'Notificacoes bloqueadas no navegador. O som interno continua ativo enquanto a aba permitir audio.' : 'Alertas ativados para novos pedidos.')
     setAlertsEnabled(true)
-    window.localStorage.setItem(ADMIN_ALERTS_STORAGE_KEY, 'enabled')
+    setAdminAlertsEnabled(true)
+    setSoundUnlocked(true)
     void playAlertSound()
   }
 
   const handleDisableAlerts = () => {
     setAlertsEnabled(false)
-    window.localStorage.setItem(ADMIN_ALERTS_STORAGE_KEY, 'disabled')
+    setAdminAlertsEnabled(false)
     setLastAlertMessage('Alertas pausados.')
+  }
+
+  const handleUnlockSound = async () => {
+    await unlockAlertSound()
+    setSoundUnlocked(true)
+    setLastAlertMessage('Som reativado para esta sessao.')
+    void playAlertSound()
   }
 
   const handleUpdateStatus = async (pedido: Pedido, newStatus: StatusPedido) => {
@@ -410,6 +430,16 @@ export function PedidosDashboard() {
           <p className="text-sm text-muted-foreground">Arraste os cards para avancar: Novo &gt; Aceito &gt; Em preparo &gt; Entregue.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={() => setNewOrderOpen(true)}>
+            <Plus className="h-4 w-4 mr-0 md:mr-2" />
+            <span className="hidden md:inline">Novo pedido</span>
+          </Button>
+          {alertsEnabled && !soundUnlocked && (
+            <Button variant="outline" size="sm" onClick={handleUnlockSound}>
+              <Volume2 className="h-4 w-4 mr-0 md:mr-2" />
+              <span className="hidden md:inline">Ativar som</span>
+            </Button>
+          )}
           <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
             {alertsEnabled ? <BellRing className="h-4 w-4 mr-0 md:mr-2" /> : <Bell className="h-4 w-4 mr-0 md:mr-2" />}
             <span className="hidden md:inline">{alertsEnabled ? 'Alertas ativos' : 'Ativar alertas'}</span>
@@ -586,6 +616,21 @@ export function PedidosDashboard() {
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
+        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Novo pedido manual</DialogTitle>
+          </DialogHeader>
+          <NovoPedidoAdminPage
+            compact
+            onCreated={() => {
+              mutate('/api/admin/pedidos')
+              window.setTimeout(() => setNewOrderOpen(false), 900)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

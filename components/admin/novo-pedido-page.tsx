@@ -17,6 +17,11 @@ const fetcher = (url: string) => fetch(url).then(res => res.json())
 type ProdutoAdmin = Produto & { categoriaNome?: string }
 type CartItem = { produto: ProdutoAdmin; quantidade: number }
 
+type NovoPedidoAdminPageProps = {
+  compact?: boolean
+  onCreated?: () => void
+}
+
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
 }
@@ -28,7 +33,7 @@ function formatPhone(value: string) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
-export function NovoPedidoAdminPage() {
+export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAdminPageProps) {
   const { data: produtos, isLoading } = useSWR<ProdutoAdmin[]>('/api/admin/produtos', fetcher)
   const produtosAtivos = useMemo(() => (produtos || []).filter(produto => produto.ativo), [produtos])
 
@@ -105,6 +110,7 @@ export function NovoPedidoAdminPage() {
 
       setMessage(`Pedido #${data.id.slice(-8).toUpperCase()} criado com sucesso.`)
       resetForm()
+      onCreated?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar pedido')
     } finally {
@@ -114,12 +120,14 @@ export function NovoPedidoAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Novo pedido manual</h1>
-        <p className="text-sm text-muted-foreground">Use quando o cliente pedir pelo WhatsApp e voce quiser manter tudo na gestao.</p>
-      </div>
+      {!compact && (
+        <div>
+          <h1 className="text-2xl font-bold">Novo pedido manual</h1>
+          <p className="text-sm text-muted-foreground">Use quando o cliente pedir pelo WhatsApp e voce quiser manter tudo na gestao.</p>
+        </div>
+      )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      <div className={compact ? 'grid gap-6 xl:grid-cols-[1fr_320px]' : 'grid gap-6 xl:grid-cols-[1fr_380px]'}>
         <div className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Dados do cliente</CardTitle></CardHeader>
