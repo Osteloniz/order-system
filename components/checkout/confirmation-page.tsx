@@ -2,13 +2,24 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
-import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle } from 'lucide-react'
+import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog'
 import { formatarMoeda, formatarDataHora, formatarTelefone } from '@/lib/calc'
 import { saveRecentOrder } from '@/lib/customer-session'
 import type { Pedido, StatusPedido } from '@/lib/types'
@@ -44,8 +55,10 @@ interface ConfirmationPageProps {
 
 export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
   const [isPaying, setIsPaying] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
   const [paymentError, setPaymentError] = useState('')
-  const { data: pedido, isLoading, error } = useSWR<Pedido>(
+  const [cancelError, setCancelError] = useState('')
+  const { data: pedido, isLoading, error, mutate } = useSWR<Pedido>(
     `/api/pedidos/${pedidoId}`,
     fetcher,
     { refreshInterval: 10000 } // Atualiza a cada 10s para ver mudanças de status
@@ -87,6 +100,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
 
   const statusInfo = statusConfig[pedido.status]
   const shouldShowPaymentButton = pedido.status === 'FEITO' && (pedido.pagamento === 'PIX' || pedido.pagamento === 'CARTAO')
+  const canCancelOrder = pedido.status === 'FEITO' && pedido.statusPagamento !== 'APROVADO'
 
   const handlePayNow = async () => {
     setPaymentError('')
@@ -108,6 +122,30 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : 'Erro ao iniciar pagamento')
       setIsPaying(false)
+    }
+  }
+
+  const handleCancelOrder = async () => {
+    setCancelError('')
+    setIsCancelling(true)
+
+    try {
+      const response = await fetch(`/api/pedidos/${pedido.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' })
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao cancelar pedido')
+      }
+
+      await mutate(data, false)
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : 'Erro ao cancelar pedido')
+    } finally {
+      setIsCancelling(false)
     }
   }
 
@@ -244,6 +282,39 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
 
         {/* Actions */}
         <div className="space-y-3">
+          {canCancelOrder && (
+            <>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full h-12">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancelar pedido
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancelar este pedido?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Voce pode cancelar enquanto a loja ainda nao aceitou o pedido e o pagamento nao foi aprovado.
+                      Depois de cancelar, a loja nao ira preparar este pedido.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleCancelOrder}
+                      disabled={isCancelling}
+                    >
+                      {isCancelling ? 'Cancelando...' : 'Confirmar cancelamento'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              {cancelError && (
+                <p className="text-sm text-destructive text-center">{cancelError}</p>
+              )}
+            </>
+          )}
           {shouldShowPaymentButton && (
             <>
               <Button className="w-full h-12" onClick={handlePayNow} disabled={isPaying}>
