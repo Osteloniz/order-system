@@ -33,3 +33,7 @@ export function rateLimitByIp(ip: string) {
   store.set(ip, current)
   return { allowed: true }
 }
+
+export function resetRateLimitByIp(ip: string) {
+  store.delete(ip)
+}

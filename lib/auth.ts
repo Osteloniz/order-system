@@ -2,7 +2,18 @@
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
-import { rateLimitByIp } from '@/lib/rateLimit'
+import { rateLimitByIp, resetRateLimitByIp } from '@/lib/rateLimit'
+
+function getHeaderValue(headers: unknown, name: string) {
+  if (!headers) return undefined
+
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name)?.toString()
+  }
+
+  const value = (headers as Record<string, unknown>)[name]
+  return Array.isArray(value) ? value[0]?.toString() : value?.toString()
+}
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -11,13 +22,12 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        tenant: { label: 'Tenant', type: 'text' },
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials, req) {
-        const forwardedFor = req?.headers?.get?.('x-forwarded-for')?.toString()
-        const realIp = req?.headers?.get?.('x-real-ip')?.toString()
+        const forwardedFor = getHeaderValue(req?.headers, 'x-forwarded-for')
+        const realIp = getHeaderValue(req?.headers, 'x-real-ip')
         const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
 
         const rate = rateLimitByIp(ip)
@@ -25,16 +35,16 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Muitas tentativas. Tente novamente mais tarde.')
         }
 
-        const tenantSlug = credentials?.tenant?.toString().trim()
         const username = credentials?.username?.toString().trim()
         const password = credentials?.password?.toString()
 
-        if (!tenantSlug || !username || !password) {
+        if (!username || !password) {
           return null
         }
 
+        // Force Brookie Pregiato como único tenant
         const tenant = await prisma.tenant.findUnique({
-          where: { slug: tenantSlug }
+          where: { slug: 'brookie-pregiato' }
         })
         if (!tenant) {
           return null
@@ -51,6 +61,8 @@ export const authOptions: NextAuthOptions = {
         if (!ok) {
           return null
         }
+
+        resetRateLimitByIp(ip)
 
         return {
           id: user.id,
