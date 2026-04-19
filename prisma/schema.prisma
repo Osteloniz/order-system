@@ -37,6 +37,15 @@ enum TipoCupom {
   PERCENTUAL
 }
 
+enum StatusPagamento {
+  NAO_APLICAVEL
+  PENDENTE
+  APROVADO
+  RECUSADO
+  CANCELADO
+  REEMBOLSADO
+}
+
 model Configuracao {
   id                  String   @id @default(uuid())
   nomeEstabelecimento String
@@ -99,6 +108,9 @@ model Pedido {
   clienteBloco    String?
   clienteApartamento String?
   pagamento       TipoPagamento
+  statusPagamento StatusPagamento @default(NAO_APLICAVEL)
+  mercadoPagoPaymentId String?
+  mercadoPagoPreferenceId String?
   tipoEntrega     TipoEntrega
   enderecoEntrega String?
   enderecoRetirada String
@@ -121,6 +133,8 @@ model Pedido {
 
   @@index([clienteTelefone])
   @@index([status])
+  @@index([statusPagamento])
+  @@index([mercadoPagoPaymentId])
   @@index([criadoEm])
 }
 

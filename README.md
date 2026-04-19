@@ -41,6 +41,7 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
 DIRECT_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 MERCADO_PAGO_ACCESS_TOKEN="APP_USR-ou-TEST..."
+MERCADO_PAGO_WEBHOOK_SECRET="segredo-configurado-no-painel-do-mercado-pago"
 ```
 
 3) Sincronize o banco de dados:

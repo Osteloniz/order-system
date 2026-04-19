@@ -1,4 +1,5 @@
 import type { Pedido, ItemPedido } from '@prisma/client'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 type PedidoComItens = Pedido & { itens: ItemPedido[] }
 
@@ -6,6 +7,17 @@ type PreferenceResponse = {
   id: string
   init_point?: string
   sandbox_init_point?: string
+}
+
+export type MercadoPagoPayment = {
+  id: number
+  status: string
+  status_detail?: string
+  external_reference?: string
+  transaction_amount?: number
+  currency_id?: string
+  payment_method_id?: string
+  payment_type_id?: string
 }
 
 function getBaseUrl() {
@@ -68,6 +80,7 @@ export async function createMercadoPagoPreference(pedido: PedidoComItens) {
         name: pedido.clienteNome,
       },
       external_reference: pedido.id,
+      notification_url: `${baseUrl}/api/webhooks/mercado-pago`,
       statement_descriptor: 'BROOKIE PREGIATO',
       back_urls: {
         success: `${baseUrl}/confirmacao/${pedido.id}?mp_status=success`,
@@ -102,4 +115,62 @@ export async function createMercadoPagoPreference(pedido: PedidoComItens) {
     preferenceId: preference.id,
     checkoutUrl,
   }
+}
+
+export async function getMercadoPagoPayment(paymentId: string) {
+  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN
+  if (!accessToken) {
+    throw new Error('MERCADO_PAGO_ACCESS_TOKEN nao configurado')
+  }
+
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    console.error('[mercado-pago] Erro ao consultar pagamento:', data)
+    throw new Error('Erro ao consultar pagamento no Mercado Pago')
+  }
+
+  return data as MercadoPagoPayment
+}
+
+export function mapMercadoPagoStatus(status: string) {
+  if (status === 'approved' || status === 'authorized') return 'APROVADO'
+  if (status === 'rejected') return 'RECUSADO'
+  if (status === 'cancelled') return 'CANCELADO'
+  if (status === 'refunded' || status === 'charged_back') return 'REEMBOLSADO'
+  return 'PENDENTE'
+}
+
+export function verifyMercadoPagoWebhookSignature(headers: Headers, dataId: string) {
+  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET
+  if (!secret) return true
+
+  const signature = headers.get('x-signature')
+  const requestId = headers.get('x-request-id')
+  if (!signature || !requestId || !dataId) return false
+
+  const parts = Object.fromEntries(
+    signature.split(',').map((part) => {
+      const [key, value] = part.split('=')
+      return [key?.trim(), value?.trim()]
+    })
+  )
+
+  const timestamp = parts.ts
+  const receivedSignature = parts.v1
+  if (!timestamp || !receivedSignature) return false
+
+  const manifest = `id:${dataId};request-id:${requestId};ts:${timestamp};`
+  const expectedSignature = createHmac('sha256', secret)
+    .update(manifest)
+    .digest('hex')
+
+  const received = Buffer.from(receivedSignature, 'hex')
+  const expected = Buffer.from(expectedSignature, 'hex')
+  return received.length === expected.length && timingSafeEqual(received, expected)
 }

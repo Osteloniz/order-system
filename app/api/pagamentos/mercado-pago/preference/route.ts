@@ -43,6 +43,14 @@ export async function POST(request: NextRequest) {
 
     const preference = await createMercadoPagoPreference(pedido)
 
+    await prisma.pedido.update({
+      where: { id: pedido.id },
+      data: {
+        statusPagamento: 'PENDENTE',
+        mercadoPagoPreferenceId: preference.preferenceId,
+      },
+    })
+
     return NextResponse.json(preference)
   } catch (error) {
     console.error('[api/pagamentos/mercado-pago/preference] Erro:', error)

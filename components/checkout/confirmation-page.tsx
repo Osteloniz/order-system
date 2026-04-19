@@ -28,6 +28,15 @@ const pagamentoLabels = {
   DINHEIRO: 'Dinheiro'
 }
 
+const statusPagamentoLabels = {
+  NAO_APLICAVEL: 'Pagamento na entrega',
+  PENDENTE: 'Pagamento pendente',
+  APROVADO: 'Pagamento aprovado',
+  RECUSADO: 'Pagamento recusado',
+  CANCELADO: 'Pagamento cancelado',
+  REEMBOLSADO: 'Pagamento reembolsado'
+}
+
 interface ConfirmationPageProps {
   pedidoId: string
 }
@@ -218,6 +227,10 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
                 <CreditCard className="h-4 w-4" />
                 {pagamentoLabels[pedido.pagamento]}
               </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Status do pagamento</span>
+              <span className="font-medium">{statusPagamentoLabels[pedido.statusPagamento]}</span>
             </div>
           </CardContent>
         </Card>

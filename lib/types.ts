@@ -1,8 +1,9 @@
 // Tipos do sistema de pedidos
 
 export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
+export type StatusPagamento = 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
 export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
-export type TipoEntrega = 'ENTREGA' | 'RETIRADA'
+export type TipoEntrega = 'RESERVA_PAULISTANO' | 'RETIRADA'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 
 export interface Categoria {
@@ -36,8 +37,14 @@ export interface ItemPedido {
 export interface Pedido {
   id: string
   status: StatusPedido
+  statusPagamento: StatusPagamento
+  mercadoPagoPaymentId?: string | null
+  mercadoPagoPreferenceId?: string | null
   clienteNome: string
   clienteTelefone: string
+  clienteWhatsapp?: string
+  clienteBloco?: string
+  clienteApartamento?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   enderecoEntrega?: string
@@ -72,6 +79,9 @@ export interface Configuracao {
 export interface CriarPedidoPayload {
   clienteNome: string
   clienteTelefone: string
+  clienteWhatsapp?: string
+  clienteBloco?: string
+  clienteApartamento?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   enderecoEntrega?: string

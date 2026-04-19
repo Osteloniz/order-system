@@ -81,6 +81,24 @@ const pagamentoLabels = {
   DINHEIRO: 'Dinheiro'
 }
 
+const statusPagamentoLabels = {
+  NAO_APLICAVEL: 'Na entrega',
+  PENDENTE: 'Pendente',
+  APROVADO: 'Aprovado',
+  RECUSADO: 'Recusado',
+  CANCELADO: 'Cancelado',
+  REEMBOLSADO: 'Reembolsado'
+}
+
+const statusPagamentoColors = {
+  NAO_APLICAVEL: 'bg-secondary text-secondary-foreground',
+  PENDENTE: 'bg-warning text-warning-foreground',
+  APROVADO: 'bg-success text-success-foreground',
+  RECUSADO: 'bg-destructive text-destructive-foreground',
+  CANCELADO: 'bg-destructive text-destructive-foreground',
+  REEMBOLSADO: 'bg-accent text-accent-foreground'
+}
+
 export function PedidosDashboard() {
   const [activeTab, setActiveTab] = useState<string>('todos')
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
@@ -280,6 +298,9 @@ export function PedidosDashboard() {
                               <span className="font-medium text-foreground">
                                 {formatarMoeda(pedido.total)}
                               </span>
+                              <Badge className={statusPagamentoColors[pedido.statusPagamento]}>
+                                {statusPagamentoLabels[pedido.statusPagamento]}
+                              </Badge>
                             </div>
                           </div>
                         </div>
@@ -304,7 +325,7 @@ export function PedidosDashboard() {
             <>
               <SheetHeader>
                 <SheetTitle className="flex items-center justify-between">
-                  <span>Pedido #{selectedPedido.id.slice(-6).toUpperCase()}</span>
+                  <span>Pedido #{selectedPedido.id.slice(-8).toUpperCase()}</span>
                   <Badge className={statusConfig[selectedPedido.status].color}>
                     {statusConfig[selectedPedido.status].label}
                   </Badge>
@@ -430,6 +451,16 @@ export function PedidosDashboard() {
                     <div className="flex items-center gap-2 text-sm">
                       <CreditCard className="h-4 w-4 text-muted-foreground" />
                       <span>{pagamentoLabels[selectedPedido.pagamento]}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>
+                        {statusPagamentoLabels[selectedPedido.statusPagamento]}
+                      </Badge>
+                      {selectedPedido.mercadoPagoPaymentId && (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          MP {selectedPedido.mercadoPagoPaymentId}
+                        </span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

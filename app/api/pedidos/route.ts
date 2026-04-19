@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
           subtotal,
           total: Math.max(0, total),
           motivoCancelamento: null,
+          statusPagamento: body.pagamento === 'PIX' || body.pagamento === 'CARTAO' ? 'PENDENTE' : 'NAO_APLICAVEL',
           distanciaKm: null,
           descontoValor: descontoValor > 0 ? descontoValor : null,
           cupomCodigoSnapshot: cupomCodigoSnapshot ?? null,
