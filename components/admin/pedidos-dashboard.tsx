@@ -3,10 +3,11 @@
 import type { DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, Package, Phone, RefreshCw, Trash2, Truck, User, X } from 'lucide-react'
+import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, Package, Phone, RefreshCw, Search, Trash2, Truck, User, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -107,6 +108,11 @@ export function PedidosDashboard() {
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission)
   const [lastAlertMessage, setLastAlertMessage] = useState<string | null>(null)
   const [draggedPedidoId, setDraggedPedidoId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusPedido | 'TODOS'>('TODOS')
+  const [paymentFilter, setPaymentFilter] = useState<'TODOS' | Pedido['pagamento']>('TODOS')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'TODOS' | Pedido['statusPagamento']>('TODOS')
+  const [dateFilter, setDateFilter] = useState('')
   const seenPedidoIdsRef = useRef<Set<string>>(new Set())
   const initialPedidosLoadedRef = useRef(false)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -120,6 +126,48 @@ export function PedidosDashboard() {
     entregues: pedidos?.filter(p => p.status === 'ENTREGUE').length || 0,
     cancelados: pedidos?.filter(p => p.status === 'CANCELADO').length || 0,
     todos: pedidos?.length || 0
+  }
+
+  const pedidosFiltrados = (pedidos || []).filter(pedido => {
+    const busca = searchTerm.trim().toLowerCase()
+    const pedidoData = new Date(pedido.criadoEm)
+    const dataPedido = Number.isNaN(pedidoData.getTime()) ? '' : pedidoData.toISOString().slice(0, 10)
+    const textoBusca = [
+      pedido.id,
+      pedido.id.slice(-8),
+      pedido.clienteNome,
+      pedido.clienteTelefone,
+      pedido.clienteWhatsapp,
+      pedido.clienteBloco,
+      pedido.clienteApartamento,
+      pedido.mercadoPagoPaymentId,
+      pedido.mercadoPagoPreferenceId,
+      pedido.itens.map(item => item.nomeProdutoSnapshot).join(' '),
+    ].filter(Boolean).join(' ').toLowerCase()
+
+    if (busca && !textoBusca.includes(busca)) return false
+    if (statusFilter !== 'TODOS' && pedido.status !== statusFilter) return false
+    if (paymentFilter !== 'TODOS' && pedido.pagamento !== paymentFilter) return false
+    if (paymentStatusFilter !== 'TODOS' && pedido.statusPagamento !== paymentStatusFilter) return false
+    if (dateFilter && dataPedido !== dateFilter) return false
+
+    return true
+  })
+
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() ||
+    statusFilter !== 'TODOS' ||
+    paymentFilter !== 'TODOS' ||
+    paymentStatusFilter !== 'TODOS' ||
+    dateFilter
+  )
+
+  const clearFilters = () => {
+    setSearchTerm('')
+    setStatusFilter('TODOS')
+    setPaymentFilter('TODOS')
+    setPaymentStatusFilter('TODOS')
+    setDateFilter('')
   }
 
   const unlockAlertSound = async () => {
@@ -378,6 +426,74 @@ export function PedidosDashboard() {
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total</p><p className="text-2xl font-bold">{contadores.todos}</p></CardContent></Card>
       </div>
 
+      <Card className="border-primary/15 bg-card/90">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="flex-1 space-y-2">
+              <label className="text-sm font-medium">Buscar pedido</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Numero, nome, telefone, bloco, item ou ID Mercado Pago"
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Status</label>
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusPedido | 'TODOS')} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="TODOS">Todos</option>
+                  <option value="FEITO">Novos</option>
+                  <option value="ACEITO">Aceitos</option>
+                  <option value="PREPARACAO">Em preparo</option>
+                  <option value="ENTREGUE">Entregues</option>
+                  <option value="CANCELADO">Cancelados</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Pagamento</label>
+                <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value as 'TODOS' | Pedido['pagamento'])} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="TODOS">Todos</option>
+                  <option value="PIX">PIX</option>
+                  <option value="CARTAO">Cartao</option>
+                  <option value="DINHEIRO">Dinheiro</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Status pag.</label>
+                <select value={paymentStatusFilter} onChange={(event) => setPaymentStatusFilter(event.target.value as 'TODOS' | Pedido['statusPagamento'])} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="TODOS">Todos</option>
+                  <option value="NAO_APLICAVEL">Na entrega</option>
+                  <option value="PENDENTE">Pendente</option>
+                  <option value="APROVADO">Aprovado</option>
+                  <option value="RECUSADO">Recusado</option>
+                  <option value="CANCELADO">Cancelado</option>
+                  <option value="REEMBOLSADO">Reembolsado</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Data</label>
+                <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Exibindo {pedidosFiltrados.length} de {pedidos?.length || 0} pedidos.
+            </span>
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {lastAlertMessage && (
         <Card className={alertsEnabled ? 'border-primary/40 bg-primary/5' : 'border-muted'}>
           <CardContent className="flex items-center justify-between gap-3 p-3 text-sm">
@@ -392,7 +508,7 @@ export function PedidosDashboard() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-5">
           {kanbanColumns.map(column => {
-            const columnPedidos = pedidos?.filter(pedido => pedido.status === column.status) || []
+            const columnPedidos = pedidosFiltrados.filter(pedido => pedido.status === column.status)
             const StatusIcon = statusConfig[column.status].icon
             return (
               <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[360px] rounded-2xl border p-3 ${statusConfig[column.status].columnClass}`}>
