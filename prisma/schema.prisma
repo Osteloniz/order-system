@@ -92,6 +92,7 @@ model Produto {
 
   categoria   Categoria @relation(fields: [categoriaId], references: [id])
   itensPedido ItemPedido[]
+  estoqueProdutos ProdutoEstoque[]
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -149,11 +150,30 @@ model ItemPedido {
   precoUnitarioSnapshot Int
   quantidade          Int
   totalItem           Int
+  quantidadePreparada Int      @default(0)
+  preparadoEm         DateTime?
 
   pedido   Pedido  @relation(fields: [pedidoId], references: [id])
   produto  Produto @relation(fields: [produtoId], references: [id])
 
   @@index([pedidoId])
+  @@index([produtoId])
+}
+
+model ProdutoEstoque {
+  id                   String   @id @default(uuid())
+  tenantId             String
+  produtoId            String
+  quantidadeDisponivel Int      @default(0)
+  quantidadeReservada  Int      @default(0)
+  criadoEm             DateTime @default(now())
+  atualizadoEm         DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@unique([tenantId, produtoId])
+  @@index([produtoId])
 }
 
 model Cupom {
@@ -190,6 +210,7 @@ model Tenant {
   cupons      Cupom[]
   configuracao Configuracao?
   adminUsers  AdminUser[]
+  estoqueProdutos ProdutoEstoque[]
 }
 
 model AdminUser {

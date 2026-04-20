@@ -32,6 +32,8 @@ export interface ItemPedido {
   precoUnitarioSnapshot: number // centavos
   quantidade: number
   totalItem: number // centavos
+  quantidadePreparada?: number
+  preparadoEm?: string | null
 }
 
 export interface Pedido {
