@@ -40,16 +40,28 @@ export async function GET(request: NextRequest) {
   const pedidos = await prisma.pedido.findMany({
     where: {
       tenantId: admin.tenantId,
-      criadoEm: {
-        gte: start,
-        lt: end,
-      },
       status: {
         not: 'CANCELADO',
       },
+      OR: [
+        {
+          tipoEntrega: { not: 'ENCOMENDA' },
+          criadoEm: {
+            gte: start,
+            lt: end,
+          },
+        },
+        {
+          tipoEntrega: 'ENCOMENDA',
+          encomendaPara: {
+            gte: start,
+            lt: end,
+          },
+        },
+      ],
     },
     include: { itens: true },
-    orderBy: { criadoEm: 'asc' },
+    orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
   })
 
   const pedidosAProduzir = pedidos.filter((pedido) => {
@@ -133,6 +145,7 @@ export async function GET(request: NextRequest) {
       clienteBloco: pedido.clienteBloco,
       clienteApartamento: pedido.clienteApartamento,
       tipoEntrega: pedido.tipoEntrega,
+      encomendaPara: pedido.encomendaPara,
       total: pedido.total,
       criadoEm: pedido.criadoEm,
       itens: pedido.itens.map((item) => ({

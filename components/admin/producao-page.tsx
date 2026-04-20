@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
@@ -30,6 +30,7 @@ type ProducaoPedido = {
   clienteBloco?: string | null
   clienteApartamento?: string | null
   tipoEntrega: TipoEntrega
+  encomendaPara?: string | null
   total: number
   criadoEm: string
   itens: {
@@ -76,6 +77,15 @@ function todayInSaoPaulo() {
   }).format(new Date())
 }
 
+function formatarDataHora(value?: string | null) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+}
+
 export function ProducaoPage() {
   const [date, setDate] = useState(todayInSaoPaulo())
   const url = useMemo(() => `/api/admin/producao?date=${date}`, [date])
@@ -89,7 +99,7 @@ export function ProducaoPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <ChefHat className="h-6 w-6 text-primary" />
-            Produção
+            ProduÃ§Ã£o
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Quantidades por sabor e pedidos do dia.
@@ -224,7 +234,7 @@ export function ProducaoPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum pedido para produção nesta data.</p>
+            <p className="text-sm text-muted-foreground">Nenhum pedido para produÃ§Ã£o nesta data.</p>
           )}
         </CardContent>
       </Card>
@@ -246,16 +256,20 @@ export function ProducaoPage() {
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-semibold">
-                        #{pedido.numero} · {pedido.clienteNome}
+                        #{pedido.numero} Â· {pedido.clienteNome}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {formatarHora(pedido.criadoEm)}
                         {pedido.tipoEntrega === 'RESERVA_PAULISTANO' && (
-                          <> · Bloco {pedido.clienteBloco} · Apto {pedido.clienteApartamento}</>
+                          <> Â· Bloco {pedido.clienteBloco} Â· Apto {pedido.clienteApartamento}</>
+                        )}
+                        {pedido.tipoEntrega === 'ENCOMENDA' && (
+                          <> · Encomenda para {formatarDataHora(pedido.encomendaPara)}</>
                         )}
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      {pedido.tipoEntrega === 'ENCOMENDA' && <Badge variant="secondary">Encomenda</Badge>}
                       <Badge variant="outline">{pedido.status}</Badge>
                       <Badge>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
                     </div>

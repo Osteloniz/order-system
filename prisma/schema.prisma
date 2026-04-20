@@ -30,6 +30,7 @@ enum TipoEntrega {
   ENTREGA
   RETIRADA
   RESERVA_PAULISTANO
+  ENCOMENDA
 }
 
 enum TipoCupom {
@@ -112,6 +113,7 @@ model Pedido {
   mercadoPagoPaymentId String?
   mercadoPagoPreferenceId String?
   tipoEntrega     TipoEntrega
+  encomendaPara   DateTime?
   enderecoEntrega String?
   enderecoRetirada String
   frete           Int
@@ -136,6 +138,7 @@ model Pedido {
   @@index([statusPagamento])
   @@index([mercadoPagoPaymentId])
   @@index([criadoEm])
+  @@index([encomendaPara])
 }
 
 model ItemPedido {

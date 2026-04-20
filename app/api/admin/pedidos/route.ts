@@ -14,16 +14,39 @@ const pedidoAdminSchema = z.object({
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
-  tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA']),
+  tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
+  encomendaPara: z.string().trim().optional(),
   statusPagamento: z.enum(['NAO_APLICAVEL', 'PENDENTE', 'APROVADO']).optional(),
   itens: z.array(z.object({
     produtoId: z.string().uuid(),
     quantidade: z.number().int().min(1).max(99)
   })).min(1).max(50)
-}).strict()
+}).strict().superRefine((data, ctx) => {
+  if (data.tipoEntrega === 'RESERVA_PAULISTANO') {
+    if (!data.clienteBloco?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteBloco'], message: 'Bloco obrigatorio' })
+    }
+    if (!data.clienteApartamento?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteApartamento'], message: 'Apartamento obrigatorio' })
+    }
+  }
+
+  if (data.tipoEntrega === 'ENCOMENDA') {
+    const parsedDate = data.encomendaPara ? new Date(data.encomendaPara) : null
+    if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
+    }
+  }
+})
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, '')
+}
+
+function getDayRange(dateParam: string) {
+  const start = new Date(`${dateParam}T00:00:00-03:00`)
+  const end = new Date(`${dateParam}T24:00:00-03:00`)
+  return { start, end }
 }
 
 // Middleware de autenticacao
@@ -36,9 +59,36 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams
   const status = searchParams.get('status') as StatusPedido | null
+  const date = searchParams.get('date')
+  const carryoverNovos = searchParams.get('carryoverNovos') === '1'
+
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: 'Data invalida' }, { status: 400 })
+  }
+
+  const where = status ? { status, tenantId: admin.tenantId } : { tenantId: admin.tenantId }
+  if (date) {
+    const { start, end } = getDayRange(date)
+    Object.assign(where, {
+      OR: [
+        {
+          tipoEntrega: { not: 'ENCOMENDA' },
+          criadoEm: { gte: start, lt: end },
+        },
+        {
+          tipoEntrega: 'ENCOMENDA',
+          encomendaPara: { gte: start, lt: end },
+        },
+        ...(carryoverNovos ? [{
+          status: 'FEITO',
+          criadoEm: { lt: start },
+        }] : []),
+      ],
+    })
+  }
 
   const resultado = await prisma.pedido.findMany({
-    where: status ? { status, tenantId: admin.tenantId } : { tenantId: admin.tenantId },
+    where,
     include: { itens: true },
     orderBy: { criadoEm: 'desc' }
   })
@@ -101,6 +151,9 @@ export async function POST(request: NextRequest) {
     const statusPagamento = body.statusPagamento ?? (
       body.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE'
     )
+    const encomendaPara = body.tipoEntrega === 'ENCOMENDA' && body.encomendaPara
+      ? new Date(body.encomendaPara)
+      : null
 
     const pedido = await prisma.pedido.create({
       data: {
@@ -112,6 +165,7 @@ export async function POST(request: NextRequest) {
         clienteApartamento: body.clienteApartamento?.trim() || null,
         pagamento: body.pagamento,
         tipoEntrega: body.tipoEntrega,
+        encomendaPara,
         enderecoEntrega: null,
         enderecoRetirada: configuracao?.enderecoRetirada ?? '',
         frete,

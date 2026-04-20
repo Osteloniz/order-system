@@ -3,7 +3,7 @@
 export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
 export type StatusPagamento = 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
 export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
-export type TipoEntrega = 'RESERVA_PAULISTANO' | 'RETIRADA'
+export type TipoEntrega = 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOMENDA'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 
 export interface Categoria {
@@ -47,6 +47,7 @@ export interface Pedido {
   clienteApartamento?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
+  encomendaPara?: string | null
   enderecoEntrega?: string
   enderecoRetirada: string
   frete: number // centavos
@@ -84,6 +85,7 @@ export interface CriarPedidoPayload {
   clienteApartamento?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
+  encomendaPara?: string
   enderecoEntrega?: string
   distanciaKm?: number
   cupomCodigo?: string

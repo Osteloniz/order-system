@@ -22,7 +22,8 @@ const pedidoSchema = z.object({
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
-  tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA']),
+  tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
+  encomendaPara: z.string().trim().optional(),
   enderecoEntrega: z.string().trim().max(200).optional(),
   distanciaKm: z.number().finite().nonnegative().max(100).optional(),
   cupomCodigo: z.string().trim().max(40).optional(),
@@ -31,13 +32,20 @@ const pedidoSchema = z.object({
     quantidade: z.number().int().min(1).max(99)
   })).min(1).max(50)
 }).strict().superRefine((data, ctx) => {
-  if (data.tipoEntrega !== 'RESERVA_PAULISTANO') return
-
-  if (!data.clienteBloco?.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteBloco'], message: 'Bloco obrigatorio' })
+  if (data.tipoEntrega === 'RESERVA_PAULISTANO') {
+    if (!data.clienteBloco?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteBloco'], message: 'Bloco obrigatorio' })
+    }
+    if (!data.clienteApartamento?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteApartamento'], message: 'Apartamento obrigatorio' })
+    }
   }
-  if (!data.clienteApartamento?.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteApartamento'], message: 'Apartamento obrigatorio' })
+
+  if (data.tipoEntrega === 'ENCOMENDA') {
+    const parsedDate = data.encomendaPara ? new Date(data.encomendaPara) : null
+    if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
+    }
   }
 })
 
@@ -146,6 +154,7 @@ export async function POST(request: NextRequest) {
           clienteApartamento: body.clienteApartamento?.trim() ?? null,
           pagamento: body.pagamento,
           tipoEntrega: body.tipoEntrega,
+          encomendaPara: body.tipoEntrega === 'ENCOMENDA' && body.encomendaPara ? new Date(body.encomendaPara) : null,
           enderecoEntrega: null,
           enderecoRetirada: configuracao?.enderecoRetirada ?? '',
           frete,

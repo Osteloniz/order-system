@@ -43,6 +43,8 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
   const [apartamento, setApartamento] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('DINHEIRO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
+  const [encomendaData, setEncomendaData] = useState('')
+  const [encomendaHora, setEncomendaHora] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -74,6 +76,8 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
     setApartamento('')
     setPagamento('DINHEIRO')
     setTipoEntrega('RESERVA_PAULISTANO')
+    setEncomendaData('')
+    setEncomendaHora('')
     setItems([])
   }
 
@@ -83,6 +87,8 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
 
     if (!nome.trim()) return setError('Informe o nome do cliente')
     if (onlyDigits(telefone).length < 10) return setError('Informe o celular do cliente')
+    if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
+    if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
 
     setIsSubmitting(true)
@@ -98,6 +104,7 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
           clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() || undefined : undefined,
           pagamento,
           tipoEntrega,
+          encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
           statusPagamento: pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
           itens: items.map(item => ({ produtoId: item.produto.id, quantidade: item.quantidade }))
         })
@@ -132,11 +139,17 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
             <CardContent className="grid min-w-0 gap-4 sm:grid-cols-2">
               <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
               <div className="min-w-0 space-y-2"><Label>Celular</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
-              <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option></select></div>
+              <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
               {tipoEntrega === 'RESERVA_PAULISTANO' && (
                 <>
                   <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
                   <div className="min-w-0 space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
+                </>
+              )}
+              {tipoEntrega === 'ENCOMENDA' && (
+                <>
+                  <div className="min-w-0 space-y-2"><Label>Data da encomenda</Label><Input type="date" value={encomendaData} onChange={event => setEncomendaData(event.target.value)} /></div>
+                  <div className="min-w-0 space-y-2"><Label>Hora da encomenda</Label><Input type="time" value={encomendaHora} onChange={event => setEncomendaHora(event.target.value)} /></div>
                 </>
               )}
               <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>

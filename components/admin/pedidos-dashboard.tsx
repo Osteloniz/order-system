@@ -46,6 +46,7 @@ const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
 }
 
 const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartão', DINHEIRO: 'Dinheiro' }
+const entregaLabels = { RESERVA_PAULISTANO: 'Reserva', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' }
 const statusPagamentoLabels = { NAO_APLICAVEL: 'Na entrega', PENDENTE: 'Pendente', APROVADO: 'Aprovado', RECUSADO: 'Recusado', CANCELADO: 'Cancelado', REEMBOLSADO: 'Reembolsado' }
 const statusPagamentoColors = {
   NAO_APLICAVEL: 'bg-secondary text-secondary-foreground',
@@ -103,6 +104,15 @@ function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
   return transicoesPermitidas[pedido.status].includes(targetStatus)
 }
 
+function todayInSaoPaulo() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
 export function PedidosDashboard() {
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
@@ -118,14 +128,15 @@ export function PedidosDashboard() {
   const [statusFilter, setStatusFilter] = useState<StatusPedido | 'TODOS'>('TODOS')
   const [paymentFilter, setPaymentFilter] = useState<'TODOS' | Pedido['pagamento']>('TODOS')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'TODOS' | Pedido['statusPagamento']>('TODOS')
-  const [dateFilter, setDateFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState(todayInSaoPaulo)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [soundUnlocked, setSoundUnlocked] = useState(false)
   const seenPedidoIdsRef = useRef<Set<string>>(new Set())
   const initialPedidosLoadedRef = useRef(false)
   const audioContextRef = useRef<AudioContext | null>(null)
 
-  const { data: pedidos, isLoading } = useSWR<Pedido[]>('/api/admin/pedidos', fetcher, { refreshInterval: 5000 })
+  const pedidosUrl = `/api/admin/pedidos?date=${dateFilter}&carryoverNovos=1`
+  const { data: pedidos, isLoading } = useSWR<Pedido[]>(pedidosUrl, fetcher, { refreshInterval: 5000 })
 
   const contadores = {
     novos: pedidos?.filter(p => p.status === 'FEITO').length || 0,
@@ -138,8 +149,6 @@ export function PedidosDashboard() {
 
   const pedidosFiltrados = (pedidos || []).filter(pedido => {
     const busca = searchTerm.trim().toLowerCase()
-    const pedidoData = new Date(pedido.criadoEm)
-    const dataPedido = Number.isNaN(pedidoData.getTime()) ? '' : pedidoData.toISOString().slice(0, 10)
     const textoBusca = [
       pedido.id,
       pedido.id.slice(-8),
@@ -157,7 +166,6 @@ export function PedidosDashboard() {
     if (statusFilter !== 'TODOS' && pedido.status !== statusFilter) return false
     if (paymentFilter !== 'TODOS' && pedido.pagamento !== paymentFilter) return false
     if (paymentStatusFilter !== 'TODOS' && pedido.statusPagamento !== paymentStatusFilter) return false
-    if (dateFilter && dataPedido !== dateFilter) return false
 
     return true
   })
@@ -167,7 +175,7 @@ export function PedidosDashboard() {
     statusFilter !== 'TODOS' ||
     paymentFilter !== 'TODOS' ||
     paymentStatusFilter !== 'TODOS' ||
-    dateFilter
+    dateFilter !== todayInSaoPaulo()
   )
 
   const clearFilters = () => {
@@ -175,7 +183,7 @@ export function PedidosDashboard() {
     setStatusFilter('TODOS')
     setPaymentFilter('TODOS')
     setPaymentStatusFilter('TODOS')
-    setDateFilter('')
+    setDateFilter(todayInSaoPaulo())
   }
 
   const unlockAlertSound = async () => {
@@ -302,7 +310,7 @@ export function PedidosDashboard() {
         setLastAlertMessage(pedidoAtualizado.error || 'Nao foi possivel atualizar o status.')
         return
       }
-      mutate('/api/admin/pedidos')
+      mutate(pedidosUrl)
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
       abrirWhatsappStatus(pedido, newStatus)
     } finally {
@@ -327,7 +335,7 @@ export function PedidosDashboard() {
     await handleMovePedido(pedido, targetStatus)
   }
 
-  const handleRefresh = () => mutate('/api/admin/pedidos')
+  const handleRefresh = () => mutate(pedidosUrl)
 
   const handleCancelPedido = async (pedidoId: string) => {
     if (!cancelReason.trim()) return
@@ -343,7 +351,7 @@ export function PedidosDashboard() {
         setLastAlertMessage(pedidoAtualizado.error || 'Nao foi possivel cancelar o pedido.')
         return
       }
-      mutate('/api/admin/pedidos')
+      mutate(pedidosUrl)
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
       setCancelReason('')
     } finally {
@@ -360,7 +368,7 @@ export function PedidosDashboard() {
         setLastAlertMessage(data.error || 'Nao foi possivel excluir o pedido.')
         return
       }
-      mutate('/api/admin/pedidos')
+      mutate(pedidosUrl)
       if (selectedPedido?.id === pedidoId) setSelectedPedido(null)
     } finally {
       setDeletingPedidoId(null)
@@ -377,7 +385,7 @@ export function PedidosDashboard() {
       })
       if (!response.ok) return
       const pedidoAtualizado = await response.json()
-      mutate('/api/admin/pedidos')
+      mutate(pedidosUrl)
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
     } finally {
       setConfirmingPaymentId(null)
@@ -421,7 +429,8 @@ export function PedidosDashboard() {
           </div>
           <div className="rounded-lg bg-muted/45 p-3 text-sm text-muted-foreground"><p className="line-clamp-2">{resumirItens(pedido)}</p></div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-xs">{pedido.tipoEntrega === 'RESERVA_PAULISTANO' ? 'Reserva' : 'Retirada'}</Badge>
+            <Badge variant="outline" className="text-xs">{entregaLabels[pedido.tipoEntrega]}</Badge>
+            {pedido.encomendaPara && <Badge variant="secondary" className="text-xs">{new Date(pedido.encomendaPara).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Badge>}
             <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
           </div>
           <div className="flex items-center justify-between text-sm"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
@@ -514,7 +523,7 @@ export function PedidosDashboard() {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Data</label>
+                <label className="text-sm font-medium">Dia da tela</label>
                 <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
               </div>
             </div>
@@ -619,9 +628,11 @@ export function PedidosDashboard() {
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4" />{selectedPedido.tipoEntrega === 'RESERVA_PAULISTANO' ? 'Entrega Reserva Paulistano' : 'Retirada'}</CardTitle></CardHeader>
+                  <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4" />{entregaLabels[selectedPedido.tipoEntrega]}</CardTitle></CardHeader>
                   <CardContent className="space-y-2">
-                    {selectedPedido.tipoEntrega === 'RESERVA_PAULISTANO' ? <><p className="text-sm">Bloco: {selectedPedido.clienteBloco || '-'}</p><p className="text-sm">Apartamento: {selectedPedido.clienteApartamento || '-'}</p></> : <p className="text-sm">{selectedPedido.enderecoRetirada}</p>}
+                    {selectedPedido.tipoEntrega === 'RESERVA_PAULISTANO' && <><p className="text-sm">Bloco: {selectedPedido.clienteBloco || '-'}</p><p className="text-sm">Apartamento: {selectedPedido.clienteApartamento || '-'}</p></>}
+                    {selectedPedido.tipoEntrega === 'RETIRADA' && <p className="text-sm">{selectedPedido.enderecoRetirada}</p>}
+                    {selectedPedido.tipoEntrega === 'ENCOMENDA' && <p className="text-sm">Entrega em {selectedPedido.encomendaPara ? new Date(selectedPedido.encomendaPara).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : '-'}</p>}
                   </CardContent>
                 </Card>
 
@@ -640,7 +651,7 @@ export function PedidosDashboard() {
           <NovoPedidoAdminPage
             compact
             onCreated={() => {
-              mutate('/api/admin/pedidos')
+              mutate(pedidosUrl)
               window.setTimeout(() => setNewOrderOpen(false), 900)
             }}
           />
