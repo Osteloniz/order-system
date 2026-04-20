@@ -39,7 +39,6 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
 
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
-  const [whatsapp, setWhatsapp] = useState('')
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('DINHEIRO')
@@ -71,7 +70,6 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
   const resetForm = () => {
     setNome('')
     setTelefone('')
-    setWhatsapp('')
     setBloco('')
     setApartamento('')
     setPagamento('DINHEIRO')
@@ -95,9 +93,9 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
         body: JSON.stringify({
           clienteNome: nome.trim(),
           clienteTelefone: onlyDigits(telefone),
-          clienteWhatsapp: onlyDigits(whatsapp || telefone),
-          clienteBloco: bloco.trim() || undefined,
-          clienteApartamento: apartamento.trim() || undefined,
+          clienteWhatsapp: onlyDigits(telefone),
+          clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() || undefined : undefined,
+          clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() || undefined : undefined,
           pagamento,
           tipoEntrega,
           statusPagamento: pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
@@ -134,10 +132,13 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
             <CardContent className="grid min-w-0 gap-4 sm:grid-cols-2">
               <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
               <div className="min-w-0 space-y-2"><Label>Celular</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
-              <div className="min-w-0 space-y-2"><Label>WhatsApp</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhone(event.target.value))} placeholder="Se vazio, usa o celular" /></div>
               <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option></select></div>
-              <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
-              <div className="min-w-0 space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
+              {tipoEntrega === 'RESERVA_PAULISTANO' && (
+                <>
+                  <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
+                  <div className="min-w-0 space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
+                </>
+              )}
               <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
             </CardContent>
           </Card>

@@ -52,6 +52,10 @@ export async function GET(request: NextRequest) {
     orderBy: { criadoEm: 'asc' },
   })
 
+  const pedidosAProduzir = pedidos.filter((pedido) => {
+    return pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO'
+  })
+
   const produtos = new Map<string, {
     produtoId: string
     nomeProduto: string
@@ -82,12 +86,44 @@ export async function GET(request: NextRequest) {
     return a.nomeProduto.localeCompare(b.nomeProduto)
   })
 
+  const produtosAProduzir = new Map<string, {
+    produtoId: string
+    nomeProduto: string
+    quantidade: number
+    receita: number
+    pedidos: number
+  }>()
+
+  for (const pedido of pedidosAProduzir) {
+    for (const item of pedido.itens) {
+      const current = produtosAProduzir.get(item.produtoId) ?? {
+        produtoId: item.produtoId,
+        nomeProduto: item.nomeProdutoSnapshot,
+        quantidade: 0,
+        receita: 0,
+        pedidos: 0,
+      }
+
+      current.quantidade += item.quantidade
+      current.receita += item.totalItem
+      current.pedidos += 1
+      produtosAProduzir.set(item.produtoId, current)
+    }
+  }
+
+  const aProduzir = Array.from(produtosAProduzir.values()).sort((a, b) => {
+    if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade
+    return a.nomeProduto.localeCompare(b.nomeProduto)
+  })
+
   return NextResponse.json({
     date,
     totalPedidos: pedidos.length,
     totalItens: resumo.reduce((acc, item) => acc + item.quantidade, 0),
     receitaTotal: pedidos.reduce((acc, pedido) => acc + pedido.total, 0),
     resumo,
+    aProduzir,
+    totalAProduzir: aProduzir.reduce((acc, item) => acc + item.quantidade, 0),
     pedidos: pedidos.map((pedido) => ({
       id: pedido.id,
       numero: pedido.id.slice(-8).toUpperCase(),

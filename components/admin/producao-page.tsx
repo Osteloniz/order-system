@@ -44,8 +44,10 @@ type ProducaoData = {
   date: string
   totalPedidos: number
   totalItens: number
+  totalAProduzir: number
   receitaTotal: number
   resumo: ProducaoResumoItem[]
+  aProduzir: ProducaoResumoItem[]
   pedidos: ProducaoPedido[]
 }
 
@@ -157,7 +159,45 @@ export function ProducaoPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Resumo por sabor</CardTitle>
+          <CardTitle>A produzir agora</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : data?.aProduzir.length ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
+                <p className="text-sm text-muted-foreground">Total pendente de producao</p>
+                <p className="text-3xl font-bold text-primary">{data.totalAProduzir}</p>
+              </div>
+              {data.aProduzir.map((item) => (
+                <div key={item.produtoId} className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{item.nomeProduto}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Ainda em {item.pedidos} pedido{item.pedidos === 1 ? '' : 's'} nao entregue{item.pedidos === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-primary">{item.quantidade}</p>
+                    <p className="text-xs text-muted-foreground">a produzir</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Tudo produzido/entregue para esta data. Pode comemorar: fila zerada.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumo total do dia</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (

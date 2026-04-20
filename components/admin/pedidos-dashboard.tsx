@@ -3,7 +3,7 @@
 import type { DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, Package, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
+import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -384,6 +384,15 @@ export function PedidosDashboard() {
     }
   }
 
+  const handleResendCurrentStatusMessage = (pedido: Pedido) => {
+    if (pedido.status === 'FEITO' || pedido.status === 'CANCELADO') {
+      setLastAlertMessage('Este status ainda nao possui mensagem padrao de envio.')
+      return
+    }
+
+    abrirWhatsappStatus(pedido, pedido.status)
+  }
+
   const renderPedidoCard = (pedido: Pedido) => {
     const status = statusConfig[pedido.status]
     const StatusIcon = status.icon
@@ -566,15 +575,21 @@ export function PedidosDashboard() {
                 {statusConfig[selectedPedido.status].nextStatus && (
                   <div className="space-y-2"><Button className="w-full" onClick={() => handleUpdateStatus(selectedPedido, statusConfig[selectedPedido.status].nextStatus!)} disabled={updatingStatus === selectedPedido.id}>{updatingStatus === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}{statusConfig[selectedPedido.status].nextLabel}</Button><p className="text-xs text-muted-foreground text-center">Atualiza o status e abre o WhatsApp com a mensagem pronta.</p></div>
                 )}
+                {selectedPedido.status !== 'FEITO' && selectedPedido.status !== 'CANCELADO' && (
+                  <Button variant="outline" className="w-full" onClick={() => handleResendCurrentStatusMessage(selectedPedido)}>
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Reenviar mensagem do status atual
+                  </Button>
+                )}
                 {selectedPedido.status !== 'CANCELADO' && selectedPedido.statusPagamento !== 'APROVADO' && <Button variant="outline" className="w-full" onClick={() => handleConfirmPayment(selectedPedido.id)} disabled={confirmingPaymentId === selectedPedido.id}>{confirmingPaymentId === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}Confirmar pagamento manualmente</Button>}
                 {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
                   <Card><CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><X className="h-4 w-4" />Cancelamento</CardTitle></CardHeader><CardContent className="space-y-3"><Textarea placeholder="Informe o motivo do cancelamento" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} /><Button variant="destructive" className="w-full" onClick={() => handleCancelPedido(selectedPedido.id)} disabled={isCancelling || !cancelReason.trim()}>{isCancelling ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}Cancelar Pedido</Button></CardContent></Card>
                 )}
-                {selectedPedido.statusPagamento !== 'APROVADO' && (
+                {(selectedPedido.statusPagamento !== 'APROVADO' || selectedPedido.status === 'CANCELADO') && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild><Button variant="destructive" className="w-full">Excluir Pedido</Button></AlertDialogTrigger>
                     <AlertDialogContent>
-                      <AlertDialogHeader><AlertDialogTitle>Excluir pedido definitivamente?</AlertDialogTitle><AlertDialogDescription>Esta acao remove o pedido da base e nao e possivel desfazer. Pedidos marcados como pagos nao podem ser excluidos.</AlertDialogDescription></AlertDialogHeader>
+                      <AlertDialogHeader><AlertDialogTitle>Excluir pedido definitivamente?</AlertDialogTitle><AlertDialogDescription>Esta acao remove o pedido da base e nao e possivel desfazer. Pedidos pagos so podem ser excluidos quando estao cancelados.</AlertDialogDescription></AlertDialogHeader>
                       <AlertDialogFooter><AlertDialogCancel><X className="h-4 w-4 mr-0 md:mr-2" /><span className="hidden md:inline">Voltar</span></AlertDialogCancel><AlertDialogAction onClick={() => handleDeletePedido(selectedPedido.id)} disabled={deletingPedidoId === selectedPedido.id}>{deletingPedidoId === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-0 md:mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-0 md:mr-2" />}<span className="hidden md:inline">{deletingPedidoId === selectedPedido.id ? 'Excluindo...' : 'Excluir'}</span></AlertDialogAction></AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
