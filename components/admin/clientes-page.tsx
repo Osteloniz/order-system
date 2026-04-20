@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { RefreshCw, Save, Search, UserRound } from 'lucide-react'
+import { Plus, RefreshCw, Save, Search, UserRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,7 +36,8 @@ function formatDate(value?: string | null) {
 export function ClientesPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Cliente | null>(null)
-  const [form, setForm] = useState({ nome: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' })
+  const [isCreating, setIsCreating] = useState(false)
+  const [form, setForm] = useState({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const url = useMemo(() => `/api/admin/clientes?search=${encodeURIComponent(search)}`, [search])
@@ -46,6 +47,7 @@ export function ClientesPage() {
     if (!selected) return
     setForm({
       nome: selected.nome || '',
+      telefone: selected.telefone || '',
       whatsapp: selected.whatsapp || selected.telefone || '',
       clienteBloco: selected.clienteBloco || '',
       clienteApartamento: selected.clienteApartamento || '',
@@ -53,16 +55,30 @@ export function ClientesPage() {
     })
   }, [selected])
 
+  const startNewCliente = () => {
+    setSelected(null)
+    setIsCreating(true)
+    setMessage('')
+    setForm({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' })
+  }
+
+  const selectCliente = (cliente: Cliente) => {
+    setSelected(cliente)
+    setIsCreating(false)
+    setMessage('')
+  }
+
   const saveCliente = async () => {
-    if (!selected) return
+    if (!isCreating && !selected) return
     setSaving(true)
     setMessage('')
     try {
-      const response = await fetch(`/api/admin/clientes/${selected.id}`, {
-        method: 'PATCH',
+      const response = await fetch(isCreating ? '/api/admin/clientes' : `/api/admin/clientes/${selected?.id}`, {
+        method: isCreating ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: form.nome,
+          ...(isCreating ? { telefone: onlyDigits(form.telefone) } : {}),
           whatsapp: onlyDigits(form.whatsapp),
           clienteBloco: form.clienteBloco || undefined,
           clienteApartamento: form.clienteApartamento || undefined,
@@ -72,7 +88,8 @@ export function ClientesPage() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Erro ao salvar cliente')
       setSelected(data)
-      setMessage('Cliente atualizado.')
+      setIsCreating(false)
+      setMessage(isCreating ? 'Cliente cadastrado.' : 'Cliente atualizado.')
       await mutate()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao salvar cliente')
@@ -88,7 +105,10 @@ export function ClientesPage() {
           <h1 className="flex items-center gap-2 text-2xl font-bold"><UserRound className="h-6 w-6 text-primary" />Clientes</h1>
           <p className="mt-1 text-sm text-muted-foreground">Cadastro por WhatsApp, endereço no Paulistano, observações e histórico de pedidos.</p>
         </div>
-        <Button variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
+        <div className="flex gap-2">
+          <Button onClick={startNewCliente}><Plus className="mr-2 h-4 w-4" />Novo cliente</Button>
+          <Button variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
+        </div>
       </div>
 
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
@@ -103,7 +123,7 @@ export function ClientesPage() {
             </div>
             <div className="space-y-2">
               {isLoading ? <><Skeleton className="h-16" /><Skeleton className="h-16" /></> : clientes?.length ? clientes.map((cliente) => (
-                <button key={cliente.id} type="button" onClick={() => setSelected(cliente)} className={`w-full rounded-xl border p-3 text-left transition hover:border-primary/40 ${selected?.id === cliente.id ? 'border-primary bg-primary/10' : 'bg-card'}`}>
+                <button key={cliente.id} type="button" onClick={() => selectCliente(cliente)} className={`w-full rounded-xl border p-3 text-left transition hover:border-primary/40 ${selected?.id === cliente.id ? 'border-primary bg-primary/10' : 'bg-card'}`}>
                   <p className="font-semibold">{cliente.nome}</p>
                   <p className="text-sm text-muted-foreground">{formatarTelefone(cliente.telefone)} · {cliente.pedidos?.length ?? 0} pedido(s)</p>
                 </button>
@@ -112,21 +132,25 @@ export function ClientesPage() {
           </CardContent>
         </Card>
 
-        {selected ? (
+        {selected || isCreating ? (
           <div className="space-y-4">
             <Card>
-              <CardHeader><CardTitle>Dados do cliente</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{isCreating ? 'Cadastrar cliente' : 'Editar cliente'}</CardTitle></CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label>Nome</Label><Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} /></div>
+                <div className="space-y-2"><Label>Telefone</Label><Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: event.target.value }))} disabled={!isCreating} placeholder="(00) 00000-0000" /></div>
                 <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: event.target.value }))} /></div>
                 <div className="space-y-2"><Label>Bloco</Label><Input value={form.clienteBloco} onChange={(event) => setForm((current) => ({ ...current, clienteBloco: event.target.value }))} placeholder="Ex: A" /></div>
                 <div className="space-y-2"><Label>Apartamento</Label><Input value={form.clienteApartamento} onChange={(event) => setForm((current) => ({ ...current, clienteApartamento: event.target.value }))} placeholder="Ex: 101" /></div>
                 <div className="space-y-2 md:col-span-2"><Label>Observações</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferências, restrições, observações de entrega..." /></div>
-                <div className="md:col-span-2"><Button onClick={saveCliente} disabled={saving}>{saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salvar cliente</Button></div>
+                <div className="flex flex-wrap gap-2 md:col-span-2">
+                  <Button onClick={saveCliente} disabled={saving}>{saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}{isCreating ? 'Cadastrar cliente' : 'Salvar edição'}</Button>
+                  {isCreating && <Button variant="outline" onClick={() => { setIsCreating(false); setForm({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' }) }}>Cancelar</Button>}
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
+            {!isCreating && selected && <Card>
               <CardHeader><CardTitle>Histórico de pedidos</CardTitle></CardHeader>
               <CardContent>
                 {selected.pedidos?.length ? (
@@ -149,7 +173,7 @@ export function ClientesPage() {
                   </div>
                 ) : <p className="text-sm text-muted-foreground">Este cliente ainda nao possui pedidos vinculados.</p>}
               </CardContent>
-            </Card>
+            </Card>}
           </div>
         ) : (
           <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Selecione um cliente para ver dados e histórico.</CardContent></Card>
