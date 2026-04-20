@@ -13,6 +13,7 @@ const pedidoAdminSchema = z.object({
   clienteWhatsapp: z.string().trim().max(20).optional(),
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
+  clienteObservacoes: z.string().trim().max(1000).optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
   encomendaPara: z.string().trim().optional(),
@@ -154,9 +155,30 @@ export async function POST(request: NextRequest) {
     const encomendaPara = body.tipoEntrega === 'ENCOMENDA' && body.encomendaPara
       ? new Date(body.encomendaPara)
       : null
+    const cliente = await prisma.cliente.upsert({
+      where: { tenantId_telefone: { tenantId: admin.tenantId, telefone: telefoneLimpo } },
+      create: {
+        tenantId: admin.tenantId,
+        nome: body.clienteNome.trim(),
+        telefone: telefoneLimpo,
+        whatsapp: whatsappLimpo,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        observacoes: body.clienteObservacoes?.trim() || null,
+      },
+      update: {
+        nome: body.clienteNome.trim(),
+        whatsapp: whatsappLimpo,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        ...(body.clienteObservacoes !== undefined ? { observacoes: body.clienteObservacoes.trim() || null } : {}),
+      },
+      select: { id: true },
+    })
 
     const pedido = await prisma.pedido.create({
       data: {
+        clienteId: cliente.id,
         status: 'FEITO',
         clienteNome: body.clienteNome.trim(),
         clienteTelefone: telefoneLimpo,

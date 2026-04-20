@@ -103,6 +103,7 @@ model Produto {
 
 model Pedido {
   id              String        @id @default(uuid())
+  clienteId       String?
   status          StatusPedido  @default(FEITO)
   clienteNome     String
   clienteTelefone String
@@ -129,17 +130,38 @@ model Pedido {
   atualizadoEm    DateTime      @updatedAt
   itens           ItemPedido[]
 
+  cliente         Cliente? @relation(fields: [clienteId], references: [id])
   cupom           Cupom? @relation(fields: [cupomId], references: [id])
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   @@index([clienteTelefone])
+  @@index([clienteId])
   @@index([status])
   @@index([statusPagamento])
   @@index([mercadoPagoPaymentId])
   @@index([criadoEm])
   @@index([encomendaPara])
+}
+
+model Cliente {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  nome               String
+  telefone           String
+  whatsapp           String?
+  clienteBloco       String?
+  clienteApartamento String?
+  observacoes        String?
+  criadoEm           DateTime @default(now())
+  atualizadoEm       DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  pedidos Pedido[]
+
+  @@unique([tenantId, telefone])
+  @@index([telefone])
 }
 
 model ItemPedido {
@@ -207,6 +229,7 @@ model Tenant {
   categorias  Categoria[]
   produtos    Produto[]
   pedidos     Pedido[]
+  clientes    Cliente[]
   cupons      Cupom[]
   configuracao Configuracao?
   adminUsers  AdminUser[]

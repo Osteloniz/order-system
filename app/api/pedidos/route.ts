@@ -142,10 +142,30 @@ export async function POST(request: NextRequest) {
     }
 
     const total = calcularTotal(subtotal, frete) - descontoValor
+    const cliente = await prisma.cliente.upsert({
+      where: { tenantId_telefone: { tenantId: tenant.id, telefone: telefoneLimpo } },
+      create: {
+        tenantId: tenant.id,
+        nome: body.clienteNome.trim(),
+        telefone: telefoneLimpo,
+        whatsapp: whatsappLimpo || telefoneLimpo,
+        clienteBloco: body.clienteBloco?.trim() ?? null,
+        clienteApartamento: body.clienteApartamento?.trim() ?? null,
+        observacoes: null,
+      },
+      update: {
+        nome: body.clienteNome.trim(),
+        whatsapp: whatsappLimpo || telefoneLimpo,
+        clienteBloco: body.clienteBloco?.trim() ?? null,
+        clienteApartamento: body.clienteApartamento?.trim() ?? null,
+      },
+      select: { id: true },
+    })
 
     const novoPedido = await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
         data: {
+          clienteId: cliente.id,
           status: 'FEITO',
           clienteNome: body.clienteNome.trim(),
           clienteTelefone: telefoneLimpo,

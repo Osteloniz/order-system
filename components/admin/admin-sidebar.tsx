@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, ClipboardList, Package, Tags, Settings, LogOut, Store, Menu, X, BadgePercent, ChefHat } from 'lucide-react'
+import { BarChart3, ClipboardList, Package, Tags, Settings, LogOut, Store, Menu, X, BadgePercent, ChefHat, Users } from 'lucide-react'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 
 const menuItems = [
   { href: '/admin', label: 'Pedidos', icon: ClipboardList },
+  { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/producao', label: 'Produção', icon: ChefHat },
   { href: '/admin/relatorios', label: 'Relatórios', icon: BarChart3 },
   { href: '/admin/produtos', label: 'Produtos', icon: Package },

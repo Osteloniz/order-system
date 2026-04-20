@@ -38,6 +38,7 @@ export interface ItemPedido {
 
 export interface Pedido {
   id: string
+  clienteId?: string | null
   status: StatusPedido
   statusPagamento: StatusPagamento
   mercadoPagoPaymentId?: string | null
@@ -63,6 +64,19 @@ export interface Pedido {
   itens: ItemPedido[]
 }
 
+export interface Cliente {
+  id: string
+  nome: string
+  telefone: string
+  whatsapp?: string | null
+  clienteBloco?: string | null
+  clienteApartamento?: string | null
+  observacoes?: string | null
+  criadoEm: string
+  atualizadoEm: string
+  pedidos?: Pedido[]
+}
+
 export interface ItemCarrinho {
   produto: Produto
   quantidade: number
@@ -85,6 +99,7 @@ export interface CriarPedidoPayload {
   clienteWhatsapp?: string
   clienteBloco?: string
   clienteApartamento?: string
+  clienteObservacoes?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   encomendaPara?: string

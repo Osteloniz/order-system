@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { Minus, Plus, Save, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { formatarMoeda } from '@/lib/calc'
-import type { Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
+import type { Cliente, Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -41,6 +41,9 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
   const [telefone, setTelefone] = useState('')
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
+  const [observacoes, setObservacoes] = useState('')
+  const [clienteEncontrado, setClienteEncontrado] = useState<Cliente | null>(null)
+  const [buscandoCliente, setBuscandoCliente] = useState(false)
   const [pagamento, setPagamento] = useState<TipoPagamento>('DINHEIRO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [encomendaData, setEncomendaData] = useState('')
@@ -51,6 +54,45 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
   const [error, setError] = useState('')
 
   const total = items.reduce((sum, item) => sum + item.produto.preco * item.quantidade, 0)
+  const telefoneLimpo = onlyDigits(telefone)
+
+  useEffect(() => {
+    if (telefoneLimpo.length < 10) {
+      setClienteEncontrado(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setBuscandoCliente(true)
+      try {
+        const response = await fetch(`/api/admin/clientes?telefone=${telefoneLimpo}`, { signal: controller.signal })
+        if (!response.ok) return
+        const cliente = await response.json() as Cliente | null
+        if (!cliente) {
+          setClienteEncontrado(null)
+          return
+        }
+
+        setClienteEncontrado(cliente)
+        setNome(cliente.nome || '')
+        setBloco(cliente.clienteBloco || '')
+        setApartamento(cliente.clienteApartamento || '')
+        setObservacoes(cliente.observacoes || '')
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setClienteEncontrado(null)
+        }
+      } finally {
+        setBuscandoCliente(false)
+      }
+    }, 450)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [telefoneLimpo])
 
   const addProduct = (produto: ProdutoAdmin) => {
     setItems(current => {
@@ -74,6 +116,8 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
     setTelefone('')
     setBloco('')
     setApartamento('')
+    setObservacoes('')
+    setClienteEncontrado(null)
     setPagamento('DINHEIRO')
     setTipoEntrega('RESERVA_PAULISTANO')
     setEncomendaData('')
@@ -86,7 +130,7 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
     setMessage('')
 
     if (!nome.trim()) return setError('Informe o nome do cliente')
-    if (onlyDigits(telefone).length < 10) return setError('Informe o celular do cliente')
+    if (telefoneLimpo.length < 10) return setError('Informe o celular do cliente')
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
     if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
@@ -98,10 +142,11 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clienteNome: nome.trim(),
-          clienteTelefone: onlyDigits(telefone),
-          clienteWhatsapp: onlyDigits(telefone),
+          clienteTelefone: telefoneLimpo,
+          clienteWhatsapp: telefoneLimpo,
           clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() || undefined : undefined,
           clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() || undefined : undefined,
+          clienteObservacoes: observacoes.trim() || undefined,
           pagamento,
           tipoEntrega,
           encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
@@ -139,6 +184,10 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
             <CardContent className="grid min-w-0 gap-4 sm:grid-cols-2">
               <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
               <div className="min-w-0 space-y-2"><Label>Celular</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
+              <div className="min-w-0 sm:col-span-2">
+                {buscandoCliente && <p className="text-xs text-muted-foreground">Buscando cliente pelo telefone...</p>}
+                {clienteEncontrado && <p className="rounded-md border border-primary/25 bg-primary/10 p-2 text-xs text-primary">Cliente encontrado: dados preenchidos automaticamente. Ultimos pedidos: {clienteEncontrado.pedidos?.length ?? 0}</p>}
+              </div>
               <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
               {tipoEntrega === 'RESERVA_PAULISTANO' && (
                 <>
@@ -153,6 +202,7 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
                 </>
               )}
               <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
+              <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observações do cliente</Label><Input value={observacoes} onChange={event => setObservacoes(event.target.value)} placeholder="Preferências, restrições, observações de entrega..." /></div>
             </CardContent>
           </Card>
 
