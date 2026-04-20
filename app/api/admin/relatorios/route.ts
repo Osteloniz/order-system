@@ -104,14 +104,19 @@ export async function GET(request: NextRequest) {
 
   const entregues = pedidos.filter((pedido) => pedido.status === 'ENTREGUE')
   const cancelados = pedidos.filter((pedido) => pedido.status === 'CANCELADO')
+  const receitaTotal = pedidos.reduce((acc, pedido) => acc + pedido.total, 0)
+  const receitaEntregue = entregues.reduce((acc, pedido) => acc + pedido.total, 0)
+  const totalCancelado = cancelados.reduce((acc, pedido) => acc + pedido.total, 0)
 
   return NextResponse.json({
     from,
     to,
     totalPedidos: pedidos.length,
-    receitaTotal: pedidos.reduce((acc, pedido) => acc + pedido.total, 0),
-    receitaEntregue: entregues.reduce((acc, pedido) => acc + pedido.total, 0),
-    totalCancelado: cancelados.reduce((acc, pedido) => acc + pedido.total, 0),
+    receitaTotal,
+    receitaEntregue,
+    totalCancelado,
+    ticketMedioGeral: pedidos.length ? Math.round(receitaTotal / pedidos.length) : 0,
+    ticketMedioEntregue: entregues.length ? Math.round(receitaEntregue / entregues.length) : 0,
     porStatus,
     produtos: Array.from(produtos.values()).sort((a, b) => {
       if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade
