@@ -6,6 +6,14 @@ import { AlertTriangle, Archive, PackageCheck, RefreshCw, Save } from 'lucide-re
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -81,6 +89,13 @@ function formatDateTime(value: string) {
   })
 }
 
+function formatDate(value: string) {
+  return new Date(`${value}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+  })
+}
+
 export function EstoquePage() {
   const today = todayInSaoPaulo()
   const [from, setFrom] = useState(today)
@@ -91,6 +106,10 @@ export function EstoquePage() {
   const [savingProductionId, setSavingProductionId] = useState<string | null>(null)
   const [savingStockId, setSavingStockId] = useState<string | null>(null)
   const [syncingLegacy, setSyncingLegacy] = useState(false)
+  const [stockConfirmOpen, setStockConfirmOpen] = useState(false)
+  const [stockConfirmProductId, setStockConfirmProductId] = useState<string | null>(null)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [stockConfirmError, setStockConfirmError] = useState('')
   const [message, setMessage] = useState('')
 
   const url = useMemo(() => `/api/admin/producao?from=${from}&to=${to}`, [from, to])
@@ -133,25 +152,49 @@ export function EstoquePage() {
     }
   }
 
-  const saveStock = async (produtoId: string) => {
+  const openStockConfirmation = (produtoId: string) => {
+    const quantidade = Number(stockDrafts[produtoId] ?? 0)
+    if (!Number.isFinite(quantidade) || quantidade < 0) return
+
+    setStockConfirmProductId(produtoId)
+    setAdminPassword('')
+    setStockConfirmError('')
+    setStockConfirmOpen(true)
+  }
+
+  const saveStock = async () => {
+    if (!stockConfirmProductId) return
+
+    const produtoId = stockConfirmProductId
     const quantidade = Number(stockDrafts[produtoId] ?? 0)
     if (!Number.isFinite(quantidade) || quantidade < 0) return
 
     setSavingStockId(produtoId)
     setMessage('')
+    setStockConfirmError('')
     try {
       const response = await fetch('/api/admin/producao', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'SET_STOCK', produtoId, quantidadeDisponivel: Math.floor(quantidade) }),
+        body: JSON.stringify({
+          action: 'SET_STOCK',
+          produtoId,
+          quantidadeDisponivel: Math.floor(quantidade),
+          adminPassword,
+        }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Erro ao ajustar estoque')
       setMessage('Saldo atual do estoque ajustado.')
+      setStockConfirmOpen(false)
+      setStockConfirmProductId(null)
+      setAdminPassword('')
       await mutate()
       await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao ajustar estoque')
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao ajustar estoque'
+      setStockConfirmError(errorMessage)
+      setMessage(errorMessage)
     } finally {
       setSavingStockId(null)
     }
@@ -181,6 +224,8 @@ export function EstoquePage() {
     }
   }
 
+  const selectedStockItem = data?.estoque.find((item) => item.produtoId === stockConfirmProductId) ?? null
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -206,6 +251,7 @@ export function EstoquePage() {
           <div className="space-y-2">
             <Label htmlFor="estoque-data-producao">Data produzida</Label>
             <Input id="estoque-data-producao" type="date" value={productionDate} onChange={(event) => setProductionDate(event.target.value)} />
+            <p className="text-xs text-muted-foreground">Tudo que voce registrar abaixo entra como producao do dia {formatDate(productionDate)}.</p>
           </div>
           <Button type="button" variant="outline" onClick={() => mutate()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
@@ -329,7 +375,7 @@ export function EstoquePage() {
                       value={stockDrafts[item.produtoId] ?? ''}
                       onChange={(event) => setStockDrafts((current) => ({ ...current, [item.produtoId]: event.target.value }))}
                     />
-                    <Button type="button" variant="outline" onClick={() => saveStock(item.produtoId)} disabled={savingStockId === item.produtoId}>
+                    <Button type="button" variant="outline" onClick={() => openStockConfirmation(item.produtoId)} disabled={savingStockId === item.produtoId}>
                       {savingStockId === item.produtoId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                       Ajustar saldo atual
                     </Button>
@@ -344,7 +390,7 @@ export function EstoquePage() {
                     />
                     <Button type="button" variant="outline" onClick={() => recordProduction(item.produtoId)} disabled={savingProductionId === item.produtoId}>
                       {savingProductionId === item.produtoId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      Registrar producao
+                      Registrar producao de {formatDate(productionDate)}
                     </Button>
                   </div>
                 </div>
@@ -355,6 +401,68 @@ export function EstoquePage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={stockConfirmOpen}
+        onOpenChange={(open) => {
+          setStockConfirmOpen(open)
+          if (!open) {
+            setStockConfirmError('')
+            setAdminPassword('')
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar ajuste manual de saldo</DialogTitle>
+            <DialogDescription>
+              Esse ajuste altera o saldo disponivel do produto manualmente. Para evitar erro operacional, confirme com a senha do admin.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/35 p-3 text-sm">
+              <p className="font-medium">{selectedStockItem?.nomeProduto ?? 'Produto'}</p>
+              <p className="text-muted-foreground">Novo saldo disponivel: {stockConfirmProductId ? stockDrafts[stockConfirmProductId] ?? '0' : '0'}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmar-senha-admin">Senha do admin</Label>
+              <Input
+                id="confirmar-senha-admin"
+                type="password"
+                placeholder="Digite a senha atual"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+              />
+            </div>
+
+            {stockConfirmError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {stockConfirmError}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setStockConfirmOpen(false)
+                setStockConfirmError('')
+                setAdminPassword('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={saveStock} disabled={!adminPassword || !stockConfirmProductId || savingStockId === stockConfirmProductId}>
+              {savingStockId === stockConfirmProductId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Confirmar ajuste
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

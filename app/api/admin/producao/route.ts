@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { addAvailableStock, consumeAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
@@ -17,6 +18,7 @@ const patchSchema = z.discriminatedUnion('action', [
     action: z.literal('SET_STOCK'),
     produtoId: z.string().uuid(),
     quantidadeDisponivel: z.number().int().min(0).max(9999),
+    adminPassword: z.string().min(1),
   }).strict(),
   z.object({
     action: z.literal('ADD_PRODUCTION'),
@@ -350,6 +352,31 @@ export async function PATCH(request: NextRequest) {
 
   if (parsed.data.action === 'SET_STOCK') {
     const data = parsed.data
+    const adminName = admin.session.user?.name?.toString().trim()
+    if (!adminName) {
+      return NextResponse.json({ error: 'Sessao do admin invalida. Entre novamente.' }, { status: 401 })
+    }
+
+    const adminUser = await prisma.adminUser.findFirst({
+      where: {
+        tenantId: admin.tenantId,
+        nome: adminName,
+      },
+      select: {
+        id: true,
+        passwordHash: true,
+      },
+    })
+
+    if (!adminUser) {
+      return NextResponse.json({ error: 'Admin nao encontrado para validar a senha.' }, { status: 403 })
+    }
+
+    const passwordOk = await compare(data.adminPassword, adminUser.passwordHash)
+    if (!passwordOk) {
+      return NextResponse.json({ error: 'Senha do admin incorreta para ajustar o saldo.' }, { status: 403 })
+    }
+
     const produto = await prisma.produto.findFirst({
       where: { id: data.produtoId, tenantId: admin.tenantId },
       select: { id: true },

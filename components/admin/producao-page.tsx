@@ -115,6 +115,13 @@ function formatarDataHora(value?: string | null) {
   })
 }
 
+function formatarDataRegistro(value: string) {
+  return new Date(`${value}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+  })
+}
+
 export function ProducaoPage() {
   const today = todayInSaoPaulo()
   const [from, setFrom] = useState(today)
@@ -213,6 +220,7 @@ export function ProducaoPage() {
           <div className="space-y-2">
             <Label htmlFor="data-registro-producao">Data produzida</Label>
             <Input id="data-registro-producao" type="date" value={productionDate} onChange={(event) => setProductionDate(event.target.value)} />
+            <p className="text-xs text-muted-foreground">Use essa data para registrar hoje uma producao que vai contar como {formatarDataRegistro(productionDate)}.</p>
           </div>
           <Button type="button" variant="outline" onClick={() => mutate()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
@@ -333,7 +341,7 @@ export function ProducaoPage() {
                     />
                     <Button type="button" variant="outline" onClick={() => recordProduction(item.produtoId)} disabled={savingProductionId === item.produtoId}>
                       {savingProductionId === item.produtoId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      Registrar producao
+                      Registrar producao de {formatarDataRegistro(productionDate)}
                     </Button>
                   </div>
                 </div>
