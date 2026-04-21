@@ -66,7 +66,9 @@ export function EstoquePage() {
   const [to, setTo] = useState(today)
   const [productionDate, setProductionDate] = useState(today)
   const [productionDrafts, setProductionDrafts] = useState<Record<string, string>>({})
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({})
   const [savingProductionId, setSavingProductionId] = useState<string | null>(null)
+  const [savingStockId, setSavingStockId] = useState<string | null>(null)
   const [syncingLegacy, setSyncingLegacy] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -79,6 +81,9 @@ export function EstoquePage() {
     if (!data?.estoque) return
     setProductionDrafts((current) => (
       Object.fromEntries(data.estoque.map((item) => [item.produtoId, current[item.produtoId] ?? '']))
+    ))
+    setStockDrafts((current) => (
+      Object.fromEntries(data.estoque.map((item) => [item.produtoId, current[item.produtoId] ?? String(item.quantidadeDisponivel)]))
     ))
   }, [data?.estoque])
 
@@ -104,6 +109,30 @@ export function EstoquePage() {
       setMessage(error instanceof Error ? error.message : 'Erro ao registrar producao')
     } finally {
       setSavingProductionId(null)
+    }
+  }
+
+  const saveStock = async (produtoId: string) => {
+    const quantidade = Number(stockDrafts[produtoId] ?? 0)
+    if (!Number.isFinite(quantidade) || quantidade < 0) return
+
+    setSavingStockId(produtoId)
+    setMessage('')
+    try {
+      const response = await fetch('/api/admin/producao', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'SET_STOCK', produtoId, quantidadeDisponivel: Math.floor(quantidade) }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Erro ao ajustar estoque')
+      setMessage('Saldo atual do estoque ajustado.')
+      await mutate()
+      await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao ajustar estoque')
+    } finally {
+      setSavingStockId(null)
     }
   }
 
@@ -231,6 +260,19 @@ export function EstoquePage() {
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[140px_auto]">
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Saldo atual"
+                      value={stockDrafts[item.produtoId] ?? ''}
+                      onChange={(event) => setStockDrafts((current) => ({ ...current, [item.produtoId]: event.target.value }))}
+                    />
+                    <Button type="button" variant="outline" onClick={() => saveStock(item.produtoId)} disabled={savingStockId === item.produtoId}>
+                      {savingStockId === item.produtoId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Ajustar saldo atual
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[140px_auto]">
                     <Input
                       type="number"
                       min={0}
