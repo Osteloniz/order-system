@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { addAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
+import { addAvailableStock, consumeAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
@@ -28,6 +28,9 @@ const patchSchema = z.discriminatedUnion('action', [
     action: z.literal('MARK_ITEM_PREPARED'),
     itemPedidoId: z.string().uuid(),
     prepared: z.boolean(),
+  }).strict(),
+  z.object({
+    action: z.literal('SYNC_LEGACY_STOCK'),
   }).strict(),
 ])
 
@@ -131,7 +134,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
   }
 
-  const [pedidos, produtos, estoques, producaoRegistros] = await Promise.all([
+  const [pedidos, produtos, estoques, producaoRegistros, legacyPedidosPendentes] = await Promise.all([
     prisma.pedido.findMany({
       where: {
         tenantId: admin.tenantId,
@@ -166,12 +169,27 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [{ dataProducao: 'desc' }, { criadoEm: 'desc' }],
     }),
+    prisma.pedido.findMany({
+      where: {
+        tenantId: admin.tenantId,
+        tipoEntrega: { not: 'ENCOMENDA' },
+        status: { in: ['ACEITO', 'PREPARACAO', 'ENTREGUE'] },
+        estoqueBaixadoEm: null,
+      },
+      include: { itens: true },
+    }),
   ])
 
   const estoqueMap = new Map(estoques.map((estoque) => [estoque.produtoId, {
     quantidadeDisponivel: estoque.quantidadeDisponivel,
     quantidadeReservada: estoque.quantidadeReservada,
   }]))
+  const legacyResumoMap = new Map<string, number>()
+  for (const pedido of legacyPedidosPendentes) {
+    for (const item of pedido.itens) {
+      legacyResumoMap.set(item.produtoId, (legacyResumoMap.get(item.produtoId) ?? 0) + item.quantidade)
+    }
+  }
 
   const pedidosAbertos = pedidos.filter((pedido) => pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO')
   const pedidosNormaisAProduzir = pedidosAbertos.filter((pedido) => pedido.tipoEntrega !== 'ENCOMENDA' && pedido.status === 'FEITO')
@@ -209,12 +227,15 @@ export async function GET(request: NextRequest) {
 
   const estoque = produtos.map((produto) => {
     const current = estoqueMap.get(produto.id) ?? { quantidadeDisponivel: 0, quantidadeReservada: 0 }
+    const pendenteBaixaLegada = legacyResumoMap.get(produto.id) ?? 0
     return {
       produtoId: produto.id,
       nomeProduto: produto.nome,
       categoriaNome: produto.categoria?.nome ?? 'Sem categoria',
       quantidadeDisponivel: current.quantidadeDisponivel,
       quantidadeReservada: current.quantidadeReservada,
+      pendenteBaixaLegada,
+      saldoProjetado: current.quantidadeDisponivel - pendenteBaixaLegada,
     }
   })
 
@@ -258,6 +279,13 @@ export async function GET(request: NextRequest) {
     encomendasAProduzir,
     estoque,
     historicoProducao,
+    pedidosLegadosPendentes: legacyPedidosPendentes.length,
+    pedidosLegadosPendentesLista: legacyPedidosPendentes.map((pedido) => ({
+      id: pedido.id,
+      numero: pedido.id.slice(-8).toUpperCase(),
+      status: pedido.status,
+      clienteNome: pedido.clienteNome,
+    })),
     totalAProduzir: aProduzir.reduce((acc, item) => acc + item.aProduzir, 0),
     totalEncomendasAProduzir: encomendasAProduzir.reduce((acc, item) => acc + item.aProduzir, 0),
     pedidos: pedidos.map((pedido) => ({
@@ -338,6 +366,46 @@ export async function PATCH(request: NextRequest) {
     })
 
     return NextResponse.json(result)
+  }
+
+  if (parsed.data.action === 'SYNC_LEGACY_STOCK') {
+    const pedidosLegados = await prisma.pedido.findMany({
+      where: {
+        tenantId: admin.tenantId,
+        tipoEntrega: { not: 'ENCOMENDA' },
+        status: { in: ['ACEITO', 'PREPARACAO', 'ENTREGUE'] },
+        estoqueBaixadoEm: null,
+      },
+      include: { itens: true },
+      orderBy: { criadoEm: 'asc' },
+    })
+
+    let sincronizados = 0
+    const bloqueados: string[] = []
+
+    for (const pedido of pedidosLegados) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          for (const item of pedido.itens) {
+            await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+          }
+
+          await tx.pedido.update({
+            where: { id: pedido.id },
+            data: { estoqueBaixadoEm: pedido.estoqueBaixadoEm ?? new Date() },
+          })
+        })
+        sincronizados += 1
+      } catch {
+        bloqueados.push(pedido.id.slice(-8).toUpperCase())
+      }
+    }
+
+    return NextResponse.json({
+      sincronizados,
+      bloqueados,
+      totalPendentes: pedidosLegados.length,
+    })
   }
 
   const item = await prisma.itemPedido.findFirst({
