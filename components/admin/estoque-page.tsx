@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import useSWR from 'swr'
+import useSWR, { mutate as globalMutate } from 'swr'
 import { Archive, PackageCheck, RefreshCw, Save } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -99,6 +99,7 @@ export function EstoquePage() {
       setProductionDrafts((current) => ({ ...current, [produtoId]: '' }))
       setMessage('Producao registrada e estoque atualizado.')
       await mutate()
+      await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao registrar producao')
     } finally {
@@ -122,6 +123,7 @@ export function EstoquePage() {
         : ''
       setMessage(`Sincronizacao concluida. ${result.sincronizados} pedidos ajustados de ${result.totalPendentes}.${bloqueados}`)
       await mutate()
+      await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao sincronizar pedidos antigos')
     } finally {

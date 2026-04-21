@@ -288,7 +288,8 @@ export function PedidosDashboard() {
         setLastAlertMessage(pedidoAtualizado.error || 'Nao foi possivel atualizar o status.')
         return
       }
-      mutate(pedidosUrl)
+      await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
       abrirWhatsappStatus(pedido, newStatus, config)
     } finally {
@@ -329,7 +330,8 @@ export function PedidosDashboard() {
         setLastAlertMessage(pedidoAtualizado.error || 'Nao foi possivel cancelar o pedido.')
         return
       }
-      mutate(pedidosUrl)
+      await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
       setCancelReason('')
     } finally {
@@ -346,7 +348,8 @@ export function PedidosDashboard() {
         setLastAlertMessage(data.error || 'Nao foi possivel excluir o pedido.')
         return
       }
-      mutate(pedidosUrl)
+      await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(null)
     } finally {
       setDeletingPedidoId(null)

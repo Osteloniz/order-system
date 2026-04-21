@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import useSWR from 'swr'
+import useSWR, { mutate as globalMutate } from 'swr'
 import { CalendarDays, CheckCircle2, ChefHat, Flame, PackageCheck, ReceiptText, RefreshCw, Save } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -159,6 +159,7 @@ export function ProducaoPage() {
       setProductionDrafts((current) => ({ ...current, [produtoId]: '' }))
       setMessage('Producao registrada e estoque atualizado.')
       await mutate()
+      await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao registrar producao')
     } finally {
@@ -179,6 +180,7 @@ export function ProducaoPage() {
       if (!response.ok) throw new Error(result.error || 'Erro ao marcar producao')
       setMessage(prepared ? 'Encomenda reservada no estoque.' : 'Reserva da encomenda desfeita.')
       await mutate()
+      await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao marcar producao')
     } finally {
