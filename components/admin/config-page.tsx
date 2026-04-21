@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import useSWR, { mutate } from 'swr'
 import { Bell, MessageCircle, RotateCcw, Save, Loader2, Settings, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,8 +19,12 @@ import { getDefaultStatusTemplate, statusMessageTemplateFields, supportedStatusT
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export function ConfigPage() {
-  const { data: config, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher)
-  const { data: tenantData } = useSWR('/api/admin/tenant', fetcher)
+  const { data: config, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher, {
+    revalidateOnFocus: false,
+  })
+  const { data: tenantData } = useSWR('/api/admin/tenant', fetcher, {
+    revalidateOnFocus: false,
+  })
 
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState('')
   const [enderecoRetirada, setEnderecoRetirada] = useState('')
@@ -30,10 +34,13 @@ export function ConfigPage() {
   const [isOpen, setIsOpen] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const [alertsEnabled, setAlertsEnabledState] = useState(false)
   const [soundEnabled, setSoundEnabledState] = useState(true)
   const [notificationPermission, setNotificationPermission] = useState('unsupported')
   const [alertMessage, setAlertMessage] = useState('')
+  const configHydratedRef = useRef(false)
+  const tenantHydratedRef = useRef(false)
 
   const playTestSound = () => {
     const AudioContextConstructor = window.AudioContext || (window as typeof window & {
@@ -54,20 +61,22 @@ export function ConfigPage() {
   }
 
   useEffect(() => {
-    if (config) {
+    if (config && (!configHydratedRef.current || !isDirty)) {
       setNomeEstabelecimento(config.nomeEstabelecimento)
       setEnderecoRetirada(config.enderecoRetirada)
       setMensagemStatusAceito(config.mensagemStatusAceito)
       setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
       setMensagemStatusEntregue(config.mensagemStatusEntregue)
+      configHydratedRef.current = true
     }
-  }, [config])
+  }, [config, isDirty])
 
   useEffect(() => {
-    if (tenantData && typeof tenantData.isOpen === 'boolean') {
+    if (tenantData && typeof tenantData.isOpen === 'boolean' && (!tenantHydratedRef.current || !isDirty)) {
       setIsOpen(tenantData.isOpen)
+      tenantHydratedRef.current = true
     }
-  }, [tenantData])
+  }, [tenantData, isDirty])
 
   useEffect(() => {
     setAlertsEnabledState(getAdminAlertsEnabled())
@@ -114,18 +123,21 @@ export function ConfigPage() {
     }
 
     try {
-      await fetch('/api/admin/config', {
+      const configResponse = await fetch('/api/admin/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      await fetch('/api/admin/tenant', {
+      const tenantResponse = await fetch('/api/admin/tenant', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isOpen })
       })
-      mutate('/api/admin/config')
-      mutate('/api/admin/tenant')
+      const updatedConfig = await configResponse.json()
+      const updatedTenant = await tenantResponse.json()
+      mutate('/api/admin/config', updatedConfig, false)
+      mutate('/api/admin/tenant', updatedTenant, false)
+      setIsDirty(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } finally {
@@ -164,7 +176,10 @@ export function ConfigPage() {
                 <Input
                   id="nome"
                   value={nomeEstabelecimento}
-                  onChange={e => setNomeEstabelecimento(e.target.value)}
+                  onChange={e => {
+                    setNomeEstabelecimento(e.target.value)
+                    setIsDirty(true)
+                  }}
                   required
                 />
               </div>
@@ -174,7 +189,10 @@ export function ConfigPage() {
                 <Input
                   id="endereco"
                   value={enderecoRetirada}
-                  onChange={e => setEnderecoRetirada(e.target.value)}
+                  onChange={e => {
+                    setEnderecoRetirada(e.target.value)
+                    setIsDirty(true)
+                  }}
                   required
                 />
               </div>
@@ -191,7 +209,10 @@ export function ConfigPage() {
                 <Switch
                   id="aberto"
                   checked={isOpen}
-                  onCheckedChange={setIsOpen}
+                  onCheckedChange={(value) => {
+                    setIsOpen(value)
+                    setIsDirty(true)
+                  }}
                 />
               </div>
             </div>
@@ -241,7 +262,10 @@ export function ConfigPage() {
                       <Textarea
                         id={field.key}
                         value={value}
-                        onChange={event => setValue(event.target.value)}
+                        onChange={event => {
+                          setValue(event.target.value)
+                          setIsDirty(true)
+                        }}
                         rows={12}
                         className="min-h-[250px] resize-y"
                       />
@@ -251,7 +275,10 @@ export function ConfigPage() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => setValue(getDefaultStatusTemplate(field.key))}
+                          onClick={() => {
+                            setValue(getDefaultStatusTemplate(field.key))
+                            setIsDirty(true)
+                          }}
                         >
                           <RotateCcw className="h-3.5 w-3.5 mr-1" />
                           Restaurar padrao
