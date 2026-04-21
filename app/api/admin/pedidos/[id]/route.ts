@@ -45,7 +45,11 @@ export async function DELETE(
   }
 
   await prisma.$transaction(async (tx) => {
-    if (pedido.tipoEntrega !== 'ENCOMENDA' && (pedido.status === 'ACEITO' || pedido.status === 'PREPARACAO')) {
+    if (
+      pedido.tipoEntrega !== 'ENCOMENDA' &&
+      pedido.estoqueBaixadoEm &&
+      (pedido.status === 'ACEITO' || pedido.status === 'PREPARACAO' || pedido.status === 'ENTREGUE')
+    ) {
       for (const item of pedido.itens) {
         await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade)
       }

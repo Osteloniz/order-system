@@ -109,6 +109,7 @@ model Pedido {
   id              String        @id @default(uuid())
   clienteId       String?
   status          StatusPedido  @default(FEITO)
+  estoqueBaixadoEm DateTime?
   clienteNome     String
   clienteTelefone String
   clienteWhatsapp String?

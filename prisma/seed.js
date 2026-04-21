@@ -25,27 +25,10 @@ async function main() {
   const rawPassword = process.env.SEED_ADMIN_PASSWORD || 'admin123'
   const passwordHash = await bcrypt.hash(rawPassword, 10)
 
-  const tenantPimenta = await prisma.tenant.upsert({
-    where: { slug: 'nossa-pimenta' },
-    update: { nome: 'Nossa Pimenta' },
-    create: { nome: 'Nossa Pimenta', slug: 'nossa-pimenta', isOpen: true }
-  })
-
   const tenantDoces = await prisma.tenant.upsert({
-    where: { slug: 'doces-brownies' },
-    update: { nome: 'Doces & Brownies' },
-    create: { nome: 'Doces & Brownies', slug: 'doces-brownies', isOpen: true }
-  })
-
-  await prisma.adminUser.upsert({
-    where: { tenantId_username: { tenantId: tenantPimenta.id, username: 'admin' } },
-    update: { nome: 'Admin' },
-    create: {
-      tenantId: tenantPimenta.id,
-      nome: 'Admin',
-      username: 'admin',
-      passwordHash
-    }
+    where: { slug: 'brookie-pregiato' },
+    update: { nome: 'Brookie Pregiato' },
+    create: { nome: 'Brookie Pregiato', slug: 'brookie-pregiato', isOpen: true }
   })
 
   await prisma.adminUser.upsert({
@@ -59,40 +42,7 @@ async function main() {
     }
   })
 
-  await ensureConfiguracao(tenantPimenta.id, 'Nossa Pimenta')
-  await ensureConfiguracao(tenantDoces.id, 'Doces & Brownies')
-
-  const categoriasPimenta = await prisma.categoria.count({ where: { tenantId: tenantPimenta.id } })
-  if (categoriasPimenta === 0) {
-    const categoriaMolhos = await prisma.categoria.create({
-      data: { nome: 'Molhos', ordem: 1, tenantId: tenantPimenta.id }
-    })
-
-    await prisma.produto.createMany({
-      data: [
-        {
-          nome: 'Queridinha',
-          descricao: 'Molho artesanal, pimenta dedo de moça e especiarias',
-          categoriaId: categoriaMolhos.id,
-          preco: 1200,
-          ativo: true,
-          imagens: ['/QUERIDINHA.png'],
-          ordem: 1,
-          tenantId: tenantPimenta.id
-        },
-        {
-          nome: 'Queima Guela',
-          descricao: 'Molho artesanal, pimenta carolina reaper e especiarias',
-          categoriaId: categoriaMolhos.id,
-          preco: 1200,
-          ativo: true,
-          imagens: ['/QUEIMA.png'],
-          ordem: 2,
-          tenantId: tenantPimenta.id
-        }
-      ]
-    })
-  }
+  await ensureConfiguracao(tenantDoces.id, 'Brookie Pregiato')
 
   const categoriasDoces = await prisma.categoria.count({ where: { tenantId: tenantDoces.id } })
   if (categoriasDoces === 0) {
@@ -108,16 +58,26 @@ async function main() {
           categoriaId: categoriaDoces.id,
           preco: 1500,
           ativo: true,
-          imagens: ['/BROWNIE.png'],
+          imagemUrl: '/BROWNIE.png',
           ordem: 1,
+          tenantId: tenantDoces.id
+        },
+        {
+          nome: 'Brookie Pregiato',
+          descricao: 'Brookie exclusivo e delicioso',
+          categoriaId: categoriaDoces.id,
+          preco: 1800,
+          ativo: true,
+          imagemUrl: '/BROOKIE.png',
+          ordem: 2,
           tenantId: tenantDoces.id
         }
       ]
     })
   }
 
-  const cuponsPimenta = await prisma.cupom.count({ where: { tenantId: tenantPimenta.id } })
-  if (cuponsPimenta === 0) {
+  const cuponsDoces = await prisma.cupom.count({ where: { tenantId: tenantDoces.id } })
+  if (cuponsDoces === 0) {
     await prisma.cupom.create({
       data: {
         codigo: 'BEMVINDO10',
@@ -126,7 +86,7 @@ async function main() {
         maxUsos: 100,
         expiraEm: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
         ativo: true,
-        tenantId: tenantPimenta.id
+        tenantId: tenantDoces.id
       }
     })
   }

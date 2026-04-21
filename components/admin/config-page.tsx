@@ -14,17 +14,40 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertSoundEnabled, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import type { Configuracao } from '@/lib/types'
-import { getDefaultStatusTemplate, statusMessageTemplateFields, supportedStatusTemplateVariables } from '@/lib/message-templates'
+import { getDefaultStatusTemplate, hydrateConfigWithMessageDefaults, statusMessageTemplateFields, supportedStatusTemplateVariables } from '@/lib/message-templates'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+async function fetcher<T>(url: string): Promise<T> {
+  const response = await fetch(url)
+  const contentType = response.headers.get('content-type') || ''
+  const isJson = contentType.includes('application/json')
+  const body = isJson ? await response.json() : await response.text()
+
+  if (!response.ok) {
+    const errorMessage = typeof body === 'object' && body && 'error' in body ? String(body.error) : `Erro ao carregar ${url}`
+    throw new Error(errorMessage)
+  }
+
+  return body as T
+}
+
+async function readResponseBody(response: Response) {
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json()
+  }
+
+  const text = await response.text()
+  return text ? { error: text } : {}
+}
 
 export function ConfigPage() {
-  const { data: config, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher, {
+  const { data: rawConfig, error: configError, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher, {
     revalidateOnFocus: false,
   })
-  const { data: tenantData } = useSWR('/api/admin/tenant', fetcher, {
+  const { data: tenantData, error: tenantError } = useSWR<{ isOpen: boolean }>('/api/admin/tenant', fetcher, {
     revalidateOnFocus: false,
   })
+  const config = rawConfig ? hydrateConfigWithMessageDefaults(rawConfig) : null
 
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState('')
   const [enderecoRetirada, setEnderecoRetirada] = useState('')
@@ -39,6 +62,7 @@ export function ConfigPage() {
   const [soundEnabled, setSoundEnabledState] = useState(true)
   const [notificationPermission, setNotificationPermission] = useState('unsupported')
   const [alertMessage, setAlertMessage] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const configHydratedRef = useRef(false)
   const tenantHydratedRef = useRef(false)
 
@@ -113,6 +137,7 @@ export function ConfigPage() {
     e.preventDefault()
     setIsSubmitting(true)
     setSaved(false)
+    setSubmitError('')
 
     const payload: Record<string, number | string> = {
       nomeEstabelecimento,
@@ -133,19 +158,30 @@ export function ConfigPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isOpen })
       })
-      const updatedConfig = await configResponse.json()
-      const updatedTenant = await tenantResponse.json()
+
+      const updatedConfig = await readResponseBody(configResponse)
+      if (!configResponse.ok) {
+        throw new Error(typeof updatedConfig === 'object' && updatedConfig && 'error' in updatedConfig ? String(updatedConfig.error) : 'Erro ao salvar configuracoes')
+      }
+
+      const updatedTenant = await readResponseBody(tenantResponse)
+      if (!tenantResponse.ok) {
+        throw new Error(typeof updatedTenant === 'object' && updatedTenant && 'error' in updatedTenant ? String(updatedTenant.error) : 'Erro ao atualizar status da loja')
+      }
+
       mutate('/api/admin/config', updatedConfig, false)
       mutate('/api/admin/tenant', updatedTenant, false)
       setIsDirty(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Erro ao salvar configuracoes')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !config && !configError) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
@@ -157,6 +193,14 @@ export function ConfigPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Configurações</h1>
+
+      {(configError || tenantError) && (
+        <Card className="max-w-4xl border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4 text-sm text-destructive">
+            {(configError || tenantError)?.message || 'Nao foi possivel carregar as configuracoes.'}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="max-w-4xl">
         <CardHeader>
@@ -250,7 +294,7 @@ export function ConfigPage() {
                     mensagemStatusPreparacao: setMensagemStatusPreparacao,
                     mensagemStatusEntregue: setMensagemStatusEntregue,
                   }
-                  const value = valueByField[field.key]
+                  const value = valueByField[field.key] ?? ''
                   const setValue = setterByField[field.key]
 
                   return (
@@ -305,6 +349,12 @@ export function ConfigPage() {
                 </>
               )}
             </Button>
+
+            {submitError && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {submitError}
+              </p>
+            )}
           </form>
         </CardContent>
       </Card>

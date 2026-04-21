@@ -7,7 +7,7 @@ import { signIn, signOut, useSession } from 'next-auth/react'
 interface AdminAuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
-  login: (data: { tenant: string; username: string; password: string }) => Promise<{ success: boolean; error?: string }>
+  login: (data: { username: string; password: string }) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
 }
 
@@ -19,11 +19,10 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const isLoading = status === 'loading'
   const isAuthenticated = status === 'authenticated'
 
-  const login = useCallback(async (data: { tenant: string; username: string; password: string }) => {
+  const login = useCallback(async (data: { username: string; password: string }) => {
     try {
       const res = await signIn('credentials', {
         redirect: false,
-        tenant: data.tenant,
         username: data.username,
         password: data.password
       })

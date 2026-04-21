@@ -26,25 +26,33 @@ export async function GET() {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
-  let configuracao = await prisma.configuracao.findFirst({
-    where: { tenantId: admin.tenantId }
-  })
-  if (!configuracao) {
-    configuracao = await prisma.configuracao.create({
-      data: {
-        nomeEstabelecimento: 'Estabelecimento',
-        enderecoRetirada: 'Endereco nao configurado',
-        freteBase: 500,
-        freteRaioKm: 3,
-        freteKmExcedente: 100,
-        estabelecimentoLat: 0,
-        estabelecimentoLng: 0,
-        tenantId: admin.tenantId
-      }
+  try {
+    let configuracao = await prisma.configuracao.findFirst({
+      where: { tenantId: admin.tenantId }
     })
-  }
+    if (!configuracao) {
+      configuracao = await prisma.configuracao.create({
+        data: {
+          nomeEstabelecimento: 'Estabelecimento',
+          enderecoRetirada: 'Endereco nao configurado',
+          freteBase: 500,
+          freteRaioKm: 3,
+          freteKmExcedente: 100,
+          estabelecimentoLat: 0,
+          estabelecimentoLng: 0,
+          tenantId: admin.tenantId
+        }
+      })
+    }
 
-  return NextResponse.json(hydrateConfigWithMessageDefaults(configuracao))
+    return NextResponse.json(hydrateConfigWithMessageDefaults(configuracao))
+  } catch (error) {
+    console.error('[v0] Erro ao carregar configuracoes:', error)
+    return NextResponse.json(
+      { error: 'Erro ao carregar configuracoes. Se houve deploy recente, confira se a migration foi aplicada no banco.' },
+      { status: 500 }
+    )
+  }
 }
 
 // PUT /api/admin/config - Atualiza configuracoes
