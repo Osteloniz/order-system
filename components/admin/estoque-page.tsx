@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
-import { Archive, PackageCheck, RefreshCw, Save } from 'lucide-react'
+import { AlertTriangle, Archive, PackageCheck, RefreshCw, Save } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,6 +41,19 @@ type EstoqueData = {
     numero: string
     status: string
     clienteNome: string
+    criadoEm: string
+    estoqueBaixadoEm: string | null
+    totalItens: number
+    possuiFaltaNoMomento: boolean
+    motivo: string
+    itens: {
+      produtoId: string
+      nomeProduto: string
+      quantidade: number
+      estoqueDisponivelAtual: number
+      estoqueSuficiente: boolean
+      saldoAposBaixaItem: number
+    }[]
   }[]
 }
 
@@ -58,6 +71,14 @@ function todayInSaoPaulo() {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
 }
 
 export function EstoquePage() {
@@ -202,7 +223,7 @@ export function EstoquePage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="font-medium">{data?.pedidosLegadosPendentes ?? 0} pedidos antigos ainda nao baixaram estoque</p>
-              <p className="text-sm text-muted-foreground">Use uma vez para aplicar a baixa dos pedidos antigos em ACEITO, PREPARACAO ou ENTREGUE.</p>
+              <p className="text-sm text-muted-foreground">Veja abaixo o motivo por pedido e use a sincronizacao uma vez para aplicar a baixa dos pedidos antigos em ACEITO, PREPARACAO ou ENTREGUE.</p>
             </div>
             <Button type="button" onClick={syncLegacyStock} disabled={syncingLegacy || !data?.pedidosLegadosPendentes}>
               {syncingLegacy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
@@ -211,11 +232,52 @@ export function EstoquePage() {
           </div>
 
           {Boolean(data?.pedidosLegadosPendentesLista?.length) && (
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="space-y-3">
+              <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+                A rastreabilidade abaixo mostra quais pedidos ainda nao tiveram a baixa registrada, o status atual deles e os itens que ainda precisam consumir estoque.
+              </div>
               {data?.pedidosLegadosPendentesLista.map((pedido) => (
-                <div key={pedido.id} className="rounded-lg border border-warning/30 bg-background/80 p-3 text-sm">
-                  <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
-                  <p className="text-muted-foreground">Status atual: {pedido.status}</p>
+                <div key={pedido.id} className="rounded-lg border border-warning/30 bg-background/80 p-4 text-sm">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1">
+                      <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
+                      <p className="text-muted-foreground">Status atual: {pedido.status}</p>
+                      <p className="text-muted-foreground">Criado em: {formatDateTime(pedido.criadoEm)}</p>
+                      <p className="text-muted-foreground">Baixa registrada: {pedido.estoqueBaixadoEm ? formatDateTime(pedido.estoqueBaixadoEm) : 'Nao'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">{pedido.totalItens} unidades</Badge>
+                      {pedido.possuiFaltaNoMomento && (
+                        <Badge variant="destructive" className="gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Falta estoque agora
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-lg bg-muted/35 p-3 text-sm">
+                    <p className="font-medium">Motivo rastreado</p>
+                    <p className="text-muted-foreground">{pedido.motivo}</p>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {pedido.itens.map((item) => (
+                      <div key={`${pedido.id}-${item.produtoId}`} className="rounded-lg border bg-background/70 p-3">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="font-medium">{item.nomeProduto}</p>
+                            <p className="text-muted-foreground">Precisa baixar {item.quantidade} unidade(s)</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline">Disponivel agora {item.estoqueDisponivelAtual}</Badge>
+                            <Badge variant={item.estoqueSuficiente ? 'secondary' : 'destructive'}>
+                              {item.estoqueSuficiente ? 'Saldo suficiente' : 'Saldo insuficiente'}
+                            </Badge>
+                            <Badge variant="outline">Saldo apos baixa {item.saldoAposBaixaItem}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

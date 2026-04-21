@@ -239,6 +239,35 @@ export async function GET(request: NextRequest) {
     }
   })
 
+  const pedidosLegadosPendentesLista = legacyPedidosPendentes.map((pedido) => {
+    const itens = pedido.itens.map((item) => {
+      const estoqueAtual = estoqueMap.get(item.produtoId) ?? { quantidadeDisponivel: 0, quantidadeReservada: 0 }
+      const estoqueSuficiente = estoqueAtual.quantidadeDisponivel >= item.quantidade
+
+      return {
+        produtoId: item.produtoId,
+        nomeProduto: item.nomeProdutoSnapshot,
+        quantidade: item.quantidade,
+        estoqueDisponivelAtual: estoqueAtual.quantidadeDisponivel,
+        estoqueSuficiente,
+        saldoAposBaixaItem: estoqueAtual.quantidadeDisponivel - item.quantidade,
+      }
+    })
+
+    return {
+      id: pedido.id,
+      numero: pedido.id.slice(-8).toUpperCase(),
+      status: pedido.status,
+      clienteNome: pedido.clienteNome,
+      criadoEm: pedido.criadoEm,
+      estoqueBaixadoEm: pedido.estoqueBaixadoEm,
+      totalItens: itens.reduce((acc, item) => acc + item.quantidade, 0),
+      possuiFaltaNoMomento: itens.some((item) => !item.estoqueSuficiente),
+      motivo: `Pedido em ${pedido.status} sem baixa registrada no estoque.`,
+      itens,
+    }
+  })
+
   const historicoMap = new Map<string, { data: string; totalProduzido: number; itens: Map<string, { produtoId: string; nomeProduto: string; quantidade: number }> }>()
   for (const registro of producaoRegistros) {
     const dataChave = formatDateInSaoPaulo(registro.dataProducao)
@@ -280,12 +309,7 @@ export async function GET(request: NextRequest) {
     estoque,
     historicoProducao,
     pedidosLegadosPendentes: legacyPedidosPendentes.length,
-    pedidosLegadosPendentesLista: legacyPedidosPendentes.map((pedido) => ({
-      id: pedido.id,
-      numero: pedido.id.slice(-8).toUpperCase(),
-      status: pedido.status,
-      clienteNome: pedido.clienteNome,
-    })),
+    pedidosLegadosPendentesLista,
     totalAProduzir: aProduzir.reduce((acc, item) => acc + item.aProduzir, 0),
     totalEncomendasAProduzir: encomendasAProduzir.reduce((acc, item) => acc + item.aProduzir, 0),
     pedidos: pedidos.map((pedido) => ({
@@ -382,6 +406,7 @@ export async function PATCH(request: NextRequest) {
 
     let sincronizados = 0
     const bloqueados: string[] = []
+    const bloqueadosDetalhes: { numero: string; motivo: string }[] = []
 
     for (const pedido of pedidosLegados) {
       try {
@@ -396,14 +421,18 @@ export async function PATCH(request: NextRequest) {
           })
         })
         sincronizados += 1
-      } catch {
-        bloqueados.push(pedido.id.slice(-8).toUpperCase())
+      } catch (error) {
+        const numero = pedido.id.slice(-8).toUpperCase()
+        const motivo = error instanceof Error ? error.message : 'Erro ao sincronizar pedido antigo'
+        bloqueados.push(numero)
+        bloqueadosDetalhes.push({ numero, motivo })
       }
     }
 
     return NextResponse.json({
       sincronizados,
       bloqueados,
+      bloqueadosDetalhes,
       totalPendentes: pedidosLegados.length,
     })
   }
