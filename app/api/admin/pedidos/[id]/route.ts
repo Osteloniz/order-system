@@ -55,7 +55,7 @@ export async function DELETE(
       }
     }
 
-    if (pedido.tipoEntrega === 'ENCOMENDA') {
+    if (pedido.tipoEntrega === 'ENCOMENDA' && pedido.status !== 'ENTREGUE') {
       for (const item of pedido.itens) {
         if (item.quantidadePreparada > 0) {
           await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidadePreparada)

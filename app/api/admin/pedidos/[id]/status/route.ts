@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { addAvailableStock, consumeAvailableStock, releaseReservedToAvailableStock } from '@/lib/stock'
+import { addAvailableStock, consumeAvailableStock, consumeReservedStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
@@ -123,6 +123,42 @@ export async function PATCH(
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+        if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
+          const shouldReserveEncomenda = status === 'PREPARACAO' || status === 'ENTREGUE'
+
+          if (shouldReserveEncomenda) {
+            for (const item of pedidoAtual.itens) {
+              const quantidadePendenteReserva = Math.max(0, item.quantidade - item.quantidadePreparada)
+              if (quantidadePendenteReserva <= 0) continue
+
+              await reserveFromAvailableStock(
+                tx,
+                admin.tenantId,
+                item.produtoId,
+                quantidadePendenteReserva,
+                item.nomeProdutoSnapshot
+              )
+
+              await tx.itemPedido.update({
+                where: { id: item.id },
+                data: {
+                  quantidadePreparada: item.quantidade,
+                  preparadoEm: item.preparadoEm ?? new Date(),
+                },
+              })
+            }
+          }
+
+          if (status === 'ENTREGUE') {
+            for (const item of pedidoAtual.itens) {
+              const quantidadeReservada = item.quantidade
+              if (quantidadeReservada <= 0) continue
+
+              await consumeReservedStock(tx, admin.tenantId, item.produtoId, quantidadeReservada)
+            }
+          }
+        }
+
         const precisaBaixarEstoqueAgora =
           pedidoAtual.tipoEntrega !== 'ENCOMENDA' &&
           !pedidoAtual.estoqueBaixadoEm &&

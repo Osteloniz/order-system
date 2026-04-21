@@ -83,3 +83,17 @@ export async function releaseReservedToAvailableStock(tx: Tx, tenantId: string, 
     },
   })
 }
+
+export async function consumeReservedStock(tx: Tx, tenantId: string, produtoId: string, quantidade: number) {
+  const estoque = await getOrCreateStock(tx, tenantId, produtoId)
+  if (estoque.quantidadeReservada < quantidade) {
+    throw new Error(`Reserva insuficiente para concluir a encomenda. Reservado: ${estoque.quantidadeReservada}. Necessario: ${quantidade}.`)
+  }
+
+  return tx.produtoEstoque.update({
+    where: { id: estoque.id },
+    data: {
+      quantidadeReservada: { decrement: quantidade },
+    },
+  })
+}
