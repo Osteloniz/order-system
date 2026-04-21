@@ -90,6 +90,9 @@ export interface Configuracao {
   nomeEstabelecimento: string
   estabelecimentoLat: number
   estabelecimentoLng: number
+  mensagemStatusAceito: string
+  mensagemStatusPreparacao: string
+  mensagemStatusEntregue: string
 }
 
 // Payload para criar pedido

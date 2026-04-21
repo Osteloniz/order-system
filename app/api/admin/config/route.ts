@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
 
 export const runtime = 'nodejs'
 
@@ -12,7 +13,10 @@ const configSchema = z.object({
   freteRaioKm: z.number().finite().min(0).max(100).optional(),
   freteKmExcedente: z.number().finite().min(0).max(100_000).optional(),
   estabelecimentoLat: z.number().finite().min(-90).max(90).optional(),
-  estabelecimentoLng: z.number().finite().min(-180).max(180).optional()
+  estabelecimentoLng: z.number().finite().min(-180).max(180).optional(),
+  mensagemStatusAceito: z.string().trim().min(1).max(4000).optional(),
+  mensagemStatusPreparacao: z.string().trim().min(1).max(4000).optional(),
+  mensagemStatusEntregue: z.string().trim().min(1).max(4000).optional()
 }).strict()
 
 // GET /api/admin/config - Retorna configuracoes
@@ -40,7 +44,7 @@ export async function GET() {
     })
   }
 
-  return NextResponse.json(configuracao)
+  return NextResponse.json(hydrateConfigWithMessageDefaults(configuracao))
 }
 
 // PUT /api/admin/config - Atualiza configuracoes
@@ -71,10 +75,13 @@ export async function PUT(request: NextRequest) {
           freteKmExcedente: body.freteKmExcedente !== undefined ? Math.round(body.freteKmExcedente) : 100,
           estabelecimentoLat: body.estabelecimentoLat ?? 0,
           estabelecimentoLng: body.estabelecimentoLng ?? 0,
+          mensagemStatusAceito: body.mensagemStatusAceito,
+          mensagemStatusPreparacao: body.mensagemStatusPreparacao,
+          mensagemStatusEntregue: body.mensagemStatusEntregue,
           tenantId: admin.tenantId
         }
       })
-      return NextResponse.json(configuracao)
+      return NextResponse.json(hydrateConfigWithMessageDefaults(configuracao))
     }
 
     const configuracaoAtualizada = await prisma.configuracao.update({
@@ -86,13 +93,16 @@ export async function PUT(request: NextRequest) {
         enderecoRetirada: body.enderecoRetirada ?? configuracao.enderecoRetirada,
         nomeEstabelecimento: body.nomeEstabelecimento ?? configuracao.nomeEstabelecimento,
         estabelecimentoLat: body.estabelecimentoLat ?? configuracao.estabelecimentoLat,
-        estabelecimentoLng: body.estabelecimentoLng ?? configuracao.estabelecimentoLng
+        estabelecimentoLng: body.estabelecimentoLng ?? configuracao.estabelecimentoLng,
+        mensagemStatusAceito: body.mensagemStatusAceito ?? configuracao.mensagemStatusAceito,
+        mensagemStatusPreparacao: body.mensagemStatusPreparacao ?? configuracao.mensagemStatusPreparacao,
+        mensagemStatusEntregue: body.mensagemStatusEntregue ?? configuracao.mensagemStatusEntregue
       }
     })
 
     console.log('[v0] Configuracoes atualizadas')
 
-    return NextResponse.json(configuracaoAtualizada)
+    return NextResponse.json(hydrateConfigWithMessageDefaults(configuracaoAtualizada))
   } catch (error) {
     console.error('[v0] Erro ao atualizar configuracoes:', error)
     return NextResponse.json(

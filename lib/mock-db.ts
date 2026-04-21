@@ -6,37 +6,40 @@ export const configuracao: Configuracao = {
   freteRaioKm: 3,
   freteKmExcedente: 100,
   enderecoRetirada: 'Endereço de Retirada Exemplo, 123 - Centro',
-  nomeEstabelecimento: 'Nossa Pimenta',
+  nomeEstabelecimento: 'Brookie Pregiato',
   estabelecimentoLat: 0,
-  estabelecimentoLng: 0
+  estabelecimentoLng: 0,
+  mensagemStatusAceito: 'O seu pedido foi aceito.\n\nResumo do pedido:\n{itens}\n\nTotal = {total}\n\nPagamento: {pagamento}',
+  mensagemStatusPreparacao: 'Seu pedido esta em preparo.\n{linha_pagamento}\n\nResumo do pedido:\n{itens}\n\nTotal = {total}',
+  mensagemStatusEntregue: 'Muito obrigado pela sua compra!\n\nA sua opiniao e muito importante para nos. Se puder, envie um feedback contando como foi a sua experiencia com o pedido.\n\nDica especial para aproveitar ainda mais os nossos cookies:\n\nEles ja sao deliciosos em qualquer momento, mas se voce gosta de saborear quentinho, coloque no micro-ondas por apenas 15 segundos. O resultado e sensacional: massa macia, aroma irresistivel e sabor ainda mais intenso!\n\nExperiencia unica garantida.'
 }
 
 // Categorias mockadas
 export const categorias: Categoria[] = [
-  { id: 'cat-1', nome: 'Molhos', ordem: 1 },
+  { id: 'cat-1', nome: 'Doces', ordem: 1 },
 ]
 
 // Produtos mockados
 export const produtos: Produto[] = [
-  // Lanches
+  // Doces
   {
     id: 'prod-1',
-    nome: 'Queridinha',
-    descricao: 'Molho artesanal, pimenta dedo de moça e especiarias',
+    nome: 'Brownie Tradicional',
+    descricao: 'Brownie de chocolate com cobertura',
     categoriaId: 'cat-1',
-    preco: 1200, // R$ 12,00
+    preco: 1500, // R$ 15,00
     ativo: true,
-    imagens: ['./QUERIDINHA.png', '/placeholder.svg'],
+    imagemUrl: '/BROWNIE.png',
     ordem: 1,
   },
   {
     id: 'prod-2',
-    nome: 'Queima Guela',
-    descricao: 'Molho artesanal, pimenta carolina reaper e especiarias',
+    nome: 'Brookie Pregiato',
+    descricao: 'Brookie exclusivo e delicioso',
     categoriaId: 'cat-1',
-    preco: 1200,
+    preco: 1800,
     ativo: true,
-    imagemUrl: './QUEIMA.png',
+    imagemUrl: '/BROOKIE.png',
     ordem: 2,
   },
   // {

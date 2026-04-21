@@ -4,15 +4,17 @@ import React from "react"
 
 import { useState, useEffect } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, Save, Loader2, Settings, Volume2 } from 'lucide-react'
+import { Bell, MessageCircle, RotateCcw, Save, Loader2, Settings, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertSoundEnabled, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import type { Configuracao } from '@/lib/types'
+import { getDefaultStatusTemplate, statusMessageTemplateFields, supportedStatusTemplateVariables } from '@/lib/message-templates'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -27,6 +29,9 @@ export function ConfigPage() {
   const [freteKmExcedente, setFreteKmExcedente] = useState('')
   const [estabelecimentoLat, setEstabelecimentoLat] = useState('')
   const [estabelecimentoLng, setEstabelecimentoLng] = useState('')
+  const [mensagemStatusAceito, setMensagemStatusAceito] = useState('')
+  const [mensagemStatusPreparacao, setMensagemStatusPreparacao] = useState('')
+  const [mensagemStatusEntregue, setMensagemStatusEntregue] = useState('')
   const [isOpen, setIsOpen] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -62,6 +67,9 @@ export function ConfigPage() {
       setFreteKmExcedente((config.freteKmExcedente / 100).toFixed(2).replace('.', ','))
       setEstabelecimentoLat(String(config.estabelecimentoLat))
       setEstabelecimentoLng(String(config.estabelecimentoLng))
+      setMensagemStatusAceito(config.mensagemStatusAceito)
+      setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
+      setMensagemStatusEntregue(config.mensagemStatusEntregue)
     }
   }, [config])
 
@@ -118,7 +126,10 @@ export function ConfigPage() {
       enderecoRetirada,
       freteBase: freteBaseNumero,
       freteRaioKm: freteRaioNumero,
-      freteKmExcedente: freteKmExcedenteNumero
+      freteKmExcedente: freteKmExcedenteNumero,
+      mensagemStatusAceito: mensagemStatusAceito.trim(),
+      mensagemStatusPreparacao: mensagemStatusPreparacao.trim(),
+      mensagemStatusEntregue: mensagemStatusEntregue.trim()
     }
 
     if (Number.isFinite(latNumero)) {
@@ -161,7 +172,7 @@ export function ConfigPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Configurações</h1>
 
-      <Card className="max-w-xl">
+      <Card className="max-w-4xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -173,83 +184,85 @@ export function ConfigPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome do Estabelecimento</Label>
-              <Input
-                id="nome"
-                value={nomeEstabelecimento}
-                onChange={e => setNomeEstabelecimento(e.target.value)}
-                required
-              />
-            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="nome">Nome do Estabelecimento</Label>
+                <Input
+                  id="nome"
+                  value={nomeEstabelecimento}
+                  onChange={e => setNomeEstabelecimento(e.target.value)}
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="endereco">Endereço para Retirada</Label>
-              <Input
-                id="endereco"
-                value={enderecoRetirada}
-                onChange={e => setEnderecoRetirada(e.target.value)}
-                required
-              />
-            </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="endereco">Endereço para Retirada</Label>
+                <Input
+                  id="endereco"
+                  value={enderecoRetirada}
+                  onChange={e => setEnderecoRetirada(e.target.value)}
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="freteBase">Frete base até o raio (R$)</Label>
-              <Input
-                id="freteBase"
-                value={freteBase}
-                onChange={e => setFreteBase(e.target.value)}
-                placeholder="5,00"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Valor cobrado para entregas dentro do raio base
-              </p>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="freteBase">Frete base até o raio (R$)</Label>
+                <Input
+                  id="freteBase"
+                  value={freteBase}
+                  onChange={e => setFreteBase(e.target.value)}
+                  placeholder="5,00"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Valor cobrado para entregas dentro do raio base
+                </p>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="freteRaioKm">Raio base (km)</Label>
-              <Input
-                id="freteRaioKm"
-                value={freteRaioKm}
-                onChange={e => setFreteRaioKm(e.target.value)}
-                placeholder="3"
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="freteRaioKm">Raio base (km)</Label>
+                <Input
+                  id="freteRaioKm"
+                  value={freteRaioKm}
+                  onChange={e => setFreteRaioKm(e.target.value)}
+                  placeholder="3"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="freteKmExcedente">Valor por km excedente (R$)</Label>
-              <Input
-                id="freteKmExcedente"
-                value={freteKmExcedente}
-                onChange={e => setFreteKmExcedente(e.target.value)}
-                placeholder="1,00"
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="freteKmExcedente">Valor por km excedente (R$)</Label>
+                <Input
+                  id="freteKmExcedente"
+                  value={freteKmExcedente}
+                  onChange={e => setFreteKmExcedente(e.target.value)}
+                  placeholder="1,00"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="lat">Latitude do estabelecimento</Label>
-              <Input
-                id="lat"
-                value={estabelecimentoLat}
-                onChange={e => setEstabelecimentoLat(e.target.value)}
-                placeholder="-23.55052"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="lat">Latitude do estabelecimento</Label>
+                <Input
+                  id="lat"
+                  value={estabelecimentoLat}
+                  onChange={e => setEstabelecimentoLat(e.target.value)}
+                  placeholder="-23.55052"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="lng">Longitude do estabelecimento</Label>
-              <Input
-                id="lng"
-                value={estabelecimentoLng}
-                onChange={e => setEstabelecimentoLng(e.target.value)}
-                placeholder="-46.633308"
-              />
-              <p className="text-xs text-muted-foreground">
-                Necessário para calcular frete por geolocalização
-              </p>
+              <div className="space-y-2">
+                <Label htmlFor="lng">Longitude do estabelecimento</Label>
+                <Input
+                  id="lng"
+                  value={estabelecimentoLng}
+                  onChange={e => setEstabelecimentoLng(e.target.value)}
+                  placeholder="-46.633308"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Necessário para calcular frete por geolocalização
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -265,6 +278,73 @@ export function ConfigPage() {
                   checked={isOpen}
                   onCheckedChange={setIsOpen}
                 />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-base font-semibold">
+                    <MessageCircle className="h-4 w-4 text-primary" />
+                    Mensagens padrao do WhatsApp
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Edite os textos enviados ao avancar o status do pedido. As variaveis abaixo sao substituidas automaticamente.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-4 flex flex-wrap gap-2">
+                {supportedStatusTemplateVariables.map(variable => (
+                  <span key={variable} className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
+                    {variable}
+                  </span>
+                ))}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                {statusMessageTemplateFields.map(field => {
+                  const valueByField = {
+                    mensagemStatusAceito,
+                    mensagemStatusPreparacao,
+                    mensagemStatusEntregue,
+                  }
+                  const setterByField = {
+                    mensagemStatusAceito: setMensagemStatusAceito,
+                    mensagemStatusPreparacao: setMensagemStatusPreparacao,
+                    mensagemStatusEntregue: setMensagemStatusEntregue,
+                  }
+                  const value = valueByField[field.key]
+                  const setValue = setterByField[field.key]
+
+                  return (
+                    <div key={field.key} className="space-y-3 rounded-xl border border-border bg-background/80 p-4 shadow-sm">
+                      <div>
+                        <Label htmlFor={field.key}>{field.title}</Label>
+                        <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>
+                      </div>
+                      <Textarea
+                        id={field.key}
+                        value={value}
+                        onChange={event => setValue(event.target.value)}
+                        rows={12}
+                        className="min-h-[250px] resize-y"
+                      />
+                      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{value.trim().length} caracteres</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setValue(getDefaultStatusTemplate(field.key))}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                          Restaurar padrao
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 

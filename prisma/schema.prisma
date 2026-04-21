@@ -56,6 +56,9 @@ model Configuracao {
   freteKmExcedente    Int      @default(100) // centavos por km excedente
   estabelecimentoLat  Float    @default(0)
   estabelecimentoLng  Float    @default(0)
+  mensagemStatusAceito String?
+  mensagemStatusPreparacao String?
+  mensagemStatusEntregue String?
   criadoEm            DateTime @default(now())
   atualizadoEm        DateTime @updatedAt
 

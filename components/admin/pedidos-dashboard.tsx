@@ -17,7 +17,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { NovoPedidoAdminPage } from '@/components/admin/novo-pedido-page'
 import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
-import type { Pedido, StatusPedido } from '@/lib/types'
+import { buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
+import type { Configuracao, Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -45,7 +46,7 @@ const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
   CANCELADO: []
 }
 
-const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartão', DINHEIRO: 'Dinheiro' }
+const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartao', DINHEIRO: 'Dinheiro' }
 const entregaLabels = { RESERVA_PAULISTANO: 'Reserva', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' }
 const statusPagamentoLabels = { NAO_APLICAVEL: 'Na entrega', PENDENTE: 'Pendente', APROVADO: 'Aprovado', RECUSADO: 'Recusado', CANCELADO: 'Cancelado', REEMBOLSADO: 'Reembolsado' }
 const statusPagamentoColors = {
@@ -61,40 +62,15 @@ function getPedidoWhatsapp(pedido: Pedido) {
   return (pedido.clienteWhatsapp || pedido.clienteTelefone || '').replace(/\D/g, '')
 }
 
-function formatarListaItens(pedido: Pedido) {
-  return pedido.itens.map(item => `- ${item.quantidade}x ${item.nomeProdutoSnapshot}`).join('\n')
-}
-
 function resumirItens(pedido: Pedido) {
   const primeirosItens = pedido.itens.slice(0, 2).map(item => `${item.quantidade}x ${item.nomeProdutoSnapshot}`).join(', ')
   const restantes = pedido.itens.length - 2
   return restantes > 0 ? `${primeirosItens} +${restantes}` : primeirosItens
 }
 
-function criarMensagemStatus(pedido: Pedido, status: StatusPedido) {
-  const listaItens = formatarListaItens(pedido)
-  const total = formatarMoeda(pedido.total)
-  const formaPagamento = pagamentoLabels[pedido.pagamento]
-
-  if (status === 'ACEITO') return ['O seu pedido foi aceito ✅', '', 'Resumo do pedido:', listaItens, '', `Total = ${total}`, '', `Pagamento: ${formaPagamento}`].join('\n')
-  if (status === 'PREPARACAO') return ['Seu pedido está em preparo 👨‍🍳', pedido.statusPagamento === 'APROVADO' ? 'Pagamento confirmado.' : 'Estamos aguardando pagamento.', '', 'Resumo do pedido:', listaItens, '', `Total = ${total}`].join('\n')
-  if (status === 'ENTREGUE') return [
-    'Muito obrigado pela sua compra! 💙',
-    '',
-    'A sua opinião é muito importante para nós. Se puder, envie um feedback contando como foi a sua experiência com o pedido.',
-    '',
-    'Dica especial para aproveitar ainda mais os nossos cookies:',
-    '',
-    'Eles já são deliciosos em qualquer momento, mas se você gosta de saborear quentinho, coloque no micro-ondas por apenas 15 segundos. O resultado é sensacional: massa macia, aroma irresistível e sabor ainda mais intenso!',
-    '',
-    'Experiência única garantida 💙',
-  ].join('\n')
-  return ''
-}
-
-function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido) {
+function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido, config?: Configuracao | null) {
   const telefone = getPedidoWhatsapp(pedido)
-  const mensagem = criarMensagemStatus(pedido, status)
+  const mensagem = buildStatusMessage(pedido, status, config)
   if (!telefone || !mensagem) return
   window.open(`https://wa.me/55${telefone}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener,noreferrer')
 }
@@ -137,6 +113,8 @@ export function PedidosDashboard() {
 
   const pedidosUrl = `/api/admin/pedidos?date=${dateFilter}&carryoverNovos=1`
   const { data: pedidos, isLoading } = useSWR<Pedido[]>(pedidosUrl, fetcher, { refreshInterval: 5000 })
+  const { data: rawConfig } = useSWR<Configuracao>('/api/admin/config', fetcher)
+  const config = hydrateConfigWithMessageDefaults(rawConfig)
 
   const contadores = {
     novos: pedidos?.filter(p => p.status === 'FEITO').length || 0,
@@ -312,7 +290,7 @@ export function PedidosDashboard() {
       }
       mutate(pedidosUrl)
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
-      abrirWhatsappStatus(pedido, newStatus)
+      abrirWhatsappStatus(pedido, newStatus, config)
     } finally {
       setUpdatingStatus(null)
     }
@@ -398,7 +376,7 @@ export function PedidosDashboard() {
       return
     }
 
-    abrirWhatsappStatus(pedido, pedido.status)
+    abrirWhatsappStatus(pedido, pedido.status, config)
   }
 
   const renderPedidoCard = (pedido: Pedido) => {
