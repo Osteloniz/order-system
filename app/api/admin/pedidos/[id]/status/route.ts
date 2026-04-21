@@ -81,7 +81,11 @@ export async function PATCH(
       }
 
       const pedidoCancelado = await prisma.$transaction(async (tx) => {
-        if (pedidoAtual.tipoEntrega !== 'ENCOMENDA' && (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')) {
+        if (
+          pedidoAtual.tipoEntrega !== 'ENCOMENDA' &&
+          pedidoAtual.estoqueBaixadoEm &&
+          (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')
+        ) {
           for (const item of pedidoAtual.itens) {
             await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade)
           }
@@ -106,7 +110,8 @@ export async function PATCH(
           where: { id },
           data: {
             status,
-            motivoCancelamento: motivoCancelamento.trim()
+            motivoCancelamento: motivoCancelamento.trim(),
+            estoqueBaixadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' ? null : pedidoAtual.estoqueBaixadoEm,
           },
           include: { itens: true }
         })
@@ -118,15 +123,27 @@ export async function PATCH(
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
-        if (pedidoAtual.tipoEntrega !== 'ENCOMENDA' && pedidoAtual.status === 'FEITO' && status === 'ACEITO') {
-          for (const item of pedidoAtual.itens) {
-            await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+        const precisaBaixarEstoqueAgora =
+          pedidoAtual.tipoEntrega !== 'ENCOMENDA' &&
+          !pedidoAtual.estoqueBaixadoEm &&
+          ['ACEITO', 'PREPARACAO', 'ENTREGUE'].includes(status)
+
+        if (precisaBaixarEstoqueAgora) {
+          if (!pedidoAtual.estoqueBaixadoEm) {
+            for (const item of pedidoAtual.itens) {
+              await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+            }
           }
         }
 
         return tx.pedido.update({
           where: { id },
-          data: { status },
+          data: {
+            status,
+            estoqueBaixadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' && ['ACEITO', 'PREPARACAO', 'ENTREGUE'].includes(status)
+              ? pedidoAtual.estoqueBaixadoEm ?? new Date()
+              : pedidoAtual.estoqueBaixadoEm,
+          },
           include: { itens: true }
         })
       })
