@@ -24,11 +24,6 @@ export function ConfigPage() {
 
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState('')
   const [enderecoRetirada, setEnderecoRetirada] = useState('')
-  const [freteBase, setFreteBase] = useState('')
-  const [freteRaioKm, setFreteRaioKm] = useState('')
-  const [freteKmExcedente, setFreteKmExcedente] = useState('')
-  const [estabelecimentoLat, setEstabelecimentoLat] = useState('')
-  const [estabelecimentoLng, setEstabelecimentoLng] = useState('')
   const [mensagemStatusAceito, setMensagemStatusAceito] = useState('')
   const [mensagemStatusPreparacao, setMensagemStatusPreparacao] = useState('')
   const [mensagemStatusEntregue, setMensagemStatusEntregue] = useState('')
@@ -62,11 +57,6 @@ export function ConfigPage() {
     if (config) {
       setNomeEstabelecimento(config.nomeEstabelecimento)
       setEnderecoRetirada(config.enderecoRetirada)
-      setFreteBase((config.freteBase / 100).toFixed(2).replace('.', ','))
-      setFreteRaioKm(String(config.freteRaioKm))
-      setFreteKmExcedente((config.freteKmExcedente / 100).toFixed(2).replace('.', ','))
-      setEstabelecimentoLat(String(config.estabelecimentoLat))
-      setEstabelecimentoLng(String(config.estabelecimentoLng))
       setMensagemStatusAceito(config.mensagemStatusAceito)
       setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
       setMensagemStatusEntregue(config.mensagemStatusEntregue)
@@ -115,28 +105,12 @@ export function ConfigPage() {
     setIsSubmitting(true)
     setSaved(false)
 
-    const freteBaseNumero = Number.parseFloat(freteBase.replace(',', '.')) * 100
-    const freteRaioNumero = Number.parseFloat(freteRaioKm.replace(',', '.'))
-    const freteKmExcedenteNumero = Number.parseFloat(freteKmExcedente.replace(',', '.')) * 100
-    const latNumero = Number.parseFloat(estabelecimentoLat.replace(',', '.'))
-    const lngNumero = Number.parseFloat(estabelecimentoLng.replace(',', '.'))
-
     const payload: Record<string, number | string> = {
       nomeEstabelecimento,
       enderecoRetirada,
-      freteBase: freteBaseNumero,
-      freteRaioKm: freteRaioNumero,
-      freteKmExcedente: freteKmExcedenteNumero,
       mensagemStatusAceito: mensagemStatusAceito.trim(),
       mensagemStatusPreparacao: mensagemStatusPreparacao.trim(),
       mensagemStatusEntregue: mensagemStatusEntregue.trim()
-    }
-
-    if (Number.isFinite(latNumero)) {
-      payload.estabelecimentoLat = latNumero
-    }
-    if (Number.isFinite(lngNumero)) {
-      payload.estabelecimentoLng = lngNumero
     }
 
     try {
@@ -203,65 +177,6 @@ export function ConfigPage() {
                   onChange={e => setEnderecoRetirada(e.target.value)}
                   required
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="freteBase">Frete base até o raio (R$)</Label>
-                <Input
-                  id="freteBase"
-                  value={freteBase}
-                  onChange={e => setFreteBase(e.target.value)}
-                  placeholder="5,00"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Valor cobrado para entregas dentro do raio base
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="freteRaioKm">Raio base (km)</Label>
-                <Input
-                  id="freteRaioKm"
-                  value={freteRaioKm}
-                  onChange={e => setFreteRaioKm(e.target.value)}
-                  placeholder="3"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="freteKmExcedente">Valor por km excedente (R$)</Label>
-                <Input
-                  id="freteKmExcedente"
-                  value={freteKmExcedente}
-                  onChange={e => setFreteKmExcedente(e.target.value)}
-                  placeholder="1,00"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="lat">Latitude do estabelecimento</Label>
-                <Input
-                  id="lat"
-                  value={estabelecimentoLat}
-                  onChange={e => setEstabelecimentoLat(e.target.value)}
-                  placeholder="-23.55052"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="lng">Longitude do estabelecimento</Label>
-                <Input
-                  id="lng"
-                  value={estabelecimentoLng}
-                  onChange={e => setEstabelecimentoLng(e.target.value)}
-                  placeholder="-46.633308"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Necessário para calcular frete por geolocalização
-                </p>
               </div>
             </div>
 
