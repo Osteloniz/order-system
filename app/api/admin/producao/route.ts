@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { addAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
@@ -16,6 +17,12 @@ const patchSchema = z.discriminatedUnion('action', [
     action: z.literal('SET_STOCK'),
     produtoId: z.string().uuid(),
     quantidadeDisponivel: z.number().int().min(0).max(9999),
+  }).strict(),
+  z.object({
+    action: z.literal('ADD_PRODUCTION'),
+    produtoId: z.string().uuid(),
+    quantidade: z.number().int().min(1).max(9999),
+    dataProducao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   }).strict(),
   z.object({
     action: z.literal('MARK_ITEM_PREPARED'),
@@ -45,6 +52,19 @@ function getPeriodRange(fromParam?: string, toParam?: string, dateParam?: string
   }
 }
 
+function parseProductionDate(value: string) {
+  return new Date(`${value}T12:00:00-03:00`)
+}
+
+function formatDateInSaoPaulo(value: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(value)
+}
+
 type ProdutoResumo = {
   produtoId: string
   nomeProduto: string
@@ -56,12 +76,16 @@ type ProdutoResumo = {
   aProduzir: number
 }
 
-function addResumo(map: Map<string, ProdutoResumo>, item: {
-  produtoId: string
-  nomeProdutoSnapshot: string
-  quantidade: number
-  totalItem: number
-}, estoqueMap: Map<string, { quantidadeDisponivel: number; quantidadeReservada: number }>) {
+function addResumo(
+  map: Map<string, ProdutoResumo>,
+  item: {
+    produtoId: string
+    nomeProdutoSnapshot: string
+    quantidade: number
+    totalItem: number
+  },
+  estoqueMap: Map<string, { quantidadeDisponivel: number; quantidadeReservada: number }>
+) {
   const estoque = estoqueMap.get(item.produtoId) ?? { quantidadeDisponivel: 0, quantidadeReservada: 0 }
   const current = map.get(item.produtoId) ?? {
     produtoId: item.produtoId,
@@ -107,7 +131,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
   }
 
-  const [pedidos, produtos, estoques] = await Promise.all([
+  const [pedidos, produtos, estoques, producaoRegistros] = await Promise.all([
     prisma.pedido.findMany({
       where: {
         tenantId: admin.tenantId,
@@ -132,6 +156,16 @@ export async function GET(request: NextRequest) {
       orderBy: [{ categoria: { ordem: 'asc' } }, { ordem: 'asc' }, { nome: 'asc' }],
     }),
     prisma.produtoEstoque.findMany({ where: { tenantId: admin.tenantId } }),
+    prisma.producaoRegistro.findMany({
+      where: {
+        tenantId: admin.tenantId,
+        dataProducao: { gte: start, lt: end },
+      },
+      include: {
+        produto: { select: { id: true, nome: true } },
+      },
+      orderBy: [{ dataProducao: 'desc' }, { criadoEm: 'desc' }],
+    }),
   ])
 
   const estoqueMap = new Map(estoques.map((estoque) => [estoque.produtoId, {
@@ -139,9 +173,9 @@ export async function GET(request: NextRequest) {
     quantidadeReservada: estoque.quantidadeReservada,
   }]))
 
-  const pedidosAProduzir = pedidos.filter((pedido) => pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO')
-  const pedidosNormaisAProduzir = pedidosAProduzir.filter((pedido) => pedido.tipoEntrega !== 'ENCOMENDA')
-  const pedidosEncomendaAProduzir = pedidosAProduzir.filter((pedido) => pedido.tipoEntrega === 'ENCOMENDA')
+  const pedidosAbertos = pedidos.filter((pedido) => pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO')
+  const pedidosNormaisAProduzir = pedidosAbertos.filter((pedido) => pedido.tipoEntrega !== 'ENCOMENDA' && pedido.status === 'FEITO')
+  const pedidosEncomendaAProduzir = pedidosAbertos.filter((pedido) => pedido.tipoEntrega === 'ENCOMENDA')
 
   const resumoMap = new Map<string, ProdutoResumo>()
   const normalMap = new Map<string, ProdutoResumo>()
@@ -184,6 +218,35 @@ export async function GET(request: NextRequest) {
     }
   })
 
+  const historicoMap = new Map<string, { data: string; totalProduzido: number; itens: Map<string, { produtoId: string; nomeProduto: string; quantidade: number }> }>()
+  for (const registro of producaoRegistros) {
+    const dataChave = formatDateInSaoPaulo(registro.dataProducao)
+    const diaAtual = historicoMap.get(dataChave) ?? {
+      data: dataChave,
+      totalProduzido: 0,
+      itens: new Map(),
+    }
+    diaAtual.totalProduzido += registro.quantidade
+
+    const itemAtual = diaAtual.itens.get(registro.produtoId) ?? {
+      produtoId: registro.produtoId,
+      nomeProduto: registro.produto.nome,
+      quantidade: 0,
+    }
+    itemAtual.quantidade += registro.quantidade
+    diaAtual.itens.set(registro.produtoId, itemAtual)
+    historicoMap.set(dataChave, diaAtual)
+  }
+
+  const historicoProducao = Array.from(historicoMap.values()).map((dia) => ({
+    data: dia.data,
+    totalProduzido: dia.totalProduzido,
+    itens: Array.from(dia.itens.values()).sort((a, b) => {
+      if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade
+      return a.nomeProduto.localeCompare(b.nomeProduto)
+    }),
+  }))
+
   return NextResponse.json({
     from,
     to,
@@ -194,6 +257,7 @@ export async function GET(request: NextRequest) {
     aProduzir,
     encomendasAProduzir,
     estoque,
+    historicoProducao,
     totalAProduzir: aProduzir.reduce((acc, item) => acc + item.aProduzir, 0),
     totalEncomendasAProduzir: encomendasAProduzir.reduce((acc, item) => acc + item.aProduzir, 0),
     pedidos: pedidos.map((pedido) => ({
@@ -233,26 +297,47 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (parsed.data.action === 'SET_STOCK') {
+    const data = parsed.data
     const produto = await prisma.produto.findFirst({
-      where: { id: parsed.data.produtoId, tenantId: admin.tenantId },
+      where: { id: data.produtoId, tenantId: admin.tenantId },
       select: { id: true },
     })
     if (!produto) {
       return NextResponse.json({ error: 'Produto nao encontrado' }, { status: 404 })
     }
 
-    const estoque = await prisma.produtoEstoque.upsert({
-      where: { tenantId_produtoId: { tenantId: admin.tenantId, produtoId: parsed.data.produtoId } },
-      create: {
-        tenantId: admin.tenantId,
-        produtoId: parsed.data.produtoId,
-        quantidadeDisponivel: parsed.data.quantidadeDisponivel,
-        quantidadeReservada: 0,
-      },
-      update: { quantidadeDisponivel: parsed.data.quantidadeDisponivel },
-    })
+    const estoque = await prisma.$transaction((tx) =>
+      setAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidadeDisponivel)
+    )
 
     return NextResponse.json(estoque)
+  }
+
+  if (parsed.data.action === 'ADD_PRODUCTION') {
+    const data = parsed.data
+    const produto = await prisma.produto.findFirst({
+      where: { id: data.produtoId, tenantId: admin.tenantId, ativo: true },
+      select: { id: true, nome: true },
+    })
+    if (!produto) {
+      return NextResponse.json({ error: 'Produto nao encontrado' }, { status: 404 })
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const registro = await tx.producaoRegistro.create({
+        data: {
+          tenantId: admin.tenantId,
+          produtoId: data.produtoId,
+          quantidade: data.quantidade,
+          dataProducao: parseProductionDate(data.dataProducao),
+        },
+      })
+
+      await addAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidade)
+      return registro
+    })
+
+    return NextResponse.json(result)
   }
 
   const item = await prisma.itemPedido.findFirst({
@@ -271,32 +356,28 @@ export async function PATCH(request: NextRequest) {
   const quantidadeNova = shouldPrepare ? item.quantidade : 0
   const deltaReservado = quantidadeNova - quantidadeAtual
 
-  const result = await prisma.$transaction(async (tx) => {
-    const updatedItem = await tx.itemPedido.update({
-      where: { id: item.id },
-      data: {
-        quantidadePreparada: quantidadeNova,
-        preparadoEm: shouldPrepare ? new Date() : null,
-      },
-    })
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      if (deltaReservado > 0) {
+        await reserveFromAvailableStock(tx, admin.tenantId, item.produtoId, deltaReservado, item.nomeProdutoSnapshot)
+      } else if (deltaReservado < 0) {
+        await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, Math.abs(deltaReservado))
+      }
 
-    if (deltaReservado !== 0) {
-      await tx.produtoEstoque.upsert({
-        where: { tenantId_produtoId: { tenantId: admin.tenantId, produtoId: item.produtoId } },
-        create: {
-          tenantId: admin.tenantId,
-          produtoId: item.produtoId,
-          quantidadeDisponivel: 0,
-          quantidadeReservada: Math.max(0, deltaReservado),
-        },
-        update: {
-          quantidadeReservada: { increment: deltaReservado },
+      return tx.itemPedido.update({
+        where: { id: item.id },
+        data: {
+          quantidadePreparada: quantidadeNova,
+          preparadoEm: shouldPrepare ? new Date() : null,
         },
       })
-    }
+    })
 
-    return updatedItem
-  })
-
-  return NextResponse.json(result)
+    return NextResponse.json(result)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Erro ao marcar producao' },
+      { status: 400 }
+    )
+  }
 }

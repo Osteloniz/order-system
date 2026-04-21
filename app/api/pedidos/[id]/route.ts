@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
+import { releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
@@ -42,10 +43,14 @@ export async function PATCH(
 
   const pedido = await prisma.pedido.findFirst({
     where: { id, tenantId: tenant.id },
-    select: {
-      id: true,
-      status: true,
-      statusPagamento: true,
+    include: {
+      itens: {
+        select: {
+          id: true,
+          produtoId: true,
+          quantidadePreparada: true,
+        },
+      },
     },
   })
 
@@ -70,13 +75,31 @@ export async function PATCH(
     )
   }
 
-  const pedidoAtualizado = await prisma.pedido.update({
-    where: { id },
-    data: {
-      status: 'CANCELADO',
-      motivoCancelamento: 'Cancelado pelo cliente antes do aceite/pagamento',
-    },
-    include: { itens: true },
+  const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+    if (pedido.tipoEntrega === 'ENCOMENDA') {
+      for (const item of pedido.itens) {
+        if (item.quantidadePreparada > 0) {
+          await releaseReservedToAvailableStock(tx, tenant.id, item.produtoId, item.quantidadePreparada)
+        }
+
+        await tx.itemPedido.update({
+          where: { id: item.id },
+          data: {
+            quantidadePreparada: 0,
+            preparadoEm: null,
+          },
+        })
+      }
+    }
+
+    return tx.pedido.update({
+      where: { id },
+      data: {
+        status: 'CANCELADO',
+        motivoCancelamento: 'Cancelado pelo cliente antes do aceite/pagamento',
+      },
+      include: { itens: true },
+    })
   })
 
   return NextResponse.json(pedidoAtualizado)

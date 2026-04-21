@@ -96,6 +96,7 @@ model Produto {
   categoria   Categoria @relation(fields: [categoriaId], references: [id])
   itensPedido ItemPedido[]
   estoqueProdutos ProdutoEstoque[]
+  producaoRegistros ProducaoRegistro[]
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -201,6 +202,21 @@ model ProdutoEstoque {
   @@index([produtoId])
 }
 
+model ProducaoRegistro {
+  id           String   @id @default(uuid())
+  tenantId     String
+  produtoId    String
+  quantidade   Int
+  dataProducao DateTime
+  criadoEm     DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([tenantId, dataProducao])
+  @@index([produtoId])
+}
+
 model Cupom {
   id        String     @id @default(uuid())
   codigo    String
@@ -237,6 +253,7 @@ model Tenant {
   configuracao Configuracao?
   adminUsers  AdminUser[]
   estoqueProdutos ProdutoEstoque[]
+  producaoRegistros ProducaoRegistro[]
 }
 
 model AdminUser {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { addAvailableStock, consumeAvailableStock, releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
@@ -39,7 +40,10 @@ export async function PATCH(
       )
     }
 
-    const pedidoAtual = await prisma.pedido.findFirst({ where: { id, tenantId: admin.tenantId } })
+    const pedidoAtual = await prisma.pedido.findFirst({
+      where: { id, tenantId: admin.tenantId },
+      include: { itens: true },
+    })
     if (!pedidoAtual) {
       return NextResponse.json(
         { error: 'Pedido nao encontrado' },
@@ -47,7 +51,6 @@ export async function PATCH(
       )
     }
 
-    // Bloqueia alteracoes para pedidos ja entregues ou cancelados.
     if (pedidoAtual.status === 'ENTREGUE') {
       return NextResponse.json(
         { error: 'Pedido entregue nao pode ser alterado' },
@@ -77,28 +80,66 @@ export async function PATCH(
         )
       }
 
-      const pedidoCancelado = await prisma.pedido.update({
-        where: { id },
-        data: {
-          status,
-          motivoCancelamento: motivoCancelamento.trim()
-        },
-        include: { itens: true }
+      const pedidoCancelado = await prisma.$transaction(async (tx) => {
+        if (pedidoAtual.tipoEntrega !== 'ENCOMENDA' && (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')) {
+          for (const item of pedidoAtual.itens) {
+            await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade)
+          }
+        }
+
+        if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
+          for (const item of pedidoAtual.itens) {
+            if (item.quantidadePreparada > 0) {
+              await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidadePreparada)
+            }
+            await tx.itemPedido.update({
+              where: { id: item.id },
+              data: {
+                quantidadePreparada: 0,
+                preparadoEm: null,
+              },
+            })
+          }
+        }
+
+        return tx.pedido.update({
+          where: { id },
+          data: {
+            status,
+            motivoCancelamento: motivoCancelamento.trim()
+          },
+          include: { itens: true }
+        })
       })
 
       console.log(`[v0] Pedido ${id} atualizado para status: ${status}`)
       return NextResponse.json(pedidoCancelado)
     }
 
-    const pedidoAtualizado = await prisma.pedido.update({
-      where: { id },
-      data: { status },
-      include: { itens: true }
-    })
+    try {
+      const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+        if (pedidoAtual.tipoEntrega !== 'ENCOMENDA' && pedidoAtual.status === 'FEITO' && status === 'ACEITO') {
+          for (const item of pedidoAtual.itens) {
+            await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+          }
+        }
 
-    console.log(`[v0] Pedido ${id} atualizado para status: ${status}`)
+        return tx.pedido.update({
+          where: { id },
+          data: { status },
+          include: { itens: true }
+        })
+      })
 
-    return NextResponse.json(pedidoAtualizado)
+      console.log(`[v0] Pedido ${id} atualizado para status: ${status}`)
+
+      return NextResponse.json(pedidoAtualizado)
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Erro ao atualizar status' },
+        { status: 400 }
+      )
+    }
   } catch (error) {
     console.error('[v0] Erro ao atualizar status:', error)
     return NextResponse.json(
