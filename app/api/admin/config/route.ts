@@ -14,6 +14,7 @@ const configSchema = z.object({
   freteKmExcedente: z.number().finite().min(0).max(100_000).optional(),
   estabelecimentoLat: z.number().finite().min(-90).max(90).optional(),
   estabelecimentoLng: z.number().finite().min(-180).max(180).optional(),
+  envioAutomaticoWhatsappStatus: z.boolean().optional(),
   mensagemStatusAceito: z.string().trim().min(1).max(4000).optional(),
   mensagemStatusPreparacao: z.string().trim().min(1).max(4000).optional(),
   mensagemStatusEntregue: z.string().trim().min(1).max(4000).optional()
@@ -40,6 +41,7 @@ export async function GET() {
           freteKmExcedente: 100,
           estabelecimentoLat: 0,
           estabelecimentoLng: 0,
+          envioAutomaticoWhatsappStatus: true,
           tenantId: admin.tenantId
         }
       })
@@ -83,6 +85,7 @@ export async function PUT(request: NextRequest) {
           freteKmExcedente: body.freteKmExcedente !== undefined ? Math.round(body.freteKmExcedente) : 100,
           estabelecimentoLat: body.estabelecimentoLat ?? 0,
           estabelecimentoLng: body.estabelecimentoLng ?? 0,
+          envioAutomaticoWhatsappStatus: body.envioAutomaticoWhatsappStatus ?? true,
           mensagemStatusAceito: body.mensagemStatusAceito,
           mensagemStatusPreparacao: body.mensagemStatusPreparacao,
           mensagemStatusEntregue: body.mensagemStatusEntregue,
@@ -102,6 +105,7 @@ export async function PUT(request: NextRequest) {
         nomeEstabelecimento: body.nomeEstabelecimento ?? configuracao.nomeEstabelecimento,
         estabelecimentoLat: body.estabelecimentoLat ?? configuracao.estabelecimentoLat,
         estabelecimentoLng: body.estabelecimentoLng ?? configuracao.estabelecimentoLng,
+        envioAutomaticoWhatsappStatus: body.envioAutomaticoWhatsappStatus ?? configuracao.envioAutomaticoWhatsappStatus,
         mensagemStatusAceito: body.mensagemStatusAceito ?? configuracao.mensagemStatusAceito,
         mensagemStatusPreparacao: body.mensagemStatusPreparacao ?? configuracao.mensagemStatusPreparacao,
         mensagemStatusEntregue: body.mensagemStatusEntregue ?? configuracao.mensagemStatusEntregue

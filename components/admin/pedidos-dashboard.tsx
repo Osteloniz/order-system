@@ -291,7 +291,9 @@ export function PedidosDashboard() {
       await mutate(pedidosUrl)
       await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
-      abrirWhatsappStatus(pedido, newStatus, config)
+      if (config?.envioAutomaticoWhatsappStatus) {
+        abrirWhatsappStatus(pedido, newStatus, config)
+      }
     } finally {
       setUpdatingStatus(null)
     }

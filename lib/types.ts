@@ -90,6 +90,7 @@ export interface Configuracao {
   nomeEstabelecimento: string
   estabelecimentoLat: number
   estabelecimentoLng: number
+  envioAutomaticoWhatsappStatus: boolean
   mensagemStatusAceito: string
   mensagemStatusPreparacao: string
   mensagemStatusEntregue: string

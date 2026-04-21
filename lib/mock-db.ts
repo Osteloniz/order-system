@@ -9,6 +9,7 @@ export const configuracao: Configuracao = {
   nomeEstabelecimento: 'Brookie Pregiato',
   estabelecimentoLat: 0,
   estabelecimentoLng: 0,
+  envioAutomaticoWhatsappStatus: true,
   mensagemStatusAceito: 'O seu pedido foi aceito.\n\nResumo do pedido:\n{itens}\n\nTotal = {total}\n\nPagamento: {pagamento}',
   mensagemStatusPreparacao: 'Seu pedido esta em preparo.\n{linha_pagamento}\n\nResumo do pedido:\n{itens}\n\nTotal = {total}',
   mensagemStatusEntregue: 'Muito obrigado pela sua compra!\n\nA sua opiniao e muito importante para nos. Se puder, envie um feedback contando como foi a sua experiencia com o pedido.\n\nDica especial para aproveitar ainda mais os nossos cookies:\n\nEles ja sao deliciosos em qualquer momento, mas se voce gosta de saborear quentinho, coloque no micro-ondas por apenas 15 segundos. O resultado e sensacional: massa macia, aroma irresistivel e sabor ainda mais intenso!\n\nExperiencia unica garantida.'

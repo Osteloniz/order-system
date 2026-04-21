@@ -75,6 +75,7 @@ type ConfiguracaoWithNullableMessages = {
   nomeEstabelecimento?: string
   estabelecimentoLat?: number
   estabelecimentoLng?: number
+  envioAutomaticoWhatsappStatus?: boolean | null
   mensagemStatusAceito?: string | null
   mensagemStatusPreparacao?: string | null
   mensagemStatusEntregue?: string | null
@@ -89,6 +90,7 @@ export function hydrateConfigWithMessageDefaults(config: ConfiguracaoWithNullabl
     nomeEstabelecimento: config?.nomeEstabelecimento ?? 'Estabelecimento',
     estabelecimentoLat: config?.estabelecimentoLat ?? 0,
     estabelecimentoLng: config?.estabelecimentoLng ?? 0,
+    envioAutomaticoWhatsappStatus: config?.envioAutomaticoWhatsappStatus ?? true,
     mensagemStatusAceito: sanitizeTemplate(config?.mensagemStatusAceito, defaultStatusMessageTemplates.ACEITO),
     mensagemStatusPreparacao: sanitizeTemplate(config?.mensagemStatusPreparacao, defaultStatusMessageTemplates.PREPARACAO),
     mensagemStatusEntregue: sanitizeTemplate(config?.mensagemStatusEntregue, defaultStatusMessageTemplates.ENTREGUE),

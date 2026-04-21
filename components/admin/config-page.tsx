@@ -51,6 +51,7 @@ export function ConfigPage() {
 
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState('')
   const [enderecoRetirada, setEnderecoRetirada] = useState('')
+  const [envioAutomaticoWhatsappStatus, setEnvioAutomaticoWhatsappStatus] = useState(true)
   const [mensagemStatusAceito, setMensagemStatusAceito] = useState('')
   const [mensagemStatusPreparacao, setMensagemStatusPreparacao] = useState('')
   const [mensagemStatusEntregue, setMensagemStatusEntregue] = useState('')
@@ -88,6 +89,7 @@ export function ConfigPage() {
     if (config && (!configHydratedRef.current || !isDirty)) {
       setNomeEstabelecimento(config.nomeEstabelecimento)
       setEnderecoRetirada(config.enderecoRetirada)
+      setEnvioAutomaticoWhatsappStatus(config.envioAutomaticoWhatsappStatus)
       setMensagemStatusAceito(config.mensagemStatusAceito)
       setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
       setMensagemStatusEntregue(config.mensagemStatusEntregue)
@@ -139,9 +141,10 @@ export function ConfigPage() {
     setSaved(false)
     setSubmitError('')
 
-    const payload: Record<string, number | string> = {
+    const payload: Record<string, number | string | boolean> = {
       nomeEstabelecimento,
       enderecoRetirada,
+      envioAutomaticoWhatsappStatus,
       mensagemStatusAceito: mensagemStatusAceito.trim(),
       mensagemStatusPreparacao: mensagemStatusPreparacao.trim(),
       mensagemStatusEntregue: mensagemStatusEntregue.trim()
@@ -272,6 +275,23 @@ export function ConfigPage() {
                     Edite os textos enviados ao avancar o status do pedido. As variaveis abaixo sao substituidas automaticamente.
                   </p>
                 </div>
+              </div>
+
+              <div className="mb-4 flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <Label htmlFor="envio-automatico-whatsapp">Envio automatico de mensagens</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Quando desligado, o status do pedido continua mudando normalmente, mas o WhatsApp nao abre sozinho.
+                  </p>
+                </div>
+                <Switch
+                  id="envio-automatico-whatsapp"
+                  checked={envioAutomaticoWhatsappStatus}
+                  onCheckedChange={(value) => {
+                    setEnvioAutomaticoWhatsappStatus(value)
+                    setIsDirty(true)
+                  }}
+                />
               </div>
 
               <div className="mb-4 flex flex-wrap gap-2">
