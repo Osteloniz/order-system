@@ -72,15 +72,18 @@ export function formatarMoeda(centavos: number): string {
 /**
  * Formata telefone brasileiro
  */
-export function formatarTelefone(telefone: string): string {
-  const numeros = telefone.replace(/\D/g, '')
+export function formatarTelefone(telefone?: string | null): string {
+  const numeros = (telefone || '').replace(/\D/g, '')
+  if (!numeros) {
+    return '-'
+  }
   if (numeros.length === 11) {
     return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`
   }
   if (numeros.length === 10) {
     return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 6)}-${numeros.slice(6)}`
   }
-  return telefone
+  return numeros
 }
 
 /**

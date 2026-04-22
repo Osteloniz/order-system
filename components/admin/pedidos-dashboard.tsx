@@ -3,7 +3,7 @@
 import type { DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
+import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -106,6 +106,7 @@ export function PedidosDashboard() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'TODOS' | Pedido['statusPagamento']>('TODOS')
   const [dateFilter, setDateFilter] = useState(todayInSaoPaulo)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [editingPedido, setEditingPedido] = useState<Pedido | null>(null)
   const [soundUnlocked, setSoundUnlocked] = useState(false)
   const seenPedidoIdsRef = useRef<Set<string>>(new Set())
   const initialPedidosLoadedRef = useRef(false)
@@ -291,8 +292,9 @@ export function PedidosDashboard() {
       await mutate(pedidosUrl)
       await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
-      if (config?.envioAutomaticoWhatsappStatus) {
-        abrirWhatsappStatus(pedido, newStatus, config)
+      const configAtual = await fetch('/api/admin/config').then(res => res.ok ? res.json() : null).catch(() => null)
+      if ((configAtual?.envioAutomaticoWhatsappStatus ?? config?.envioAutomaticoWhatsappStatus) === true) {
+        abrirWhatsappStatus(pedido, newStatus, configAtual ?? config)
       }
     } finally {
       setUpdatingStatus(null)
@@ -567,6 +569,12 @@ export function PedidosDashboard() {
                 {statusConfig[selectedPedido.status].nextStatus && (
                   <div className="space-y-2"><Button className="w-full" onClick={() => handleUpdateStatus(selectedPedido, statusConfig[selectedPedido.status].nextStatus!)} disabled={updatingStatus === selectedPedido.id}>{updatingStatus === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}{statusConfig[selectedPedido.status].nextLabel}</Button><p className="text-xs text-muted-foreground text-center">Atualiza o status e abre o WhatsApp com a mensagem pronta.</p></div>
                 )}
+                {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
+                  <Button variant="outline" className="w-full" onClick={() => setEditingPedido(selectedPedido)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar pedido
+                  </Button>
+                )}
                 {selectedPedido.status !== 'FEITO' && selectedPedido.status !== 'CANCELADO' && (
                   <Button variant="outline" className="w-full" onClick={() => handleResendCurrentStatusMessage(selectedPedido)}>
                     <MessageCircle className="h-4 w-4 mr-2" />
@@ -604,7 +612,7 @@ export function PedidosDashboard() {
                   <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><User className="h-4 w-4" />Cliente</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center gap-2 text-sm"><User className="h-4 w-4 text-muted-foreground" /><span>{selectedPedido.clienteNome}</span></div>
-                    <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" /><a href={`tel:${selectedPedido.clienteTelefone}`} className="text-primary hover:underline">{formatarTelefone(selectedPedido.clienteTelefone)}</a></div>
+                    <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" />{selectedPedido.clienteTelefone ? <a href={`tel:${selectedPedido.clienteTelefone}`} className="text-primary hover:underline">{formatarTelefone(selectedPedido.clienteTelefone)}</a> : <span className="text-muted-foreground">Nao informado</span>}</div>
                     <div className="flex items-center gap-2 text-sm"><CreditCard className="h-4 w-4 text-muted-foreground" /><span>{pagamentoLabels[selectedPedido.pagamento]}</span></div>
                     <div className="flex items-center gap-2 text-sm"><Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>{statusPagamentoLabels[selectedPedido.statusPagamento]}</Badge>{selectedPedido.mercadoPagoPaymentId && <span className="font-mono text-xs text-muted-foreground">MP {selectedPedido.mercadoPagoPaymentId}</span>}</div>
                   </CardContent>
@@ -638,6 +646,25 @@ export function PedidosDashboard() {
               window.setTimeout(() => setNewOrderOpen(false), 900)
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingPedido} onOpenChange={(open) => { if (!open) setEditingPedido(null) }}>
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
+          <DialogHeader>
+            <DialogTitle>Editar pedido</DialogTitle>
+          </DialogHeader>
+          {editingPedido && (
+            <NovoPedidoAdminPage
+              compact
+              initialPedido={editingPedido}
+              onSaved={(pedido) => {
+                mutate(pedidosUrl)
+                setSelectedPedido(pedido)
+                setEditingPedido(null)
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

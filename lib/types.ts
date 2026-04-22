@@ -44,10 +44,10 @@ export interface Pedido {
   mercadoPagoPaymentId?: string | null
   mercadoPagoPreferenceId?: string | null
   clienteNome: string
-  clienteTelefone: string
-  clienteWhatsapp?: string
-  clienteBloco?: string
-  clienteApartamento?: string
+  clienteTelefone?: string | null
+  clienteWhatsapp?: string | null
+  clienteBloco?: string | null
+  clienteApartamento?: string | null
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   encomendaPara?: string | null
@@ -67,7 +67,7 @@ export interface Pedido {
 export interface Cliente {
   id: string
   nome: string
-  telefone: string
+  telefone?: string | null
   whatsapp?: string | null
   clienteBloco?: string | null
   clienteApartamento?: string | null
@@ -127,4 +127,23 @@ export interface Cupom {
   usos: number
   criadoEm: string
   atualizadoEm: string
+}
+
+export interface PedidoAdminPayload {
+  clienteId?: string
+  clienteNome: string
+  clienteTelefone?: string
+  clienteWhatsapp?: string
+  clienteBloco?: string
+  clienteApartamento?: string
+  clienteObservacoes?: string
+  pagamento: TipoPagamento
+  tipoEntrega: TipoEntrega
+  encomendaPara?: string
+  statusPagamento?: StatusPagamento
+  cupomCodigo?: string
+  itens: {
+    produtoId: string
+    quantidade: number
+  }[]
 }

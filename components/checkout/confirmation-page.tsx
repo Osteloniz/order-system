@@ -267,7 +267,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Telefone</span>
-              <span className="font-medium">{formatarTelefone(pedido.clienteTelefone)}</span>
+              <span className="font-medium">{pedido.clienteTelefone ? formatarTelefone(pedido.clienteTelefone) : 'Nao informado'}</span>
             </div>
             <div className="flex justify-between text-sm items-center">
               <span className="text-muted-foreground">Pagamento</span>

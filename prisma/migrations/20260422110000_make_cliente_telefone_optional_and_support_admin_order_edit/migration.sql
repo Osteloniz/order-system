@@ -1,0 +1,5 @@
+ALTER TABLE "Cliente"
+ALTER COLUMN "telefone" DROP NOT NULL;
+
+ALTER TABLE "Pedido"
+ALTER COLUMN "clienteTelefone" DROP NOT NULL;

@@ -7,15 +7,15 @@ export const runtime = 'nodejs'
 
 const clienteSchema = z.object({
   nome: z.string().trim().min(2).max(80),
-  telefone: z.string().trim().min(8).max(20),
+  telefone: z.string().trim().max(20).optional(),
   whatsapp: z.string().trim().max(20).optional(),
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   observacoes: z.string().trim().max(1000).optional(),
 }).strict()
 
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, '')
+function normalizePhone(value?: string | null) {
+  return (value || '').replace(/\D/g, '')
 }
 
 function serializeCliente(cliente: Awaited<ReturnType<typeof prisma.cliente.findFirst>>) {
@@ -81,36 +81,55 @@ export async function POST(request: NextRequest) {
   const telefone = normalizePhone(body.telefone)
   const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : telefone
 
-  if (telefone.length < 10 || telefone.length > 13) {
+  if (telefone && (telefone.length < 10 || telefone.length > 13)) {
     return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
   }
 
-  const cliente = await prisma.cliente.upsert({
-    where: { tenantId_telefone: { tenantId: admin.tenantId, telefone } },
-    create: {
-      tenantId: admin.tenantId,
-      nome: body.nome.trim(),
-      telefone,
-      whatsapp,
-      clienteBloco: body.clienteBloco?.trim() || null,
-      clienteApartamento: body.clienteApartamento?.trim() || null,
-      observacoes: body.observacoes?.trim() || null,
-    },
-    update: {
-      nome: body.nome.trim(),
-      whatsapp,
-      clienteBloco: body.clienteBloco?.trim() || null,
-      clienteApartamento: body.clienteApartamento?.trim() || null,
-      observacoes: body.observacoes?.trim() || null,
-    },
-    include: {
-      pedidos: {
-        include: { itens: true },
-        orderBy: { criadoEm: 'desc' },
-        take: 20,
+  const cliente = telefone
+    ? await prisma.cliente.upsert({
+      where: { tenantId_telefone: { tenantId: admin.tenantId, telefone } },
+      create: {
+        tenantId: admin.tenantId,
+        nome: body.nome.trim(),
+        telefone,
+        whatsapp: whatsapp || null,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        observacoes: body.observacoes?.trim() || null,
       },
-    },
-  })
+      update: {
+        nome: body.nome.trim(),
+        whatsapp: whatsapp || null,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        observacoes: body.observacoes?.trim() || null,
+      },
+      include: {
+        pedidos: {
+          include: { itens: true },
+          orderBy: { criadoEm: 'desc' },
+          take: 20,
+        },
+      },
+    })
+    : await prisma.cliente.create({
+      data: {
+        tenantId: admin.tenantId,
+        nome: body.nome.trim(),
+        telefone: null,
+        whatsapp: whatsapp || null,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        observacoes: body.observacoes?.trim() || null,
+      },
+      include: {
+        pedidos: {
+          include: { itens: true },
+          orderBy: { criadoEm: 'desc' },
+          take: 20,
+        },
+      },
+    })
 
   return NextResponse.json(cliente, { status: 201 })
 }

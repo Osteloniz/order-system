@@ -3,13 +3,14 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
+import { calcularPedidoAdmin, normalizePhone } from '@/lib/admin-pedidos'
 
 export const runtime = 'nodejs'
 
 const pedidoAdminSchema = z.object({
+  clienteId: z.string().uuid().optional(),
   clienteNome: z.string().trim().min(2).max(80),
-  clienteTelefone: z.string().trim().min(8).max(20),
+  clienteTelefone: z.string().trim().max(20).optional(),
   clienteWhatsapp: z.string().trim().max(20).optional(),
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
@@ -18,6 +19,7 @@ const pedidoAdminSchema = z.object({
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
   encomendaPara: z.string().trim().optional(),
   statusPagamento: z.enum(['NAO_APLICAVEL', 'PENDENTE', 'APROVADO']).optional(),
+  cupomCodigo: z.string().trim().max(40).optional(),
   itens: z.array(z.object({
     produtoId: z.string().uuid(),
     quantidade: z.number().int().min(1).max(99)
@@ -39,10 +41,6 @@ const pedidoAdminSchema = z.object({
     }
   }
 })
-
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, '')
-}
 
 function getDayRange(dateParam: string) {
   const start = new Date(`${dateParam}T00:00:00-03:00`)
@@ -112,105 +110,66 @@ export async function POST(request: NextRequest) {
 
     const body = parsed.data
     const telefoneLimpo = normalizePhone(body.clienteTelefone)
-    const whatsappLimpo = body.clienteWhatsapp ? normalizePhone(body.clienteWhatsapp) : telefoneLimpo
+    const whatsappLimpo = normalizePhone(body.clienteWhatsapp)
 
-    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 13) {
+    if (telefoneLimpo && (telefoneLimpo.length < 10 || telefoneLimpo.length > 13)) {
       return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
     }
-    if (whatsappLimpo.length < 10 || whatsappLimpo.length > 13) {
+    if (whatsappLimpo && (whatsappLimpo.length < 10 || whatsappLimpo.length > 13)) {
       return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
     }
 
-    const configuracao = await prisma.configuracao.findFirst({
-      where: { tenantId: admin.tenantId }
-    })
-
-    const itens = []
-    for (const item of body.itens) {
-      const produto = await prisma.produto.findFirst({
-        where: { id: item.produtoId, ativo: true, tenantId: admin.tenantId }
+    const pedido = await prisma.$transaction(async (tx) => {
+      const configuracao = await tx.configuracao.findFirst({
+        where: { tenantId: admin.tenantId }
       })
-      if (!produto) {
-        return NextResponse.json(
-          { error: `Produto indisponivel: ${item.produtoId}` },
-          { status: 400 }
-        )
+      const calculado = await calcularPedidoAdmin(tx, admin.tenantId, body)
+
+      const novoPedido = await tx.pedido.create({
+        data: {
+          clienteId: calculado.clienteId,
+          status: 'FEITO',
+          clienteNome: calculado.clienteNome,
+          clienteTelefone: calculado.clienteTelefone,
+          clienteWhatsapp: calculado.clienteWhatsapp,
+          clienteBloco: calculado.clienteBloco,
+          clienteApartamento: calculado.clienteApartamento,
+          pagamento: calculado.pagamento,
+          tipoEntrega: calculado.tipoEntrega,
+          encomendaPara: calculado.encomendaPara,
+          enderecoEntrega: null,
+          enderecoRetirada: configuracao?.enderecoRetirada ?? '',
+          frete: calculado.frete,
+          subtotal: calculado.subtotal,
+          total: calculado.total,
+          motivoCancelamento: null,
+          statusPagamento: calculado.statusPagamento,
+          distanciaKm: null,
+          descontoValor: calculado.descontoValor > 0 ? calculado.descontoValor : null,
+          cupomCodigoSnapshot: calculado.cupomCodigoSnapshot,
+          cupomId: calculado.cupomId,
+          tenantId: admin.tenantId,
+          itens: {
+            create: calculado.itens.map(item => ({
+              produtoId: item.produtoId,
+              nomeProdutoSnapshot: item.nomeProdutoSnapshot,
+              precoUnitarioSnapshot: item.precoUnitarioSnapshot,
+              quantidade: item.quantidade,
+              totalItem: item.totalItem
+            }))
+          }
+        },
+        include: { itens: true }
+      })
+
+      if (calculado.cupomId) {
+        await tx.cupom.update({
+          where: { id: calculado.cupomId },
+          data: { usos: { increment: 1 } }
+        })
       }
 
-      itens.push({
-        produtoId: produto.id,
-        nomeProdutoSnapshot: produto.nome,
-        precoUnitarioSnapshot: produto.preco,
-        quantidade: item.quantidade,
-        totalItem: calcularTotalItem(produto.preco, item.quantidade)
-      })
-    }
-
-    const subtotal = calcularSubtotal(itens)
-    const frete = 0
-    const total = calcularTotal(subtotal, frete)
-    const statusPagamento = body.statusPagamento ?? (
-      body.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE'
-    )
-    const encomendaPara = body.tipoEntrega === 'ENCOMENDA' && body.encomendaPara
-      ? new Date(body.encomendaPara)
-      : null
-    const cliente = await prisma.cliente.upsert({
-      where: { tenantId_telefone: { tenantId: admin.tenantId, telefone: telefoneLimpo } },
-      create: {
-        tenantId: admin.tenantId,
-        nome: body.clienteNome.trim(),
-        telefone: telefoneLimpo,
-        whatsapp: whatsappLimpo,
-        clienteBloco: body.clienteBloco?.trim() || null,
-        clienteApartamento: body.clienteApartamento?.trim() || null,
-        observacoes: body.clienteObservacoes?.trim() || null,
-      },
-      update: {
-        nome: body.clienteNome.trim(),
-        whatsapp: whatsappLimpo,
-        clienteBloco: body.clienteBloco?.trim() || null,
-        clienteApartamento: body.clienteApartamento?.trim() || null,
-        ...(body.clienteObservacoes !== undefined ? { observacoes: body.clienteObservacoes.trim() || null } : {}),
-      },
-      select: { id: true },
-    })
-
-    const pedido = await prisma.pedido.create({
-      data: {
-        clienteId: cliente.id,
-        status: 'FEITO',
-        clienteNome: body.clienteNome.trim(),
-        clienteTelefone: telefoneLimpo,
-        clienteWhatsapp: whatsappLimpo,
-        clienteBloco: body.clienteBloco?.trim() || null,
-        clienteApartamento: body.clienteApartamento?.trim() || null,
-        pagamento: body.pagamento,
-        tipoEntrega: body.tipoEntrega,
-        encomendaPara,
-        enderecoEntrega: null,
-        enderecoRetirada: configuracao?.enderecoRetirada ?? '',
-        frete,
-        subtotal,
-        total,
-        motivoCancelamento: null,
-        statusPagamento,
-        distanciaKm: null,
-        descontoValor: null,
-        cupomCodigoSnapshot: null,
-        cupomId: null,
-        tenantId: admin.tenantId,
-        itens: {
-          create: itens.map(item => ({
-            produtoId: item.produtoId,
-            nomeProdutoSnapshot: item.nomeProdutoSnapshot,
-            precoUnitarioSnapshot: item.precoUnitarioSnapshot,
-            quantidade: item.quantidade,
-            totalItem: item.totalItem
-          }))
-        }
-      },
-      include: { itens: true }
+      return novoPedido
     })
 
     return NextResponse.json(pedido, { status: 201 })

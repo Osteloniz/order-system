@@ -1,25 +1,34 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { Minus, Plus, Save, ShoppingBag } from 'lucide-react'
+import { Check, Minus, Plus, Save, Search, ShoppingBag, UserRound, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { formatarMoeda } from '@/lib/calc'
-import type { Cliente, Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
+import { formatarMoeda, formatarTelefone } from '@/lib/calc'
+import type { Cliente, Cupom, Pedido, Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+const fetcher = async <T,>(url: string): Promise<T> => {
+  const response = await fetch(url)
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.error || `Erro ao carregar ${url}`)
+  }
+  return data
+}
 
 type ProdutoAdmin = Produto & { categoriaNome?: string }
 type CartItem = { produto: ProdutoAdmin; quantidade: number }
 
 type NovoPedidoAdminPageProps = {
   compact?: boolean
+  initialPedido?: Pedido | null
   onCreated?: () => void
+  onSaved?: (pedido: Pedido) => void
 }
 
 function onlyDigits(value: string) {
@@ -33,66 +42,99 @@ function formatPhone(value: string) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
-export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAdminPageProps) {
+function calcularDesconto(subtotal: number, cupomCodigo: string, cupons?: Cupom[]) {
+  const cupom = cupons?.find(item => item.codigo === cupomCodigo)
+  if (!cupom) return 0
+  if (!cupom.ativo) return 0
+
+  const agora = Date.now()
+  if (new Date(cupom.expiraEm).getTime() <= agora) return 0
+  if (cupom.usos >= cupom.maxUsos) return 0
+
+  const bruto = cupom.tipo === 'PERCENTUAL'
+    ? Math.round(subtotal * (cupom.valor / 100))
+    : cupom.valor
+  return Math.min(bruto, subtotal)
+}
+
+export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onCreated, onSaved }: NovoPedidoAdminPageProps) {
+  const isEditing = Boolean(initialPedido)
   const { data: produtos, isLoading } = useSWR<ProdutoAdmin[]>('/api/admin/produtos', fetcher)
+  const { data: cupons } = useSWR<Cupom[]>('/api/admin/cupons', fetcher)
+  const [searchCliente, setSearchCliente] = useState('')
+  const clientesUrl = searchCliente.trim().length >= 2
+    ? `/api/admin/clientes?search=${encodeURIComponent(searchCliente.trim())}&take=8`
+    : '/api/admin/clientes?take=8'
+  const { data: clientes } = useSWR<Cliente[]>(clientesUrl, fetcher)
   const produtosAtivos = useMemo(() => (produtos || []).filter(produto => produto.ativo), [produtos])
 
+  const [clienteId, setClienteId] = useState('')
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
   const [observacoes, setObservacoes] = useState('')
-  const [clienteEncontrado, setClienteEncontrado] = useState<Cliente | null>(null)
-  const [buscandoCliente, setBuscandoCliente] = useState(false)
   const [pagamento, setPagamento] = useState<TipoPagamento>('DINHEIRO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [encomendaData, setEncomendaData] = useState('')
   const [encomendaHora, setEncomendaHora] = useState('')
+  const [cupomCodigo, setCupomCodigo] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-
-  const total = items.reduce((sum, item) => sum + item.produto.preco * item.quantidade, 0)
-  const telefoneLimpo = onlyDigits(telefone)
+  const [initializedEditState, setInitializedEditState] = useState(false)
 
   useEffect(() => {
-    if (telefoneLimpo.length < 10) {
-      setClienteEncontrado(null)
-      return
+    if (!initialPedido || !produtosAtivos.length || initializedEditState) return
+
+    setClienteId(initialPedido.clienteId || '')
+    setNome(initialPedido.clienteNome || '')
+    setTelefone(formatPhone(initialPedido.clienteTelefone || ''))
+    setWhatsapp(formatPhone(initialPedido.clienteWhatsapp || ''))
+    setBloco(initialPedido.clienteBloco || '')
+    setApartamento(initialPedido.clienteApartamento || '')
+    setPagamento(initialPedido.pagamento)
+    setTipoEntrega(initialPedido.tipoEntrega)
+    setCupomCodigo(initialPedido.cupomCodigoSnapshot || '')
+    if (initialPedido.encomendaPara) {
+      const data = new Date(initialPedido.encomendaPara)
+      const dataString = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(data)
+      const horaString = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(data)
+      setEncomendaData(dataString)
+      setEncomendaHora(horaString)
     }
 
-    const controller = new AbortController()
-    const timer = window.setTimeout(async () => {
-      setBuscandoCliente(true)
-      try {
-        const response = await fetch(`/api/admin/clientes?telefone=${telefoneLimpo}`, { signal: controller.signal })
-        if (!response.ok) return
-        const cliente = await response.json() as Cliente | null
-        if (!cliente) {
-          setClienteEncontrado(null)
-          return
-        }
+    const itemMap = new Map(initialPedido.itens.map(item => [item.produtoId, item.quantidade]))
+    setItems(
+      produtosAtivos
+        .filter(produto => itemMap.has(produto.id))
+        .map(produto => ({ produto, quantidade: itemMap.get(produto.id) ?? 1 }))
+    )
+    setInitializedEditState(true)
+  }, [initialPedido, produtosAtivos, initializedEditState])
 
-        setClienteEncontrado(cliente)
-        setNome(cliente.nome || '')
-        setBloco(cliente.clienteBloco || '')
-        setApartamento(cliente.clienteApartamento || '')
-        setObservacoes(cliente.observacoes || '')
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setClienteEncontrado(null)
-        }
-      } finally {
-        setBuscandoCliente(false)
-      }
-    }, 450)
+  const clienteSelecionado = useMemo(
+    () => (clientes || []).find(cliente => cliente.id === clienteId) || null,
+    [clientes, clienteId]
+  )
 
-    return () => {
-      controller.abort()
-      window.clearTimeout(timer)
-    }
-  }, [telefoneLimpo])
+  const subtotal = items.reduce((sum, item) => sum + item.produto.preco * item.quantidade, 0)
+  const descontoValor = calcularDesconto(subtotal, cupomCodigo, cupons)
+  const total = Math.max(0, subtotal - descontoValor)
+  const telefoneLimpo = onlyDigits(telefone)
+  const whatsappLimpo = onlyDigits(whatsapp)
 
   const addProduct = (produto: ProdutoAdmin) => {
     setItems(current => {
@@ -111,18 +153,37 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
     )
   }
 
+  const selectCliente = (cliente: Cliente) => {
+    setClienteId(cliente.id)
+    setNome(cliente.nome || '')
+    setTelefone(formatPhone(cliente.telefone || ''))
+    setWhatsapp(formatPhone(cliente.whatsapp || cliente.telefone || ''))
+    setBloco(cliente.clienteBloco || '')
+    setApartamento(cliente.clienteApartamento || '')
+    setObservacoes(cliente.observacoes || '')
+    setSearchCliente(cliente.nome)
+  }
+
+  const clearSelectedCliente = () => {
+    setClienteId('')
+    setSearchCliente('')
+  }
+
   const resetForm = () => {
+    setClienteId('')
     setNome('')
     setTelefone('')
+    setWhatsapp('')
     setBloco('')
     setApartamento('')
     setObservacoes('')
-    setClienteEncontrado(null)
     setPagamento('DINHEIRO')
     setTipoEntrega('RESERVA_PAULISTANO')
     setEncomendaData('')
     setEncomendaHora('')
+    setCupomCodigo('')
     setItems([])
+    setSearchCliente('')
   }
 
   const handleSubmit = async () => {
@@ -130,20 +191,22 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
     setMessage('')
 
     if (!nome.trim()) return setError('Informe o nome do cliente')
-    if (telefoneLimpo.length < 10) return setError('Informe o celular do cliente')
+    if (telefoneLimpo && (telefoneLimpo.length < 10 || telefoneLimpo.length > 13)) return setError('Celular invalido')
+    if (whatsappLimpo && (whatsappLimpo.length < 10 || whatsappLimpo.length > 13)) return setError('WhatsApp invalido')
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
     if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
 
     setIsSubmitting(true)
     try {
-      const response = await fetch('/api/admin/pedidos', {
-        method: 'POST',
+      const response = await fetch(isEditing ? `/api/admin/pedidos/${initialPedido?.id}` : '/api/admin/pedidos', {
+        method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          clienteId: clienteId || undefined,
           clienteNome: nome.trim(),
-          clienteTelefone: telefoneLimpo,
-          clienteWhatsapp: telefoneLimpo,
+          clienteTelefone: telefoneLimpo || undefined,
+          clienteWhatsapp: whatsappLimpo || undefined,
           clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() || undefined : undefined,
           clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() || undefined : undefined,
           clienteObservacoes: observacoes.trim() || undefined,
@@ -151,18 +214,22 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
           tipoEntrega,
           encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
           statusPagamento: pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
+          cupomCodigo: cupomCodigo || undefined,
           itens: items.map(item => ({ produtoId: item.produto.id, quantidade: item.quantidade }))
         })
       })
       const data = await response.json()
 
-      if (!response.ok) throw new Error(data.error || 'Erro ao criar pedido')
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar pedido')
 
-      setMessage(`Pedido #${data.id.slice(-8).toUpperCase()} criado com sucesso.`)
-      resetForm()
-      onCreated?.()
+      setMessage(isEditing ? `Pedido #${data.id.slice(-8).toUpperCase()} atualizado com sucesso.` : `Pedido #${data.id.slice(-8).toUpperCase()} criado com sucesso.`)
+      if (!isEditing) {
+        resetForm()
+        onCreated?.()
+      }
+      onSaved?.(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar pedido')
+      setError(err instanceof Error ? err.message : 'Erro ao salvar pedido')
     } finally {
       setIsSubmitting(false)
     }
@@ -172,37 +239,68 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
     <div className="max-w-full space-y-6 overflow-x-hidden">
       {!compact && (
         <div>
-          <h1 className="text-2xl font-bold">Novo pedido manual</h1>
-          <p className="text-sm text-muted-foreground">Use quando o cliente pedir pelo WhatsApp e voce quiser manter tudo na gestao.</p>
+          <h1 className="text-2xl font-bold">{isEditing ? 'Editar pedido' : 'Novo pedido manual'}</h1>
+          <p className="text-sm text-muted-foreground">Use o cadastro de clientes, aplique cupom e mantenha o valor do pedido alinhado com o estoque.</p>
         </div>
       )}
 
-      <div className={compact ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]' : 'grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]'}>
+      <div className={compact ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]' : 'grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]'}>
         <div className="min-w-0 space-y-4">
           <Card>
-            <CardHeader><CardTitle>Dados do cliente</CardTitle></CardHeader>
-            <CardContent className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
-              <div className="min-w-0 space-y-2"><Label>Celular</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
-              <div className="min-w-0 sm:col-span-2">
-                {buscandoCliente && <p className="text-xs text-muted-foreground">Buscando cliente pelo telefone...</p>}
-                {clienteEncontrado && <p className="rounded-md border border-primary/25 bg-primary/10 p-2 text-xs text-primary">Cliente encontrado: dados preenchidos automaticamente. Ultimos pedidos: {clienteEncontrado.pedidos?.length ?? 0}</p>}
+            <CardHeader><CardTitle>Cliente</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Buscar cliente cadastrado</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={searchCliente} onChange={event => setSearchCliente(event.target.value)} placeholder="Digite nome ou telefone" className="pl-9" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {clientes?.map(cliente => (
+                    <button
+                      key={cliente.id}
+                      type="button"
+                      onClick={() => selectCliente(cliente)}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${clienteId === cliente.id ? 'border-primary bg-primary/10 text-primary' : 'bg-background hover:border-primary/40'}`}
+                    >
+                      {cliente.nome} {cliente.telefone ? `· ${formatarTelefone(cliente.telefone)}` : '· sem celular'}
+                    </button>
+                  ))}
+                </div>
+                {clienteId && (
+                  <div className="flex items-center justify-between rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">
+                    <div className="flex items-center gap-2">
+                      <UserRound className="h-4 w-4" />
+                      <span>Cliente vinculado ao cadastro.</span>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={clearSelectedCliente}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Condominio (Reserva Paulistano)</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
-              {tipoEntrega === 'RESERVA_PAULISTANO' && (
-                <>
-                  <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
-                  <div className="min-w-0 space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
-                </>
-              )}
-              {tipoEntrega === 'ENCOMENDA' && (
-                <>
-                  <div className="min-w-0 space-y-2"><Label>Data da encomenda</Label><Input type="date" value={encomendaData} onChange={event => setEncomendaData(event.target.value)} /></div>
-                  <div className="min-w-0 space-y-2"><Label>Hora da encomenda</Label><Input type="time" value={encomendaHora} onChange={event => setEncomendaHora(event.target.value)} /></div>
-                </>
-              )}
-              <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
-              <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observações do cliente</Label><Input value={observacoes} onChange={event => setObservacoes(event.target.value)} placeholder="Preferências, restrições, observações de entrega..." /></div>
+
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
+                <div className="min-w-0 space-y-2"><Label>Celular opcional</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
+                <div className="min-w-0 space-y-2"><Label>WhatsApp opcional</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
+                <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Condominio (Reserva Paulistano)</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
+                {tipoEntrega === 'RESERVA_PAULISTANO' && (
+                  <>
+                    <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>
+                    <div className="min-w-0 space-y-2"><Label>Apartamento</Label><Input value={apartamento} onChange={event => setApartamento(event.target.value)} placeholder="Ex: 101" /></div>
+                  </>
+                )}
+                {tipoEntrega === 'ENCOMENDA' && (
+                  <>
+                    <div className="min-w-0 space-y-2"><Label>Data da encomenda</Label><Input type="date" value={encomendaData} onChange={event => setEncomendaData(event.target.value)} /></div>
+                    <div className="min-w-0 space-y-2"><Label>Hora da encomenda</Label><Input type="time" value={encomendaHora} onChange={event => setEncomendaHora(event.target.value)} /></div>
+                  </>
+                )}
+                <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
+                <div className="min-w-0 space-y-2"><Label>Cupom</Label><select value={cupomCodigo} onChange={event => setCupomCodigo(event.target.value)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="">Sem cupom</option>{cupons?.map(cupom => <option key={cupom.id} value={cupom.codigo}>{cupom.codigo}</option>)}</select></div>
+                <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observações do cliente</Label><Input value={observacoes} onChange={event => setObservacoes(event.target.value)} placeholder="Preferências, restrições, observações de entrega..." /></div>
+              </div>
             </CardContent>
           </Card>
 
@@ -229,10 +327,15 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
               </div>
             ))}
             <Separator />
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{formatarMoeda(subtotal)}</span></div>
+              {cupomCodigo && descontoValor > 0 && <div className="flex justify-between text-success"><span>Cupom {cupomCodigo}</span><span>-{formatarMoeda(descontoValor)}</span></div>}
+            </div>
             <div className="flex justify-between text-lg font-bold"><span>Total</span><span>{formatarMoeda(total)}</span></div>
+            {clienteSelecionado && <p className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">Cliente selecionado: {clienteSelecionado.nome} {clienteSelecionado.telefone ? `• ${formatarTelefone(clienteSelecionado.telefone)}` : '• sem celular'}.</p>}
             {error && <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
             {message && <p className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary">{message}</p>}
-            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}><Save className="mr-2 h-4 w-4" />{isSubmitting ? 'Criando...' : 'Criar pedido'}</Button>
+            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}><Save className="mr-2 h-4 w-4" />{isSubmitting ? (isEditing ? 'Salvando...' : 'Criando...') : (isEditing ? 'Salvar pedido' : 'Criar pedido')}</Button>
           </CardContent>
         </Card>
       </div>

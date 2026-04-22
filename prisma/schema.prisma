@@ -112,7 +112,7 @@ model Pedido {
   status          StatusPedido  @default(FEITO)
   estoqueBaixadoEm DateTime?
   clienteNome     String
-  clienteTelefone String
+  clienteTelefone String?
   clienteWhatsapp String?
   clienteBloco    String?
   clienteApartamento String?
@@ -155,7 +155,7 @@ model Cliente {
   id                 String   @id @default(uuid())
   tenantId           String
   nome               String
-  telefone           String
+  telefone           String?
   whatsapp           String?
   clienteBloco       String?
   clienteApartamento String?
