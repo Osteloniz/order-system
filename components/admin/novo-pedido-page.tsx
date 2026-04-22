@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { Check, Minus, Plus, Save, Search, ShoppingBag, UserRound, X } from 'lucide-react'
+import { Check, ChevronsUpDown, Minus, Plus, Save, ShoppingBag, UserRound, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
 import type { Cliente, Cupom, Pedido, Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
 
@@ -42,14 +45,27 @@ function formatPhone(value: string) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
-function calcularDesconto(subtotal: number, cupomCodigo: string, cupons?: Cupom[]) {
+function parseCurrencyToCents(value: string) {
+  const digits = value.replace(/\D/g, '')
+  return digits ? Number(digits) : 0
+}
+
+function formatCurrencyInput(value: string) {
+  const cents = parseCurrencyToCents(value)
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(cents / 100)
+}
+
+function calcularDescontoCupom(subtotal: number, cupomCodigo: string, cupons?: Cupom[], currentCouponCode?: string) {
   const cupom = cupons?.find(item => item.codigo === cupomCodigo)
   if (!cupom) return 0
   if (!cupom.ativo) return 0
 
   const agora = Date.now()
   if (new Date(cupom.expiraEm).getTime() <= agora) return 0
-  if (cupom.usos >= cupom.maxUsos) return 0
+  if (cupom.usos >= cupom.maxUsos && cupom.codigo !== currentCouponCode) return 0
 
   const bruto = cupom.tipo === 'PERCENTUAL'
     ? Math.round(subtotal * (cupom.valor / 100))
@@ -62,6 +78,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const { data: produtos, isLoading } = useSWR<ProdutoAdmin[]>('/api/admin/produtos', fetcher)
   const { data: cupons } = useSWR<Cupom[]>('/api/admin/cupons', fetcher)
   const [searchCliente, setSearchCliente] = useState('')
+  const [clienteComboboxOpen, setClienteComboboxOpen] = useState(false)
   const clientesUrl = searchCliente.trim().length >= 2
     ? `/api/admin/clientes?search=${encodeURIComponent(searchCliente.trim())}&take=8`
     : '/api/admin/clientes?take=8'
@@ -80,6 +97,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [encomendaData, setEncomendaData] = useState('')
   const [encomendaHora, setEncomendaHora] = useState('')
   const [cupomCodigo, setCupomCodigo] = useState('')
+  const [valorPromocionalInput, setValorPromocionalInput] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -98,6 +116,9 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setPagamento(initialPedido.pagamento)
     setTipoEntrega(initialPedido.tipoEntrega)
     setCupomCodigo(initialPedido.cupomCodigoSnapshot || '')
+    if (!initialPedido.cupomCodigoSnapshot && (initialPedido.descontoValor ?? 0) > 0) {
+      setValorPromocionalInput(formatCurrencyInput(String(initialPedido.descontoValor)))
+    }
     if (initialPedido.encomendaPara) {
       const data = new Date(initialPedido.encomendaPara)
       const dataString = new Intl.DateTimeFormat('en-CA', {
@@ -131,7 +152,9 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   )
 
   const subtotal = items.reduce((sum, item) => sum + item.produto.preco * item.quantidade, 0)
-  const descontoValor = calcularDesconto(subtotal, cupomCodigo, cupons)
+  const valorPromocional = parseCurrencyToCents(valorPromocionalInput)
+  const descontoCupom = valorPromocional > 0 ? 0 : calcularDescontoCupom(subtotal, cupomCodigo, cupons, initialPedido?.cupomCodigoSnapshot || undefined)
+  const descontoValor = valorPromocional > 0 ? Math.min(valorPromocional, subtotal) : descontoCupom
   const total = Math.max(0, subtotal - descontoValor)
   const telefoneLimpo = onlyDigits(telefone)
   const whatsappLimpo = onlyDigits(whatsapp)
@@ -182,6 +205,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setEncomendaData('')
     setEncomendaHora('')
     setCupomCodigo('')
+    setValorPromocionalInput('')
     setItems([])
     setSearchCliente('')
   }
@@ -196,6 +220,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
     if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
+    if (cupomCodigo && valorPromocional > 0) return setError('Use cupom ou valor promocional, nao os dois')
 
     setIsSubmitting(true)
     try {
@@ -215,6 +240,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
           encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
           statusPagamento: pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
           cupomCodigo: cupomCodigo || undefined,
+          valorPromocional: valorPromocional || undefined,
           itens: items.map(item => ({ produtoId: item.produto.id, quantidade: item.quantidade }))
         })
       })
@@ -250,23 +276,57 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
             <CardHeader><CardTitle>Cliente</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Buscar cliente cadastrado</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={searchCliente} onChange={event => setSearchCliente(event.target.value)} placeholder="Digite nome ou telefone" className="pl-9" />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {clientes?.map(cliente => (
-                    <button
-                      key={cliente.id}
+                <Label>Cliente cadastrado</Label>
+                <Popover open={clienteComboboxOpen} onOpenChange={setClienteComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
                       type="button"
-                      onClick={() => selectCliente(cliente)}
-                      className={`rounded-full border px-3 py-1 text-xs transition ${clienteId === cliente.id ? 'border-primary bg-primary/10 text-primary' : 'bg-background hover:border-primary/40'}`}
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={clienteComboboxOpen}
+                      className="w-full justify-between"
                     >
-                      {cliente.nome} {cliente.telefone ? `· ${formatarTelefone(cliente.telefone)}` : '· sem celular'}
-                    </button>
-                  ))}
-                </div>
+                      <span className="truncate">
+                        {clienteSelecionado
+                          ? `${clienteSelecionado.nome}${clienteSelecionado.telefone ? ` • ${formatarTelefone(clienteSelecionado.telefone)}` : ' • sem celular'}`
+                          : 'Buscar cliente por nome'}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Digite o nome do cliente"
+                        value={searchCliente}
+                        onValueChange={setSearchCliente}
+                      />
+                      <CommandList>
+                        <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {clientes?.map(cliente => (
+                            <CommandItem
+                              key={cliente.id}
+                              value={`${cliente.nome} ${cliente.telefone || ''}`}
+                              onSelect={() => {
+                                selectCliente(cliente)
+                                setClienteComboboxOpen(false)
+                              }}
+                            >
+                              <Check className={cn('mr-2 h-4 w-4', clienteId === cliente.id ? 'opacity-100' : 'opacity-0')} />
+                              <div className="min-w-0">
+                                <p className="truncate">{cliente.nome}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {cliente.telefone ? formatarTelefone(cliente.telefone) : 'Sem celular'}
+                                </p>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {clienteId && (
                   <div className="flex items-center justify-between rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">
                     <div className="flex items-center gap-2">
@@ -298,7 +358,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
                   </>
                 )}
                 <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
-                <div className="min-w-0 space-y-2"><Label>Cupom</Label><select value={cupomCodigo} onChange={event => setCupomCodigo(event.target.value)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="">Sem cupom</option>{cupons?.map(cupom => <option key={cupom.id} value={cupom.codigo}>{cupom.codigo}</option>)}</select></div>
+                <div className="min-w-0 space-y-2"><Label>Cupom</Label><select value={cupomCodigo} onChange={event => { setCupomCodigo(event.target.value); if (event.target.value) setValorPromocionalInput('') }} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="">Sem cupom</option>{cupons?.map(cupom => <option key={cupom.id} value={cupom.codigo}>{cupom.codigo}</option>)}</select></div>
+                <div className="min-w-0 space-y-2"><Label>Valor promocional interno</Label><Input value={valorPromocionalInput} onChange={event => { setValorPromocionalInput(formatCurrencyInput(event.target.value)); if (parseCurrencyToCents(event.target.value) > 0) setCupomCodigo('') }} placeholder="R$ 0,00" /></div>
                 <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observações do cliente</Label><Input value={observacoes} onChange={event => setObservacoes(event.target.value)} placeholder="Preferências, restrições, observações de entrega..." /></div>
               </div>
             </CardContent>
@@ -330,6 +391,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>{formatarMoeda(subtotal)}</span></div>
               {cupomCodigo && descontoValor > 0 && <div className="flex justify-between text-success"><span>Cupom {cupomCodigo}</span><span>-{formatarMoeda(descontoValor)}</span></div>}
+              {!cupomCodigo && valorPromocional > 0 && <div className="flex justify-between text-success"><span>Valor promocional</span><span>-{formatarMoeda(descontoValor)}</span></div>}
             </div>
             <div className="flex justify-between text-lg font-bold"><span>Total</span><span>{formatarMoeda(total)}</span></div>
             {clienteSelecionado && <p className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">Cliente selecionado: {clienteSelecionado.nome} {clienteSelecionado.telefone ? `• ${formatarTelefone(clienteSelecionado.telefone)}` : '• sem celular'}.</p>}

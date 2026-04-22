@@ -602,7 +602,7 @@ export function PedidosDashboard() {
                     <Separator />
                     <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatarMoeda(selectedPedido.subtotal)}</span></div>
                     {selectedPedido.frete > 0 && <div className="flex justify-between text-sm"><span>Frete</span><span>{formatarMoeda(selectedPedido.frete)}</span></div>}
-                    {selectedPedido.descontoValor && selectedPedido.descontoValor > 0 && <div className="flex justify-between text-sm text-success"><span>Desconto</span><span>-{formatarMoeda(selectedPedido.descontoValor)}</span></div>}
+                    {selectedPedido.descontoValor && selectedPedido.descontoValor > 0 && <div className="flex justify-between text-sm text-success"><span>{selectedPedido.cupomCodigoSnapshot ? 'Desconto' : 'Valor promocional'}</span><span>-{formatarMoeda(selectedPedido.descontoValor)}</span></div>}
                     {selectedPedido.cupomCodigoSnapshot && <div className="flex justify-between text-sm"><span>Cupom</span><span>{selectedPedido.cupomCodigoSnapshot}</span></div>}
                     <div className="flex justify-between font-bold pt-2"><span>Total</span><span className="text-primary">{formatarMoeda(selectedPedido.total)}</span></div>
                   </CardContent>

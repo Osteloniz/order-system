@@ -33,6 +33,7 @@ export type PedidoCalculado = {
   subtotal: number
   frete: number
   descontoValor: number
+  origemDesconto: 'CUPOM' | 'PROMOCIONAL' | null
   total: number
   cupomId: string | null
   cupomCodigoSnapshot: string | null
@@ -203,8 +204,13 @@ export async function calcularPedidoAdmin(
   const itens = await buildPedidoItens(tx, tenantId, payload.itens)
   const subtotal = calcularSubtotal(itens)
   const frete = 0
+  const valorPromocional = Math.max(0, Math.round(payload.valorPromocional ?? 0))
+  if (payload.cupomCodigo?.trim() && valorPromocional > 0) {
+    throw new Error('Use cupom ou valor promocional, nao os dois ao mesmo tempo')
+  }
   const cupom = await resolveCupom(tx, tenantId, payload.cupomCodigo, cupomAtualId)
   let descontoValor = 0
+  let origemDesconto: PedidoCalculado['origemDesconto'] = null
 
   if (cupom.cupomId) {
     if (cupom.tipo === 'PERCENTUAL') {
@@ -213,6 +219,10 @@ export async function calcularPedidoAdmin(
       descontoValor = cupom.valor
     }
     descontoValor = Math.min(descontoValor, subtotal)
+    origemDesconto = 'CUPOM'
+  } else if (valorPromocional > 0) {
+    descontoValor = Math.min(valorPromocional, subtotal)
+    origemDesconto = 'PROMOCIONAL'
   }
 
   const cliente = await resolveClientePedido(tx, tenantId, payload)
@@ -230,6 +240,7 @@ export async function calcularPedidoAdmin(
     subtotal,
     frete,
     descontoValor,
+    origemDesconto,
     total: Math.max(0, calcularTotal(subtotal, frete) - descontoValor),
     cupomId: cupom.cupomId,
     cupomCodigoSnapshot: cupom.cupomCodigoSnapshot,

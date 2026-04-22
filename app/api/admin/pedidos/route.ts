@@ -20,6 +20,7 @@ const pedidoAdminSchema = z.object({
   encomendaPara: z.string().trim().optional(),
   statusPagamento: z.enum(['NAO_APLICAVEL', 'PENDENTE', 'APROVADO']).optional(),
   cupomCodigo: z.string().trim().max(40).optional(),
+  valorPromocional: z.number().int().min(0).max(1_000_000).optional(),
   itens: z.array(z.object({
     produtoId: z.string().uuid(),
     quantidade: z.number().int().min(1).max(99)
@@ -39,6 +40,9 @@ const pedidoAdminSchema = z.object({
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
     }
+  }
+  if (data.cupomCodigo?.trim() && (data.valorPromocional ?? 0) > 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['valorPromocional'], message: 'Use cupom ou valor promocional' })
   }
 })
 

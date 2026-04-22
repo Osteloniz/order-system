@@ -142,6 +142,7 @@ export interface PedidoAdminPayload {
   encomendaPara?: string
   statusPagamento?: StatusPagamento
   cupomCodigo?: string
+  valorPromocional?: number
   itens: {
     produtoId: string
     quantidade: number
