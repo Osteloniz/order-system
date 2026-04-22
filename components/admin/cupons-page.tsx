@@ -8,6 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -29,7 +40,9 @@ export function CuponsPage() {
   const [maxUsos, setMaxUsos] = useState('1')
   const [expiraEm, setExpiraEm] = useState('')
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (editingId && cupons) {
@@ -68,6 +81,7 @@ export function CuponsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setMessage('')
     setIsSaving(true)
 
     const valorNumero = parseValor()
@@ -118,6 +132,7 @@ export function CuponsPage() {
       }
 
       mutate('/api/admin/cupons')
+      setMessage(editingId ? 'Cupom atualizado com sucesso.' : 'Cupom criado com sucesso.')
       resetForm()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar cupom')
@@ -127,18 +142,36 @@ export function CuponsPage() {
   }
 
   const handleToggleAtivo = async (cupom: Cupom) => {
+    setMessage('')
     await fetch(`/api/admin/cupons/${cupom.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ativo: !cupom.ativo })
     })
     mutate('/api/admin/cupons')
+    setMessage(cupom.ativo ? `Cupom ${cupom.codigo} desativado.` : `Cupom ${cupom.codigo} ativado.`)
   }
 
   const handleDelete = async (cupom: Cupom) => {
-    if (!confirm('Excluir cupom?')) return
-    await fetch(`/api/admin/cupons/${cupom.id}`, { method: 'DELETE' })
-    mutate('/api/admin/cupons')
+    setDeletingId(cupom.id)
+    setError('')
+    setMessage('')
+    try {
+      const response = await fetch(`/api/admin/cupons/${cupom.id}`, { method: 'DELETE' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao excluir cupom')
+      }
+      mutate('/api/admin/cupons')
+      if (editingId === cupom.id) {
+        resetForm()
+      }
+      setMessage(`Cupom ${cupom.codigo} excluido com sucesso.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir cupom')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -153,6 +186,11 @@ export function CuponsPage() {
           <CardTitle>{editingId ? 'Editar cupom' : 'Novo cupom'}</CardTitle>
         </CardHeader>
         <CardContent>
+          {message && (
+            <p className="mb-4 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
+              {message}
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -266,10 +304,37 @@ export function CuponsPage() {
                   <Pencil className="h-4 w-4 mr-2" />
                   Editar
                 </Button>
-                <Button type="button" variant="destructive" onClick={() => handleDelete(cupom)}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir cupom {cupom.codigo}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acao remove o cupom definitivamente. Se ele ainda estiver sendo usado internamente, nao podera mais ser aplicado em novos pedidos.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                      <p>Tipo: {cupom.tipo === 'FIXO' ? 'Valor fixo' : 'Percentual'}</p>
+                      <p>Desconto: {cupom.tipo === 'FIXO' ? formatarMoeda(cupom.valor) : `${cupom.valor}%`}</p>
+                      <p>Usos: {cupom.usos}/{cupom.maxUsos}</p>
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(cupom)}
+                        disabled={deletingId === cupom.id}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deletingId === cupom.id ? 'Excluindo...' : 'Confirmar exclusao'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           ))}
