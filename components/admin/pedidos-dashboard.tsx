@@ -38,14 +38,6 @@ const kanbanColumns: { status: StatusPedido; title: string; hint: string }[] = [
   { status: 'CANCELADO', title: 'Cancelados', hint: 'Somente consulta' },
 ]
 
-const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
-  FEITO: ['ACEITO'],
-  ACEITO: ['PREPARACAO'],
-  PREPARACAO: ['ENTREGUE'],
-  ENTREGUE: [],
-  CANCELADO: []
-}
-
 const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartao', DINHEIRO: 'Dinheiro' }
 const entregaLabels = { RESERVA_PAULISTANO: 'Condominio', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' }
 const statusPagamentoLabels = { NAO_APLICAVEL: 'Na entrega', PENDENTE: 'Pendente', APROVADO: 'Aprovado', RECUSADO: 'Recusado', CANCELADO: 'Cancelado', REEMBOLSADO: 'Reembolsado' }
@@ -76,8 +68,7 @@ function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido, config?: Conf
 }
 
 function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
-  if (pedido.status === targetStatus) return false
-  return transicoesPermitidas[pedido.status].includes(targetStatus)
+  return pedido.status !== targetStatus
 }
 
 function todayInSaoPaulo() {
@@ -394,7 +385,7 @@ export function PedidosDashboard() {
     return (
       <Card
         key={pedido.id}
-        draggable={pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO'}
+        draggable
         onDragStart={(event) => {
           setDraggedPedidoId(pedido.id)
           event.dataTransfer.setData('text/plain', pedido.id)
@@ -430,7 +421,7 @@ export function PedidosDashboard() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Pedidos</h1>
-          <p className="text-sm text-muted-foreground">Arraste os cards para avancar: Novo &gt; Aceito &gt; Em preparo &gt; Entregue.</p>
+          <p className="text-sm text-muted-foreground">Arraste os cards livremente entre as colunas. O estoque e as reservas sao ajustados automaticamente.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="default" size="sm" onClick={() => setNewOrderOpen(true)}>
@@ -569,6 +560,26 @@ export function PedidosDashboard() {
                 {statusConfig[selectedPedido.status].nextStatus && (
                   <div className="space-y-2"><Button className="w-full" onClick={() => handleUpdateStatus(selectedPedido, statusConfig[selectedPedido.status].nextStatus!)} disabled={updatingStatus === selectedPedido.id}>{updatingStatus === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}{statusConfig[selectedPedido.status].nextLabel}</Button><p className="text-xs text-muted-foreground text-center">Atualiza o status e abre o WhatsApp com a mensagem pronta.</p></div>
                 )}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Mover pedido</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-2">
+                    {kanbanColumns
+                      .filter((column) => column.status !== selectedPedido.status)
+                      .map((column) => (
+                        <Button
+                          key={column.status}
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleUpdateStatus(selectedPedido, column.status)}
+                          disabled={updatingStatus === selectedPedido.id}
+                        >
+                          {column.title}
+                        </Button>
+                      ))}
+                  </CardContent>
+                </Card>
                 {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
                   <Button variant="outline" className="w-full" onClick={() => setEditingPedido(selectedPedido)}>
                     <Pencil className="h-4 w-4 mr-2" />

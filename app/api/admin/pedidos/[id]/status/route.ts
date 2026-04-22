@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
@@ -7,12 +8,138 @@ import { addAvailableStock, consumeAvailableStock, consumeReservedStock, release
 export const runtime = 'nodejs'
 
 const statusValidos: StatusPedido[] = ['FEITO', 'ACEITO', 'PREPARACAO', 'ENTREGUE', 'CANCELADO']
-const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
-  FEITO: ['ACEITO', 'CANCELADO'],
-  ACEITO: ['PREPARACAO', 'CANCELADO'],
-  PREPARACAO: ['ENTREGUE', 'CANCELADO'],
-  ENTREGUE: [],
-  CANCELADO: []
+type Tx = Prisma.TransactionClient
+type PedidoComItens = Prisma.PedidoGetPayload<{ include: { itens: true } }>
+
+function statusConsomeEstoque(status: StatusPedido) {
+  return status === 'ACEITO' || status === 'PREPARACAO' || status === 'ENTREGUE'
+}
+
+function classificarEstadoEncomenda(status: StatusPedido) {
+  if (status === 'PREPARACAO') return 'RESERVADO' as const
+  if (status === 'ENTREGUE') return 'CONSUMIDO' as const
+  return 'LIVRE' as const
+}
+
+async function sincronizarPedidoComum(params: {
+  tx: Tx
+  tenantId: string
+  pedidoAtual: PedidoComItens
+  targetStatus: StatusPedido
+}) {
+  const { tx, tenantId, pedidoAtual, targetStatus } = params
+  const consumiaAntes = Boolean(pedidoAtual.estoqueBaixadoEm)
+  const deveConsumirAgora = statusConsomeEstoque(targetStatus)
+
+  if (!consumiaAntes && deveConsumirAgora) {
+    for (const item of pedidoAtual.itens) {
+      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+    }
+  }
+
+  if (consumiaAntes && !deveConsumirAgora) {
+    for (const item of pedidoAtual.itens) {
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade)
+    }
+  }
+
+  return deveConsumirAgora ? pedidoAtual.estoqueBaixadoEm ?? new Date() : null
+}
+
+async function sincronizarPedidoEncomenda(params: {
+  tx: Tx
+  tenantId: string
+  pedidoAtual: PedidoComItens
+  targetStatus: StatusPedido
+}) {
+  const { tx, tenantId, pedidoAtual, targetStatus } = params
+  const estadoAtual = classificarEstadoEncomenda(pedidoAtual.status)
+  const estadoDestino = classificarEstadoEncomenda(targetStatus)
+
+  if (estadoAtual === estadoDestino) {
+    return
+  }
+
+  if (estadoAtual === 'LIVRE' && estadoDestino === 'RESERVADO') {
+    for (const item of pedidoAtual.itens) {
+      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await tx.itemPedido.update({
+        where: { id: item.id },
+        data: {
+          quantidadePreparada: item.quantidade,
+          preparadoEm: item.preparadoEm ?? new Date(),
+        },
+      })
+    }
+    return
+  }
+
+  if (estadoAtual === 'LIVRE' && estadoDestino === 'CONSUMIDO') {
+    for (const item of pedidoAtual.itens) {
+      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await tx.itemPedido.update({
+        where: { id: item.id },
+        data: {
+          quantidadePreparada: item.quantidade,
+          preparadoEm: item.preparadoEm ?? new Date(),
+        },
+      })
+    }
+    return
+  }
+
+  if (estadoAtual === 'RESERVADO' && estadoDestino === 'LIVRE') {
+    for (const item of pedidoAtual.itens) {
+      if (item.quantidadePreparada > 0) {
+        await releaseReservedToAvailableStock(tx, tenantId, item.produtoId, item.quantidadePreparada)
+      }
+      await tx.itemPedido.update({
+        where: { id: item.id },
+        data: {
+          quantidadePreparada: 0,
+          preparadoEm: null,
+        },
+      })
+    }
+    return
+  }
+
+  if (estadoAtual === 'RESERVADO' && estadoDestino === 'CONSUMIDO') {
+    for (const item of pedidoAtual.itens) {
+      if (item.quantidadePreparada > 0) {
+        await consumeReservedStock(tx, tenantId, item.produtoId, item.quantidadePreparada)
+      }
+    }
+    return
+  }
+
+  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'LIVRE') {
+    for (const item of pedidoAtual.itens) {
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade)
+      await tx.itemPedido.update({
+        where: { id: item.id },
+        data: {
+          quantidadePreparada: 0,
+          preparadoEm: null,
+        },
+      })
+    }
+    return
+  }
+
+  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'RESERVADO') {
+    for (const item of pedidoAtual.itens) {
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade)
+      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await tx.itemPedido.update({
+        where: { id: item.id },
+        data: {
+          quantidadePreparada: item.quantidade,
+          preparadoEm: item.preparadoEm ?? new Date(),
+        },
+      })
+    }
+  }
 }
 
 // PATCH /api/admin/pedidos/:id/status - Atualiza status do pedido
@@ -50,135 +177,38 @@ export async function PATCH(
         { status: 404 }
       )
     }
-
-    if (pedidoAtual.status === 'ENTREGUE') {
-      return NextResponse.json(
-        { error: 'Pedido entregue nao pode ser alterado' },
-        { status: 400 }
-      )
-    }
-    if (pedidoAtual.status === 'CANCELADO') {
-      return NextResponse.json(
-        { error: 'Pedido cancelado nao pode ser alterado' },
-        { status: 400 }
-      )
-    }
-
-    if (!transicoesPermitidas[pedidoAtual.status].includes(status)) {
-      return NextResponse.json(
-        { error: 'Transicao de status nao permitida' },
-        { status: 400 }
-      )
-    }
-
-    if (status === 'CANCELADO') {
-      const motivoValido = typeof motivoCancelamento === 'string' && motivoCancelamento.trim().length > 0
-      if (!motivoValido) {
-        return NextResponse.json(
-          { error: 'Motivo do cancelamento e obrigatorio' },
-          { status: 400 }
-        )
-      }
-
-      const pedidoCancelado = await prisma.$transaction(async (tx) => {
-        if (
-          pedidoAtual.tipoEntrega !== 'ENCOMENDA' &&
-          pedidoAtual.estoqueBaixadoEm &&
-          (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')
-        ) {
-          for (const item of pedidoAtual.itens) {
-            await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade)
-          }
-        }
-
-        if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
-          for (const item of pedidoAtual.itens) {
-            if (item.quantidadePreparada > 0) {
-              await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidadePreparada)
-            }
-            await tx.itemPedido.update({
-              where: { id: item.id },
-              data: {
-                quantidadePreparada: 0,
-                preparadoEm: null,
-              },
-            })
-          }
-        }
-
-        return tx.pedido.update({
-          where: { id },
-          data: {
-            status,
-            motivoCancelamento: motivoCancelamento.trim(),
-            estoqueBaixadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' ? null : pedidoAtual.estoqueBaixadoEm,
-          },
-          include: { itens: true }
-        })
-      })
-
-      console.log(`[v0] Pedido ${id} atualizado para status: ${status}`)
-      return NextResponse.json(pedidoCancelado)
+    if (pedidoAtual.status === status) {
+      return NextResponse.json(pedidoAtual)
     }
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+        const estoqueBaixadoEm = pedidoAtual.tipoEntrega === 'ENCOMENDA'
+          ? pedidoAtual.estoqueBaixadoEm
+          : await sincronizarPedidoComum({
+            tx,
+            tenantId: admin.tenantId,
+            pedidoAtual,
+            targetStatus: status,
+          })
+
         if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
-          const shouldReserveEncomenda = status === 'PREPARACAO' || status === 'ENTREGUE'
-
-          if (shouldReserveEncomenda) {
-            for (const item of pedidoAtual.itens) {
-              const quantidadePendenteReserva = Math.max(0, item.quantidade - item.quantidadePreparada)
-              if (quantidadePendenteReserva <= 0) continue
-
-              await reserveFromAvailableStock(
-                tx,
-                admin.tenantId,
-                item.produtoId,
-                quantidadePendenteReserva,
-                item.nomeProdutoSnapshot
-              )
-
-              await tx.itemPedido.update({
-                where: { id: item.id },
-                data: {
-                  quantidadePreparada: item.quantidade,
-                  preparadoEm: item.preparadoEm ?? new Date(),
-                },
-              })
-            }
-          }
-
-          if (status === 'ENTREGUE') {
-            for (const item of pedidoAtual.itens) {
-              const quantidadeReservada = item.quantidade
-              if (quantidadeReservada <= 0) continue
-
-              await consumeReservedStock(tx, admin.tenantId, item.produtoId, quantidadeReservada)
-            }
-          }
-        }
-
-        const precisaBaixarEstoqueAgora =
-          pedidoAtual.tipoEntrega !== 'ENCOMENDA' &&
-          !pedidoAtual.estoqueBaixadoEm &&
-          ['ACEITO', 'PREPARACAO', 'ENTREGUE'].includes(status)
-
-        if (precisaBaixarEstoqueAgora) {
-          if (!pedidoAtual.estoqueBaixadoEm) {
-            for (const item of pedidoAtual.itens) {
-              await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
-            }
-          }
+          await sincronizarPedidoEncomenda({
+            tx,
+            tenantId: admin.tenantId,
+            pedidoAtual,
+            targetStatus: status,
+          })
         }
 
         return tx.pedido.update({
           where: { id },
           data: {
             status,
-            estoqueBaixadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' && ['ACEITO', 'PREPARACAO', 'ENTREGUE'].includes(status)
-              ? pedidoAtual.estoqueBaixadoEm ?? new Date()
-              : pedidoAtual.estoqueBaixadoEm,
+            motivoCancelamento: status === 'CANCELADO'
+              ? (typeof motivoCancelamento === 'string' && motivoCancelamento.trim() ? motivoCancelamento.trim() : 'Cancelado manualmente no painel')
+              : null,
+            estoqueBaixadoEm,
           },
           include: { itens: true }
         })
