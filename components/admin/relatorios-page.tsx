@@ -79,7 +79,7 @@ const statusStyles: Record<StatusPedido, string> = {
 }
 
 const entregaLabels: Record<TipoEntrega, string> = {
-  RESERVA_PAULISTANO: 'Reserva Paulistano',
+  RESERVA_PAULISTANO: 'Condominio',
   RETIRADA: 'Retirada',
   ENCOMENDA: 'Encomenda',
 }

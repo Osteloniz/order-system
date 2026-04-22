@@ -188,7 +188,7 @@ export function NovoPedidoAdminPage({ compact = false, onCreated }: NovoPedidoAd
                 {buscandoCliente && <p className="text-xs text-muted-foreground">Buscando cliente pelo telefone...</p>}
                 {clienteEncontrado && <p className="rounded-md border border-primary/25 bg-primary/10 p-2 text-xs text-primary">Cliente encontrado: dados preenchidos automaticamente. Ultimos pedidos: {clienteEncontrado.pedidos?.length ?? 0}</p>}
               </div>
-              <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Reserva Paulistano</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
+              <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Condominio (Reserva Paulistano)</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
               {tipoEntrega === 'RESERVA_PAULISTANO' && (
                 <>
                   <div className="min-w-0 space-y-2"><Label>Bloco</Label><Input value={bloco} onChange={event => setBloco(event.target.value)} placeholder="Ex: A" /></div>

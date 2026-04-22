@@ -47,7 +47,7 @@ const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
 }
 
 const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartao', DINHEIRO: 'Dinheiro' }
-const entregaLabels = { RESERVA_PAULISTANO: 'Reserva', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' }
+const entregaLabels = { RESERVA_PAULISTANO: 'Condominio', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' }
 const statusPagamentoLabels = { NAO_APLICAVEL: 'Na entrega', PENDENTE: 'Pendente', APROVADO: 'Aprovado', RECUSADO: 'Recusado', CANCELADO: 'Cancelado', REEMBOLSADO: 'Reembolsado' }
 const statusPagamentoColors = {
   NAO_APLICAVEL: 'bg-secondary text-secondary-foreground',
