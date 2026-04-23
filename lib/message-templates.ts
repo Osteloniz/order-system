@@ -127,6 +127,23 @@ export function buildStatusMessage(pedido: Pedido, status: StatusPedido, config?
   return template.replace(/\{([a-z_]+)\}/g, (fullMatch, key: keyof typeof replacements) => replacements[key] ?? fullMatch).trim()
 }
 
+export function buildPaymentReminderMessage(pedido: Pedido) {
+  const itens = pedido.itens.map(item => `- ${item.quantidade}x ${item.nomeProdutoSnapshot}`).join('\n')
+  return [
+    `Oi, ${pedido.clienteNome}!`,
+    '',
+    `O pagamento do seu pedido #${pedido.id.slice(-8).toUpperCase()} ainda esta pendente.`,
+    '',
+    'Resumo do pedido:',
+    itens,
+    '',
+    `Total: ${formatarMoeda(pedido.total)}`,
+    `Forma de pagamento: ${pagamentoLabels[pedido.pagamento]}`,
+    '',
+    'Se precisar, me chama por aqui que eu te ajudo.',
+  ].join('\n')
+}
+
 export function getDefaultStatusTemplate(field: StatusMessageKey) {
   const defaultsByField: Record<StatusMessageKey, string> = {
     mensagemStatusAceito: defaultStatusMessageTemplates.ACEITO,

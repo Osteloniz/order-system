@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
+import { normalizePhone } from '@/lib/phone'
 import type { PedidoAdminPayload } from '@/lib/types'
 import { addAvailableStock, consumeAvailableStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
 
@@ -26,6 +27,10 @@ export type PedidoCalculado = {
   clienteWhatsapp: string | null
   clienteBloco: string | null
   clienteApartamento: string | null
+  observacoesPedido: string | null
+  responsavelPedido: string | null
+  destinatariosPedido: string | null
+  levadoEm: Date | null
   pagamento: PedidoAdminPayload['pagamento']
   tipoEntrega: PedidoAdminPayload['tipoEntrega']
   encomendaPara: Date | null
@@ -38,10 +43,6 @@ export type PedidoCalculado = {
   cupomId: string | null
   cupomCodigoSnapshot: string | null
   itens: PedidoItemCalculado[]
-}
-
-export function normalizePhone(value?: string | null) {
-  return (value || '').replace(/\D/g, '')
 }
 
 export async function buildPedidoItens(tx: Tx, tenantId: string, itens: PedidoAdminPayload['itens']) {
@@ -230,9 +231,14 @@ export async function calcularPedidoAdmin(
   const encomendaPara = payload.tipoEntrega === 'ENCOMENDA' && payload.encomendaPara
     ? new Date(payload.encomendaPara)
     : null
+  const levadoEm = payload.levadoEm ? new Date(payload.levadoEm) : null
 
   return {
     ...cliente,
+    observacoesPedido: payload.observacoesPedido?.trim() || null,
+    responsavelPedido: payload.responsavelPedido?.trim() || null,
+    destinatariosPedido: payload.destinatariosPedido?.trim() || null,
+    levadoEm,
     pagamento: payload.pagamento,
     tipoEntrega: payload.tipoEntrega,
     encomendaPara,
@@ -376,6 +382,10 @@ export async function atualizarPedidoAdmin(
       clienteWhatsapp: calculado.clienteWhatsapp,
       clienteBloco: calculado.clienteBloco,
       clienteApartamento: calculado.clienteApartamento,
+      observacoesPedido: calculado.observacoesPedido,
+      responsavelPedido: calculado.responsavelPedido,
+      destinatariosPedido: calculado.destinatariosPedido,
+      levadoEm: calculado.levadoEm,
       pagamento: calculado.pagamento,
       tipoEntrega: calculado.tipoEntrega,
       encomendaPara: calculado.encomendaPara,

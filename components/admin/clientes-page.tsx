@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
+import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import type { Cliente } from '@/lib/types'
 
 const fetcher = async (url: string) => {
@@ -18,10 +19,6 @@ const fetcher = async (url: string) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Erro ao carregar clientes')
   return data
-}
-
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, '')
 }
 
 function formatDate(value?: string | null) {
@@ -78,8 +75,8 @@ export function ClientesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: form.nome,
-          ...(isCreating ? { telefone: onlyDigits(form.telefone) } : {}),
-          whatsapp: onlyDigits(form.whatsapp),
+          ...(isCreating ? { telefone: normalizePhone(form.telefone) } : {}),
+          whatsapp: normalizePhone(form.whatsapp),
           clienteBloco: form.clienteBloco || undefined,
           clienteApartamento: form.clienteApartamento || undefined,
           observacoes: form.observacoes || undefined,
@@ -138,8 +135,8 @@ export function ClientesPage() {
               <CardHeader><CardTitle>{isCreating ? 'Cadastrar cliente' : 'Editar cliente'}</CardTitle></CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label>Nome</Label><Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} /></div>
-                <div className="space-y-2"><Label>Telefone</Label><Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: event.target.value }))} disabled={!isCreating} placeholder="(00) 00000-0000" /></div>
-                <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: event.target.value }))} /></div>
+                <div className="space-y-2"><Label>Telefone</Label><Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} disabled={!isCreating} placeholder="(47) 99999-9999 ou +47..." /></div>
+                <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))} placeholder="(47) 99999-9999 ou +47..." /></div>
                 <div className="space-y-2"><Label>Bloco</Label><Input value={form.clienteBloco} onChange={(event) => setForm((current) => ({ ...current, clienteBloco: event.target.value }))} placeholder="Ex: A" /></div>
                 <div className="space-y-2"><Label>Apartamento</Label><Input value={form.clienteApartamento} onChange={(event) => setForm((current) => ({ ...current, clienteApartamento: event.target.value }))} placeholder="Ex: 101" /></div>
                 <div className="space-y-2 md:col-span-2"><Label>Observações</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferências, restrições, observações de entrega..." /></div>

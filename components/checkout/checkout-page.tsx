@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator'
 import { useCart } from '@/contexts/cart-context'
 import { formatarMoeda } from '@/lib/calc'
 import { getCustomerProfile, saveCustomerProfile, saveRecentOrder } from '@/lib/customer-session'
+import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
 import type { TipoPagamento, TipoEntrega, CriarPedidoPayload } from '@/lib/types'
 
 interface MenuData {
@@ -62,20 +63,13 @@ export function CheckoutPage() {
     setApartamento(profile.apartamento)
   }, [])
 
-  const formatTelefone = (value: string) => {
-    const numeros = value.replace(/\D/g, '')
-    if (numeros.length <= 2) return numeros
-    if (numeros.length <= 7) return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`
-    return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7, 11)}`
-  }
-
   const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatTelefone(e.target.value)
+    const formatted = formatPhoneInput(e.target.value)
     setTelefone(formatted)
   }
 
   const handleWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatTelefone(e.target.value)
+    const formatted = formatPhoneInput(e.target.value)
     setWhatsapp(formatted)
   }
 
@@ -111,7 +105,7 @@ export function CheckoutPage() {
       setError('Informe seu nome')
       return
     }
-    if (telefone.replace(/\D/g, '').length < 10) {
+    if (!isValidPhone(telefone)) {
       setError('Informe um telefone válido')
       return
     }
@@ -147,8 +141,8 @@ export function CheckoutPage() {
 
       const payload: CriarPedidoPayload = {
         clienteNome: nome.trim(),
-        clienteTelefone: telefone.replace(/\D/g, ''),
-        clienteWhatsapp: tipoEntrega === 'RESERVA_PAULISTANO' ? whatsapp.replace(/\D/g, '') : undefined,
+        clienteTelefone: normalizePhone(telefone),
+        clienteWhatsapp: tipoEntrega === 'RESERVA_PAULISTANO' ? normalizePhone(whatsapp) : undefined,
         clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() : undefined,
         clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() : undefined,
         pagamento,

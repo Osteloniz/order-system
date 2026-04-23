@@ -104,9 +104,14 @@ export async function GET(request: NextRequest) {
 
   const entregues = pedidos.filter((pedido) => pedido.status === 'ENTREGUE')
   const cancelados = pedidos.filter((pedido) => pedido.status === 'CANCELADO')
+  const pagamentosPendentes = pedidos.filter((pedido) => pedido.statusPagamento === 'PENDENTE')
+  const cartaoEntregue = entregues.filter((pedido) => pedido.pagamento === 'CARTAO')
   const receitaTotal = pedidos.reduce((acc, pedido) => acc + pedido.total, 0)
   const receitaEntregue = entregues.reduce((acc, pedido) => acc + pedido.total, 0)
   const totalCancelado = cancelados.reduce((acc, pedido) => acc + pedido.total, 0)
+  const receitaCartaoBruta = cartaoEntregue.reduce((acc, pedido) => acc + pedido.total, 0)
+  const taxaCartao = Math.round(receitaCartaoBruta * 0.0309)
+  const receitaCartaoLiquida = Math.max(0, receitaCartaoBruta - taxaCartao)
 
   return NextResponse.json({
     from,
@@ -115,6 +120,10 @@ export async function GET(request: NextRequest) {
     receitaTotal,
     receitaEntregue,
     totalCancelado,
+    pagamentosPendentes: pagamentosPendentes.length,
+    receitaCartaoBruta,
+    taxaCartao,
+    receitaCartaoLiquida,
     ticketMedioGeral: pedidos.length ? Math.round(receitaTotal / pedidos.length) : 0,
     ticketMedioEntregue: entregues.length ? Math.round(receitaEntregue / entregues.length) : 0,
     porStatus,
@@ -128,6 +137,10 @@ export async function GET(request: NextRequest) {
       status: pedido.status,
       statusPagamento: pedido.statusPagamento,
       clienteNome: pedido.clienteNome,
+      responsavelPedido: pedido.responsavelPedido,
+      destinatariosPedido: pedido.destinatariosPedido,
+      observacoesPedido: pedido.observacoesPedido,
+      levadoEm: pedido.levadoEm,
       tipoEntrega: pedido.tipoEntrega,
       encomendaPara: pedido.encomendaPara,
       criadoEm: pedido.criadoEm,

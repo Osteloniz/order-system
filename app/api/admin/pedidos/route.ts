@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { calcularPedidoAdmin, normalizePhone } from '@/lib/admin-pedidos'
+import { calcularPedidoAdmin } from '@/lib/admin-pedidos'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
 
 export const runtime = 'nodejs'
 
@@ -15,6 +16,10 @@ const pedidoAdminSchema = z.object({
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   clienteObservacoes: z.string().trim().max(1000).optional(),
+  observacoesPedido: z.string().trim().max(1000).optional(),
+  responsavelPedido: z.string().trim().max(120).optional(),
+  destinatariosPedido: z.string().trim().max(1000).optional(),
+  levadoEm: z.string().trim().optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
   encomendaPara: z.string().trim().optional(),
@@ -116,10 +121,10 @@ export async function POST(request: NextRequest) {
     const telefoneLimpo = normalizePhone(body.clienteTelefone)
     const whatsappLimpo = normalizePhone(body.clienteWhatsapp)
 
-    if (telefoneLimpo && (telefoneLimpo.length < 10 || telefoneLimpo.length > 13)) {
+    if (telefoneLimpo && !isValidPhone(telefoneLimpo)) {
       return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
     }
-    if (whatsappLimpo && (whatsappLimpo.length < 10 || whatsappLimpo.length > 13)) {
+    if (whatsappLimpo && !isValidPhone(whatsappLimpo)) {
       return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
     }
 
@@ -138,6 +143,10 @@ export async function POST(request: NextRequest) {
           clienteWhatsapp: calculado.clienteWhatsapp,
           clienteBloco: calculado.clienteBloco,
           clienteApartamento: calculado.clienteApartamento,
+          observacoesPedido: calculado.observacoesPedido,
+          responsavelPedido: calculado.responsavelPedido,
+          destinatariosPedido: calculado.destinatariosPedido,
+          levadoEm: calculado.levadoEm,
           pagamento: calculado.pagamento,
           tipoEntrega: calculado.tipoEntrega,
           encomendaPara: calculado.encomendaPara,

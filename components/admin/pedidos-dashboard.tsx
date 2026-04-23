@@ -17,7 +17,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { NovoPedidoAdminPage } from '@/components/admin/novo-pedido-page'
 import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
-import { buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
+import { buildPaymentReminderMessage, buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
+import { buildWhatsappUrl } from '@/lib/phone'
 import type { Configuracao, Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -61,10 +62,10 @@ function resumirItens(pedido: Pedido) {
 }
 
 function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido, config?: Configuracao | null) {
-  const telefone = getPedidoWhatsapp(pedido)
   const mensagem = buildStatusMessage(pedido, status, config)
-  if (!telefone || !mensagem) return
-  window.open(`https://wa.me/55${telefone}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener,noreferrer')
+  const url = buildWhatsappUrl(getPedidoWhatsapp(pedido), mensagem)
+  if (!url || !mensagem) return
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
@@ -127,6 +128,9 @@ export function PedidosDashboard() {
       pedido.clienteWhatsapp,
       pedido.clienteBloco,
       pedido.clienteApartamento,
+      pedido.responsavelPedido,
+      pedido.destinatariosPedido,
+      pedido.observacoesPedido,
       pedido.mercadoPagoPaymentId,
       pedido.mercadoPagoPreferenceId,
       pedido.itens.map(item => item.nomeProdutoSnapshot).join(' '),
@@ -352,12 +356,16 @@ export function PedidosDashboard() {
   }
 
   const handleConfirmPayment = async (pedidoId: string) => {
+    await handleUpdatePaymentStatus(pedidoId, 'APROVADO')
+  }
+
+  const handleUpdatePaymentStatus = async (pedidoId: string, statusPagamento: Pedido['statusPagamento']) => {
     setConfirmingPaymentId(pedidoId)
     try {
       const response = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statusPagamento: 'APROVADO' })
+        body: JSON.stringify({ statusPagamento })
       })
       if (!response.ok) return
       const pedidoAtualizado = await response.json()
@@ -366,6 +374,15 @@ export function PedidosDashboard() {
     } finally {
       setConfirmingPaymentId(null)
     }
+  }
+
+  const handleSendPaymentReminder = (pedido: Pedido) => {
+    const url = buildWhatsappUrl(getPedidoWhatsapp(pedido), buildPaymentReminderMessage(pedido))
+    if (!url) {
+      setLastAlertMessage('Esse pedido nao possui WhatsApp valido para cobranca.')
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const handleResendCurrentStatusMessage = (pedido: Pedido) => {
@@ -409,7 +426,7 @@ export function PedidosDashboard() {
             {pedido.encomendaPara && <Badge variant="secondary" className="text-xs">{new Date(pedido.encomendaPara).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Badge>}
             <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
           </div>
-          <div className="flex items-center justify-between text-sm"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
+          <div className="flex items-center justify-between text-sm"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} {formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
           {isUpdating && <div className="flex items-center gap-2 text-xs text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Atualizando status...</div>}
         </CardContent>
       </Card>
@@ -592,7 +609,36 @@ export function PedidosDashboard() {
                     Reenviar mensagem do status atual
                   </Button>
                 )}
-                {selectedPedido.status !== 'CANCELADO' && selectedPedido.statusPagamento !== 'APROVADO' && <Button variant="outline" className="w-full" onClick={() => handleConfirmPayment(selectedPedido.id)} disabled={confirmingPaymentId === selectedPedido.id}>{confirmingPaymentId === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}Confirmar pagamento manualmente</Button>}
+                {selectedPedido.status !== 'CANCELADO' && (
+                  <Card>
+                    <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><CreditCard className="h-4 w-4" />Pagamento</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      {selectedPedido.statusPagamento !== 'APROVADO' && <Button variant="outline" className="w-full" onClick={() => handleConfirmPayment(selectedPedido.id)} disabled={confirmingPaymentId === selectedPedido.id}>{confirmingPaymentId === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}Confirmar pagamento manualmente</Button>}
+                      {selectedPedido.statusPagamento !== 'APROVADO' && (
+                        <Button variant="outline" className="w-full" onClick={() => handleSendPaymentReminder(selectedPedido)}>
+                          <MessageCircle className="h-4 w-4 mr-2" />
+                          Cobrar pagamento no WhatsApp
+                        </Button>
+                      )}
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Ajustar status do pagamento</p>
+                        <select
+                          value={selectedPedido.statusPagamento}
+                          onChange={(event) => handleUpdatePaymentStatus(selectedPedido.id, event.target.value as Pedido['statusPagamento'])}
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          disabled={confirmingPaymentId === selectedPedido.id}
+                        >
+                          <option value="NAO_APLICAVEL">Na entrega</option>
+                          <option value="PENDENTE">Pendente</option>
+                          <option value="APROVADO">Aprovado</option>
+                          <option value="RECUSADO">Recusado</option>
+                          <option value="CANCELADO">Cancelado</option>
+                          <option value="REEMBOLSADO">Reembolsado</option>
+                        </select>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
                 {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
                   <Card><CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><X className="h-4 w-4" />Cancelamento</CardTitle></CardHeader><CardContent className="space-y-3"><Textarea placeholder="Informe o motivo do cancelamento" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} /><Button variant="destructive" className="w-full" onClick={() => handleCancelPedido(selectedPedido.id)} disabled={isCancelling || !cancelReason.trim()}>{isCancelling ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}Cancelar Pedido</Button></CardContent></Card>
                 )}
@@ -624,8 +670,13 @@ export function PedidosDashboard() {
                   <CardContent className="space-y-3">
                     <div className="flex items-center gap-2 text-sm"><User className="h-4 w-4 text-muted-foreground" /><span>{selectedPedido.clienteNome}</span></div>
                     <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" />{selectedPedido.clienteTelefone ? <a href={`tel:${selectedPedido.clienteTelefone}`} className="text-primary hover:underline">{formatarTelefone(selectedPedido.clienteTelefone)}</a> : <span className="text-muted-foreground">Nao informado</span>}</div>
+                    <div className="flex items-center gap-2 text-sm"><Clock className="h-4 w-4 text-muted-foreground" /><span>Pedido feito em {new Date(selectedPedido.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}</span></div>
                     <div className="flex items-center gap-2 text-sm"><CreditCard className="h-4 w-4 text-muted-foreground" /><span>{pagamentoLabels[selectedPedido.pagamento]}</span></div>
                     <div className="flex items-center gap-2 text-sm"><Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>{statusPagamentoLabels[selectedPedido.statusPagamento]}</Badge>{selectedPedido.mercadoPagoPaymentId && <span className="font-mono text-xs text-muted-foreground">MP {selectedPedido.mercadoPagoPaymentId}</span>}</div>
+                    {selectedPedido.responsavelPedido && <div className="flex items-center gap-2 text-sm"><User className="h-4 w-4 text-muted-foreground" /><span>Responsavel: {selectedPedido.responsavelPedido}</span></div>}
+                    {selectedPedido.destinatariosPedido && <div className="flex items-start gap-2 text-sm"><Package className="h-4 w-4 mt-0.5 text-muted-foreground" /><span>Separar para: {selectedPedido.destinatariosPedido}</span></div>}
+                    {selectedPedido.levadoEm && <div className="flex items-center gap-2 text-sm"><Truck className="h-4 w-4 text-muted-foreground" /><span>Levado em {new Date(selectedPedido.levadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}</span></div>}
+                    {selectedPedido.observacoesPedido && <div className="rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground">{selectedPedido.observacoesPedido}</div>}
                   </CardContent>
                 </Card>
 

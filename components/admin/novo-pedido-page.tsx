@@ -13,6 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
+import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
 import type { Cliente, Cupom, Pedido, Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 const fetcher = async <T,>(url: string): Promise<T> => {
@@ -32,17 +33,6 @@ type NovoPedidoAdminPageProps = {
   initialPedido?: Pedido | null
   onCreated?: () => void
   onSaved?: (pedido: Pedido) => void
-}
-
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, '')
-}
-
-function formatPhone(value: string) {
-  const digits = onlyDigits(value).slice(0, 11)
-  if (digits.length <= 2) return digits
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
 function parseCurrencyToCents(value: string) {
@@ -92,6 +82,11 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
   const [observacoes, setObservacoes] = useState('')
+  const [observacoesPedido, setObservacoesPedido] = useState('')
+  const [responsavelPedido, setResponsavelPedido] = useState('')
+  const [destinatariosPedido, setDestinatariosPedido] = useState('')
+  const [levadoEmData, setLevadoEmData] = useState('')
+  const [levadoEmHora, setLevadoEmHora] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('DINHEIRO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [encomendaData, setEncomendaData] = useState('')
@@ -103,16 +98,27 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [initializedEditState, setInitializedEditState] = useState(false)
+  const dataPedidoLabel = useMemo(() => {
+    const value = initialPedido?.criadoEm ?? new Date().toISOString()
+    return new Date(value).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    })
+  }, [initialPedido?.criadoEm])
 
   useEffect(() => {
     if (!initialPedido || !produtosAtivos.length || initializedEditState) return
 
     setClienteId(initialPedido.clienteId || '')
     setNome(initialPedido.clienteNome || '')
-    setTelefone(formatPhone(initialPedido.clienteTelefone || ''))
-    setWhatsapp(formatPhone(initialPedido.clienteWhatsapp || ''))
+    setTelefone(formatPhoneInput(initialPedido.clienteTelefone || ''))
+    setWhatsapp(formatPhoneInput(initialPedido.clienteWhatsapp || ''))
     setBloco(initialPedido.clienteBloco || '')
     setApartamento(initialPedido.clienteApartamento || '')
+    setObservacoesPedido(initialPedido.observacoesPedido || '')
+    setResponsavelPedido(initialPedido.responsavelPedido || '')
+    setDestinatariosPedido(initialPedido.destinatariosPedido || '')
     setPagamento(initialPedido.pagamento)
     setTipoEntrega(initialPedido.tipoEntrega)
     setCupomCodigo(initialPedido.cupomCodigoSnapshot || '')
@@ -136,6 +142,23 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
       setEncomendaData(dataString)
       setEncomendaHora(horaString)
     }
+    if (initialPedido.levadoEm) {
+      const dataLevada = new Date(initialPedido.levadoEm)
+      const levadoDataString = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(dataLevada)
+      const levadoHoraString = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(dataLevada)
+      setLevadoEmData(levadoDataString)
+      setLevadoEmHora(levadoHoraString)
+    }
 
     const itemMap = new Map(initialPedido.itens.map(item => [item.produtoId, item.quantidade]))
     setItems(
@@ -156,8 +179,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const descontoCupom = valorPromocional > 0 ? 0 : calcularDescontoCupom(subtotal, cupomCodigo, cupons, initialPedido?.cupomCodigoSnapshot || undefined)
   const descontoValor = valorPromocional > 0 ? Math.min(valorPromocional, subtotal) : descontoCupom
   const total = Math.max(0, subtotal - descontoValor)
-  const telefoneLimpo = onlyDigits(telefone)
-  const whatsappLimpo = onlyDigits(whatsapp)
+  const telefoneLimpo = normalizePhone(telefone)
+  const whatsappLimpo = normalizePhone(whatsapp)
 
   const addProduct = (produto: ProdutoAdmin) => {
     setItems(current => {
@@ -179,8 +202,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const selectCliente = (cliente: Cliente) => {
     setClienteId(cliente.id)
     setNome(cliente.nome || '')
-    setTelefone(formatPhone(cliente.telefone || ''))
-    setWhatsapp(formatPhone(cliente.whatsapp || cliente.telefone || ''))
+    setTelefone(formatPhoneInput(cliente.telefone || ''))
+    setWhatsapp(formatPhoneInput(cliente.whatsapp || cliente.telefone || ''))
     setBloco(cliente.clienteBloco || '')
     setApartamento(cliente.clienteApartamento || '')
     setObservacoes(cliente.observacoes || '')
@@ -200,6 +223,11 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setBloco('')
     setApartamento('')
     setObservacoes('')
+    setObservacoesPedido('')
+    setResponsavelPedido('')
+    setDestinatariosPedido('')
+    setLevadoEmData('')
+    setLevadoEmHora('')
     setPagamento('DINHEIRO')
     setTipoEntrega('RESERVA_PAULISTANO')
     setEncomendaData('')
@@ -215,10 +243,11 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setMessage('')
 
     if (!nome.trim()) return setError('Informe o nome do cliente')
-    if (telefoneLimpo && (telefoneLimpo.length < 10 || telefoneLimpo.length > 13)) return setError('Celular invalido')
-    if (whatsappLimpo && (whatsappLimpo.length < 10 || whatsappLimpo.length > 13)) return setError('WhatsApp invalido')
+    if (telefoneLimpo && !isValidPhone(telefoneLimpo)) return setError('Celular invalido')
+    if (whatsappLimpo && !isValidPhone(whatsappLimpo)) return setError('WhatsApp invalido')
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
     if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
+    if ((levadoEmData && !levadoEmHora) || (!levadoEmData && levadoEmHora)) return setError('Informe data e hora de quando o pedido foi levado')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
     if (cupomCodigo && valorPromocional > 0) return setError('Use cupom ou valor promocional, nao os dois')
 
@@ -235,6 +264,10 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
           clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() || undefined : undefined,
           clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() || undefined : undefined,
           clienteObservacoes: observacoes.trim() || undefined,
+          observacoesPedido: observacoesPedido.trim() || undefined,
+          responsavelPedido: responsavelPedido.trim() || undefined,
+          destinatariosPedido: destinatariosPedido.trim() || undefined,
+          levadoEm: levadoEmData && levadoEmHora ? `${levadoEmData}T${levadoEmHora}:00-03:00` : undefined,
           pagamento,
           tipoEntrega,
           encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
@@ -342,8 +375,9 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
-                <div className="min-w-0 space-y-2"><Label>Celular opcional</Label><Input value={telefone} onChange={event => setTelefone(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
-                <div className="min-w-0 space-y-2"><Label>WhatsApp opcional</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhone(event.target.value))} placeholder="(00) 00000-0000" /></div>
+                <div className="min-w-0 space-y-2"><Label>Data do pedido</Label><Input value={dataPedidoLabel} readOnly /></div>
+                <div className="min-w-0 space-y-2"><Label>Celular opcional</Label><Input value={telefone} onChange={event => setTelefone(formatPhoneInput(event.target.value))} placeholder="(47) 99999-9999 ou +47..." /></div>
+                <div className="min-w-0 space-y-2"><Label>WhatsApp opcional</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhoneInput(event.target.value))} placeholder="(47) 99999-9999 ou +47..." /></div>
                 <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Condominio (Reserva Paulistano)</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
                 {tipoEntrega === 'RESERVA_PAULISTANO' && (
                   <>
@@ -358,9 +392,14 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
                   </>
                 )}
                 <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
+                <div className="min-w-0 space-y-2"><Label>Responsavel pelo pedido</Label><Input value={responsavelPedido} onChange={event => setResponsavelPedido(event.target.value)} placeholder="Ex: Vitor" /></div>
                 <div className="min-w-0 space-y-2"><Label>Cupom</Label><select value={cupomCodigo} onChange={event => { setCupomCodigo(event.target.value); if (event.target.value) setValorPromocionalInput('') }} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="">Sem cupom</option>{cupons?.map(cupom => <option key={cupom.id} value={cupom.codigo}>{cupom.codigo}</option>)}</select></div>
                 <div className="min-w-0 space-y-2"><Label>Valor promocional interno</Label><Input value={valorPromocionalInput} onChange={event => { setValorPromocionalInput(formatCurrencyInput(event.target.value)); if (parseCurrencyToCents(event.target.value) > 0) setCupomCodigo('') }} placeholder="R$ 0,00" /></div>
+                <div className="min-w-0 space-y-2"><Label>Data que levou</Label><Input type="date" value={levadoEmData} onChange={event => setLevadoEmData(event.target.value)} /></div>
+                <div className="min-w-0 space-y-2"><Label>Hora que levou</Label><Input type="time" value={levadoEmHora} onChange={event => setLevadoEmHora(event.target.value)} /></div>
+                <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Separar para / nomes finais</Label><Input value={destinatariosPedido} onChange={event => setDestinatariosPedido(event.target.value)} placeholder="Ex: Ana, Julia, Marcos" /></div>
                 <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observações do cliente</Label><Input value={observacoes} onChange={event => setObservacoes(event.target.value)} placeholder="Preferências, restrições, observações de entrega..." /></div>
+                <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observacoes do pedido</Label><Input value={observacoesPedido} onChange={event => setObservacoesPedido(event.target.value)} placeholder="Controle interno, combinados, detalhes da venda..." /></div>
               </div>
             </CardContent>
           </Card>

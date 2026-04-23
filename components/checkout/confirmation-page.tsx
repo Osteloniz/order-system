@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { formatarMoeda, formatarDataHora, formatarTelefone } from '@/lib/calc'
 import { saveRecentOrder } from '@/lib/customer-session'
+import { buildWhatsappUrl } from '@/lib/phone'
 import type { Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -339,9 +340,8 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
               className="w-full h-12 bg-green-600 hover:bg-green-700 text-white"
               onClick={() => {
                 const mensagem = `Olá! Gostaria de saber mais sobre o status do meu pedido #${pedido.id.slice(-8).toUpperCase()}. Obrigado!`
-                const mensagemCodificada = encodeURIComponent(mensagem)
-                const url = `https://wa.me/55${pedido.clienteWhatsapp}?text=${mensagemCodificada}`
-                window.open(url, '_blank')
+                const url = buildWhatsappUrl(pedido.clienteWhatsapp, mensagem)
+                if (url) window.open(url, '_blank')
               }}
             >
               <MessageCircle className="h-4 w-4 mr-2" />

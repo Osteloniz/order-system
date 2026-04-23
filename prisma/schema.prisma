@@ -116,6 +116,10 @@ model Pedido {
   clienteWhatsapp String?
   clienteBloco    String?
   clienteApartamento String?
+  observacoesPedido String?
+  responsavelPedido String?
+  destinatariosPedido String?
+  levadoEm        DateTime?
   pagamento       TipoPagamento
   statusPagamento StatusPagamento @default(NAO_APLICAVEL)
   mercadoPagoPaymentId String?

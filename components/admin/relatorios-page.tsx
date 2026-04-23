@@ -28,6 +28,10 @@ type RelatorioPedido = {
   status: StatusPedido
   statusPagamento: StatusPagamento
   clienteNome: string
+  responsavelPedido?: string | null
+  destinatariosPedido?: string | null
+  observacoesPedido?: string | null
+  levadoEm?: string | null
   tipoEntrega: TipoEntrega
   encomendaPara?: string | null
   criadoEm: string
@@ -48,6 +52,10 @@ type RelatorioData = {
   receitaTotal: number
   receitaEntregue: number
   totalCancelado: number
+  pagamentosPendentes: number
+  receitaCartaoBruta: number
+  taxaCartao: number
+  receitaCartaoLiquida: number
   ticketMedioGeral: number
   ticketMedioEntregue: number
   porStatus: Record<StatusPedido, number>
@@ -82,6 +90,15 @@ const entregaLabels: Record<TipoEntrega, string> = {
   RESERVA_PAULISTANO: 'Condominio',
   RETIRADA: 'Retirada',
   ENCOMENDA: 'Encomenda',
+}
+
+const statusPagamentoLabels: Record<StatusPagamento, string> = {
+  NAO_APLICAVEL: 'Na entrega',
+  PENDENTE: 'Pendente',
+  APROVADO: 'Aprovado',
+  RECUSADO: 'Recusado',
+  CANCELADO: 'Cancelado',
+  REEMBOLSADO: 'Reembolsado',
 }
 
 function todayInSaoPaulo() {
@@ -190,7 +207,8 @@ export function RelatoriosPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
@@ -198,11 +216,14 @@ export function RelatoriosPage() {
           <Skeleton className="h-32" />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Card className="border-[#22C0D4]/35 bg-[#22C0D4]/10"><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-[#22C0D4]" /><p className="text-sm text-muted-foreground">Pedidos no periodo</p><p className="text-3xl font-bold">{data?.totalPedidos ?? 0}</p><p className="mt-2 text-xs text-muted-foreground">{entregues} entregues</p></CardContent></Card>
           <Card className="border-[#AF6E2A]/35 bg-[#AF6E2A]/10"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Receita entregue</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Base para resultado real</p></CardContent></Card>
           <Card className="border-[#F8CF40]/45 bg-[#F8CF40]/15"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Ticket medio</p><p className="text-3xl font-bold">{formatarMoeda(data?.ticketMedioEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Sobre pedidos entregues</p></CardContent></Card>
           <Card className="border-[#FF6BBB]/35 bg-[#FF6BBB]/10"><CardContent className="p-5"><BarChart3 className="mb-3 h-5 w-5 text-[#FF6BBB]" /><p className="text-sm text-muted-foreground">Unidades vendidas</p><p className="text-3xl font-bold">{totalUnidades}</p><p className="mt-2 text-xs text-muted-foreground">Somando todos os sabores</p></CardContent></Card>
+          <Card className="border-[#0e6c77]/25 bg-[#22C0D4]/5"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao bruto</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoBruta ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Somente pedidos entregues no cartao</p></CardContent></Card>
+          <Card className="border-[#0e6c77]/25 bg-[#0e6c77]/10"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao liquido</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoLiquida ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Ja descontando 3,09% ({formatarMoeda(data?.taxaCartao ?? 0)})</p></CardContent></Card>
+          <Card className="border-warning/35 bg-warning/10"><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-warning-foreground" /><p className="text-sm text-muted-foreground">Pagamentos pendentes</p><p className="text-3xl font-bold">{data?.pagamentosPendentes ?? 0}</p><p className="mt-2 text-xs text-muted-foreground">Use a tela de pedidos para cobrar ou ajustar</p></CardContent></Card>
           <Card className="border-destructive/25 bg-destructive/10"><CardContent className="p-5"><XCircle className="mb-3 h-5 w-5 text-destructive" /><p className="text-sm text-muted-foreground">Valor cancelado</p><p className="text-3xl font-bold">{formatarMoeda(data?.totalCancelado ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Pedidos cancelados</p></CardContent></Card>
         </div>
       )}
@@ -234,7 +255,7 @@ export function RelatoriosPage() {
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Ticket geral</p><p className="text-xl font-bold">{formatarMoeda(data?.ticketMedioGeral ?? 0)}</p></div>
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Receita geral</p><p className="text-xl font-bold">{formatarMoeda(data?.receitaTotal ?? 0)}</p></div>
             </div>
-            <p className="text-xs text-muted-foreground">Dica: use a receita entregue e o ticket medio entregue para acompanhar performance real; pedidos cancelados ficam destacados para controle operacional.</p>
+            <p className="text-xs text-muted-foreground">Dica: o cartao liquido ja considera a taxa de 3,09%; pagamentos pendentes podem ser cobrados e ajustados na tela de pedidos.</p>
           </CardContent>
         </Card>
       </div>
@@ -300,9 +321,18 @@ export function RelatoriosPage() {
                       {pedido.tipoEntrega === 'ENCOMENDA' && <Badge className="bg-[#FF6BBB] text-white hover:bg-[#FF6BBB]">Encomenda</Badge>}
                       <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
                       <Badge className={statusStyles[pedido.status]} variant="outline">{statusLabels[pedido.status]}</Badge>
+                      <Badge variant="outline">{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
                       <Badge>{formatarMoeda(pedido.total)}</Badge>
                     </div>
                   </div>
+                  {(pedido.responsavelPedido || pedido.destinatariosPedido || pedido.levadoEm || pedido.observacoesPedido) && (
+                    <div className="mt-3 space-y-1 rounded-lg bg-muted/30 p-3 text-sm text-muted-foreground">
+                      {pedido.responsavelPedido && <p>Responsavel: {pedido.responsavelPedido}</p>}
+                      {pedido.destinatariosPedido && <p>Separar para: {pedido.destinatariosPedido}</p>}
+                      {pedido.levadoEm && <p>Levado em: {formatDateTime(pedido.levadoEm)}</p>}
+                      {pedido.observacoesPedido && <p>Obs. do pedido: {pedido.observacoesPedido}</p>}
+                    </div>
+                  )}
                   <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                     {pedido.itens.map((item) => (
                       <div key={item.id} className="flex justify-between gap-3">

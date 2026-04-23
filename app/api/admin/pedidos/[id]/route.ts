@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { z } from 'zod'
-import { atualizarPedidoAdmin, normalizePhone } from '@/lib/admin-pedidos'
+import { atualizarPedidoAdmin } from '@/lib/admin-pedidos'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { addAvailableStock, releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -15,6 +16,10 @@ const pedidoAdminSchema = z.object({
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   clienteObservacoes: z.string().trim().max(1000).optional(),
+  observacoesPedido: z.string().trim().max(1000).optional(),
+  responsavelPedido: z.string().trim().max(120).optional(),
+  destinatariosPedido: z.string().trim().max(1000).optional(),
+  levadoEm: z.string().trim().optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
   encomendaPara: z.string().trim().optional(),
@@ -64,10 +69,10 @@ export async function PATCH(
 
     const telefone = normalizePhone(parsed.data.clienteTelefone)
     const whatsapp = normalizePhone(parsed.data.clienteWhatsapp)
-    if (telefone && (telefone.length < 10 || telefone.length > 13)) {
+    if (telefone && !isValidPhone(telefone)) {
       return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
     }
-    if (whatsapp && (whatsapp.length < 10 || whatsapp.length > 13)) {
+    if (whatsapp && !isValidPhone(whatsapp)) {
       return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
     }
 

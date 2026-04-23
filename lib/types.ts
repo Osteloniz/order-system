@@ -48,6 +48,10 @@ export interface Pedido {
   clienteWhatsapp?: string | null
   clienteBloco?: string | null
   clienteApartamento?: string | null
+  observacoesPedido?: string | null
+  responsavelPedido?: string | null
+  destinatariosPedido?: string | null
+  levadoEm?: string | null
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   encomendaPara?: string | null
@@ -137,6 +141,10 @@ export interface PedidoAdminPayload {
   clienteBloco?: string
   clienteApartamento?: string
   clienteObservacoes?: string
+  observacoesPedido?: string
+  responsavelPedido?: string
+  destinatariosPedido?: string
+  levadoEm?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
   encomendaPara?: string

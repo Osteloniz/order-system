@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
 
 export const runtime = 'nodejs'
 
@@ -13,10 +14,6 @@ const clienteSchema = z.object({
   clienteApartamento: z.string().trim().max(20).optional(),
   observacoes: z.string().trim().max(1000).optional(),
 }).strict()
-
-function normalizePhone(value?: string | null) {
-  return (value || '').replace(/\D/g, '')
-}
 
 function serializeCliente(cliente: Awaited<ReturnType<typeof prisma.cliente.findFirst>>) {
   return cliente
@@ -81,8 +78,11 @@ export async function POST(request: NextRequest) {
   const telefone = normalizePhone(body.telefone)
   const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : telefone
 
-  if (telefone && (telefone.length < 10 || telefone.length > 13)) {
+  if (telefone && !isValidPhone(telefone)) {
     return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
+  }
+  if (whatsapp && !isValidPhone(whatsapp)) {
+    return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
   }
 
   const cliente = telefone

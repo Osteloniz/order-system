@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { calcularTotalItem, calcularSubtotal, calcularTotal } from '@/lib/calc'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
 import type { CriarPedidoPayload } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -49,10 +50,6 @@ const pedidoSchema = z.object({
   }
 })
 
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, '')
-}
-
 // POST /api/pedidos - Cria um novo pedido
 export async function POST(request: NextRequest) {
   try {
@@ -64,10 +61,10 @@ export async function POST(request: NextRequest) {
     const body: CriarPedidoPayload = parsed.data
     const telefoneLimpo = normalizePhone(body.clienteTelefone)
     const whatsappLimpo = body.clienteWhatsapp ? normalizePhone(body.clienteWhatsapp) : ''
-    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 13) {
+    if (!isValidPhone(telefoneLimpo)) {
       return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
     }
-    if (body.clienteWhatsapp && (whatsappLimpo.length < 10 || whatsappLimpo.length > 13)) {
+    if (body.clienteWhatsapp && !isValidPhone(whatsappLimpo)) {
       return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
     }
 

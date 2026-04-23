@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
 
 export const runtime = 'nodejs'
 
@@ -13,10 +14,6 @@ const clienteSchema = z.object({
   observacoes: z.string().trim().max(1000).optional(),
 }).strict()
 
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, '')
-}
-
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdminSession()
   if (!admin) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
@@ -27,13 +24,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const current = await prisma.cliente.findFirst({ where: { id, tenantId: admin.tenantId } })
   if (!current) return NextResponse.json({ error: 'Cliente nao encontrado' }, { status: 404 })
-
   const body = parsed.data
+  const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : current.telefone
+  if (whatsapp && !isValidPhone(whatsapp)) {
+    return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
+  }
   const cliente = await prisma.cliente.update({
     where: { id },
     data: {
       nome: body.nome.trim(),
-      whatsapp: body.whatsapp ? normalizePhone(body.whatsapp) : current.telefone,
+      whatsapp,
       clienteBloco: body.clienteBloco?.trim() || null,
       clienteApartamento: body.clienteApartamento?.trim() || null,
       observacoes: body.observacoes?.trim() || null,
