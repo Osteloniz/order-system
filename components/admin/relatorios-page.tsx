@@ -2,15 +2,15 @@
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { BarChart3, Download, PackageCheck, ReceiptText, RefreshCw, Sparkles, TrendingUp, XCircle } from 'lucide-react'
+import { BarChart3, Download, PackageCheck, ReceiptText, RefreshCw, Search, Sparkles, TrendingUp, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatarMoeda } from '@/lib/calc'
-import type { StatusPagamento, StatusPedido, TipoEntrega } from '@/lib/types'
+import { formatarMoeda, formatarTelefone } from '@/lib/calc'
+import type { StatusPagamento, StatusPedido, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 type RelatorioProduto = {
   chave: string
@@ -28,6 +28,9 @@ type RelatorioPedido = {
   status: StatusPedido
   statusPagamento: StatusPagamento
   clienteNome: string
+  clienteTelefone?: string | null
+  clienteWhatsapp?: string | null
+  pagamento: TipoPagamento
   responsavelPedido?: string | null
   destinatariosPedido?: string | null
   observacoesPedido?: string | null
@@ -101,6 +104,12 @@ const statusPagamentoLabels: Record<StatusPagamento, string> = {
   REEMBOLSADO: 'Reembolsado',
 }
 
+const pagamentoLabels: Record<TipoPagamento, string> = {
+  PIX: 'PIX',
+  DINHEIRO: 'Dinheiro',
+  CARTAO: 'Cartao',
+}
+
 function todayInSaoPaulo() {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -145,6 +154,7 @@ export function RelatoriosPage() {
   const today = todayInSaoPaulo()
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
+  const [searchPedido, setSearchPedido] = useState('')
   const [statusPagamentoFiltro, setStatusPagamentoFiltro] = useState<'TODOS' | StatusPagamento>('TODOS')
   const [statusPedidoFiltro, setStatusPedidoFiltro] = useState<'TODOS' | StatusPedido>('TODOS')
   const url = useMemo(() => `/api/admin/relatorios?from=${from}&to=${to}`, [from, to])
@@ -160,11 +170,24 @@ export function RelatoriosPage() {
   const pedidosFiltrados = useMemo(() => {
     const pedidos = data?.pedidos ?? []
     return pedidos.filter((pedido) => {
+      const busca = searchPedido.trim().toLowerCase()
+      const textoBusca = [
+        pedido.numero,
+        pedido.clienteNome,
+        pedido.clienteTelefone,
+        pedido.clienteWhatsapp,
+        pedido.responsavelPedido,
+        pedido.destinatariosPedido,
+        pedido.observacoesPedido,
+        ...pedido.itens.map((item) => item.nomeProduto),
+      ].filter(Boolean).join(' ').toLowerCase()
+
+      if (busca && !textoBusca.includes(busca)) return false
       if (statusPagamentoFiltro !== 'TODOS' && pedido.statusPagamento !== statusPagamentoFiltro) return false
       if (statusPedidoFiltro !== 'TODOS' && pedido.status !== statusPedidoFiltro) return false
       return true
     })
-  }, [data?.pedidos, statusPagamentoFiltro, statusPedidoFiltro])
+  }, [data?.pedidos, searchPedido, statusPagamentoFiltro, statusPedidoFiltro])
 
   const handleExportProdutos = () => {
     if (!data?.produtos.length) return
@@ -357,9 +380,19 @@ export function RelatoriosPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Pedidos do periodo</CardTitle></CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle>Pedidos do periodo</CardTitle>
+          <Badge variant="outline">{pedidosFiltrados.length} pedido(s)</Badge>
+        </CardHeader>
         <CardContent>
-          <div className="mb-4 grid gap-3 md:grid-cols-2">
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <Label>Buscar no historico</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={searchPedido} onChange={(event) => setSearchPedido(event.target.value)} placeholder="Numero, cliente, telefone, responsavel ou item" className="pl-9" />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Status do pagamento</Label>
               <select value={statusPagamentoFiltro} onChange={(event) => setStatusPagamentoFiltro(event.target.value as 'TODOS' | StatusPagamento)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
@@ -384,6 +417,49 @@ export function RelatoriosPage() {
               </select>
             </div>
           </div>
+
+          {!isLoading && pedidosFiltrados.length > 0 && (
+            <div className="mb-5 overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[980px] text-sm">
+                <thead className="bg-muted/40 text-left text-muted-foreground">
+                  <tr>
+                    <th className="py-3 pl-4 pr-4 font-medium">Pedido</th>
+                    <th className="py-3 pr-4 font-medium">Data</th>
+                    <th className="py-3 pr-4 font-medium">Cliente</th>
+                    <th className="py-3 pr-4 font-medium">Responsavel</th>
+                    <th className="py-3 pr-4 font-medium">Pagamento</th>
+                    <th className="py-3 pr-4 font-medium">Status</th>
+                    <th className="py-3 pr-4 font-medium">Entrega</th>
+                    <th className="py-3 pr-4 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedidosFiltrados.map((pedido) => (
+                    <tr key={`linha-${pedido.id}`} className="border-t odd:bg-background even:bg-muted/15">
+                      <td className="py-3 pl-4 pr-4 font-semibold">#{pedido.numero}</td>
+                      <td className="py-3 pr-4 whitespace-nowrap">{formatDateTime(pedido.criadoEm)}</td>
+                      <td className="py-3 pr-4">
+                        <div>
+                          <p className="font-medium">{pedido.clienteNome}</p>
+                          <p className="text-xs text-muted-foreground">{formatarTelefone(pedido.clienteWhatsapp || pedido.clienteTelefone)}</p>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4">{pedido.responsavelPedido || '-'}</td>
+                      <td className="py-3 pr-4">
+                        <div>
+                          <p>{pagamentoLabels[pedido.pagamento]}</p>
+                          <p className="text-xs text-muted-foreground">{statusPagamentoLabels[pedido.statusPagamento]}</p>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4">{statusLabels[pedido.status]}</td>
+                      <td className="py-3 pr-4">{entregaLabels[pedido.tipoEntrega]}</td>
+                      <td className="py-3 pr-4 font-semibold">{formatarMoeda(pedido.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {isLoading ? (
             <div className="space-y-3"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
