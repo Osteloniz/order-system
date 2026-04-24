@@ -1,5 +1,5 @@
-﻿import { EntryChoicePage } from '@/components/menu/entry-choice-page'
+import { redirect } from 'next/navigation'
 
 export default function HomePage() {
-  return <EntryChoicePage />
+  redirect('/menu')
 }

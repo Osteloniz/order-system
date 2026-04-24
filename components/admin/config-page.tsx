@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState, useEffect, useRef } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, MessageCircle, RotateCcw, Save, Loader2, Settings, Volume2 } from 'lucide-react'
+import { Bell, Copy, Link2, MessageCircle, RotateCcw, Save, Loader2, Settings, Shield, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,7 +44,7 @@ export function ConfigPage() {
   const { data: rawConfig, error: configError, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher, {
     revalidateOnFocus: false,
   })
-  const { data: tenantData, error: tenantError } = useSWR<{ isOpen: boolean }>('/api/admin/tenant', fetcher, {
+  const { data: tenantData, error: tenantError } = useSWR<{ isOpen: boolean; slug?: string; nome?: string }>('/api/admin/tenant', fetcher, {
     revalidateOnFocus: false,
   })
   const config = rawConfig ? hydrateConfigWithMessageDefaults(rawConfig) : null
@@ -64,8 +64,20 @@ export function ConfigPage() {
   const [notificationPermission, setNotificationPermission] = useState('unsupported')
   const [alertMessage, setAlertMessage] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
   const configHydratedRef = useRef(false)
   const tenantHydratedRef = useRef(false)
+  const publicCatalogUrl = baseUrl ? `${baseUrl}/menu` : '/menu'
+  const adminLoginUrl = baseUrl ? `${baseUrl}/admin/login` : '/admin/login'
+
+  const copyToClipboard = async (value: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setAlertMessage(successMessage)
+    } catch {
+      setAlertMessage('Nao foi possivel copiar automaticamente. Você ainda pode copiar manualmente.')
+    }
+  }
 
   const playTestSound = () => {
     const AudioContextConstructor = window.AudioContext || (window as typeof window & {
@@ -108,6 +120,10 @@ export function ConfigPage() {
     setAlertsEnabledState(getAdminAlertsEnabled())
     setSoundEnabledState(getAdminAlertSoundEnabled())
     setNotificationPermission(getNotificationPermission())
+  }, [])
+
+  useEffect(() => {
+    setBaseUrl(window.location.origin)
   }, [])
 
   const handleToggleAlerts = async (enabled: boolean) => {
@@ -376,6 +392,53 @@ export function ConfigPage() {
               </p>
             )}
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-4xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5" />
+            Links de Acesso
+          </CardTitle>
+          <CardDescription>
+            Use o link do catalogo para clientes. O acesso admin fica separado e interno.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-xl border border-[#22C0D4]/25 bg-[#22C0D4]/5 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+              <Link2 className="h-4 w-4 text-[#22C0D4]" />
+              Link publico do catalogo
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input value={publicCatalogUrl} readOnly />
+              <Button type="button" variant="outline" onClick={() => copyToClipboard(publicCatalogUrl, 'Link do catalogo copiado.')}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copiar
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Esse e o link que você envia para clientes. Ele abre direto o catalogo e nao expõe a entrada do painel.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+              <Shield className="h-4 w-4 text-primary" />
+              Link interno do admin
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input value={adminLoginUrl} readOnly />
+              <Button type="button" variant="outline" onClick={() => copyToClipboard(adminLoginUrl, 'Link do admin copiado.')}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copiar
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Mantenha esse link apenas para uso interno. O painel continua protegido por login e nao aparece mais na entrada publica.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -145,12 +145,26 @@ export function RelatoriosPage() {
   const today = todayInSaoPaulo()
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
+  const [statusPagamentoFiltro, setStatusPagamentoFiltro] = useState<'TODOS' | StatusPagamento>('TODOS')
+  const [statusPedidoFiltro, setStatusPedidoFiltro] = useState<'TODOS' | StatusPedido>('TODOS')
   const url = useMemo(() => `/api/admin/relatorios?from=${from}&to=${to}`, [from, to])
   const { data, isLoading, mutate } = useSWR<RelatorioData>(url, fetcher)
 
   const totalUnidades = useMemo(() => data?.produtos.reduce((acc, produto) => acc + produto.quantidade, 0) ?? 0, [data])
   const topProduto = data?.produtos[0]
   const entregues = data?.porStatus.ENTREGUE ?? 0
+  const pedidosPendentes = useMemo(
+    () => data?.pedidos.filter((pedido) => pedido.statusPagamento === 'PENDENTE') ?? [],
+    [data]
+  )
+  const pedidosFiltrados = useMemo(() => {
+    const pedidos = data?.pedidos ?? []
+    return pedidos.filter((pedido) => {
+      if (statusPagamentoFiltro !== 'TODOS' && pedido.statusPagamento !== statusPagamentoFiltro) return false
+      if (statusPedidoFiltro !== 'TODOS' && pedido.status !== statusPedidoFiltro) return false
+      return true
+    })
+  }, [data?.pedidos, statusPagamentoFiltro, statusPedidoFiltro])
 
   const handleExportProdutos = () => {
     if (!data?.produtos.length) return
@@ -302,13 +316,80 @@ export function RelatoriosPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Pedidos do periodo</CardTitle></CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle>Pedidos com pagamento pendente</CardTitle>
+          <Badge variant="outline">{pedidosPendentes.length} pendente(s)</Badge>
+        </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="space-y-3"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
-          ) : data?.pedidos.length ? (
+          ) : pedidosPendentes.length ? (
             <div className="space-y-3">
-              {data.pedidos.map((pedido) => (
+              {pedidosPendentes.map((pedido) => (
+                <div key={`pendente-${pedido.id}`} className="rounded-xl border border-warning/35 bg-warning/5 p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
+                      <p className="text-sm text-muted-foreground">Criado: {formatDateTime(pedido.criadoEm)}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
+                      <Badge variant="outline">{statusLabels[pedido.status]}</Badge>
+                      <Badge className="border-warning/30 bg-warning/15 text-warning-foreground hover:bg-warning/15">Pagamento pendente</Badge>
+                      <Badge>{formatarMoeda(pedido.total)}</Badge>
+                    </div>
+                  </div>
+                  {(pedido.responsavelPedido || pedido.destinatariosPedido || pedido.levadoEm || pedido.observacoesPedido) && (
+                    <div className="mt-3 space-y-1 rounded-lg bg-background/80 p-3 text-sm text-muted-foreground">
+                      {pedido.responsavelPedido && <p>Responsavel: {pedido.responsavelPedido}</p>}
+                      {pedido.destinatariosPedido && <p>Separar para: {pedido.destinatariosPedido}</p>}
+                      {pedido.levadoEm && <p>Levado em: {formatDateTime(pedido.levadoEm)}</p>}
+                      {pedido.observacoesPedido && <p>Obs. do pedido: {pedido.observacoesPedido}</p>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhum pedido com pagamento pendente no periodo.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Pedidos do periodo</CardTitle></CardHeader>
+        <CardContent>
+          <div className="mb-4 grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Status do pagamento</Label>
+              <select value={statusPagamentoFiltro} onChange={(event) => setStatusPagamentoFiltro(event.target.value as 'TODOS' | StatusPagamento)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="TODOS">Todos</option>
+                <option value="NAO_APLICAVEL">Na entrega</option>
+                <option value="PENDENTE">Pendente</option>
+                <option value="APROVADO">Aprovado</option>
+                <option value="RECUSADO">Recusado</option>
+                <option value="CANCELADO">Cancelado</option>
+                <option value="REEMBOLSADO">Reembolsado</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status do pedido</Label>
+              <select value={statusPedidoFiltro} onChange={(event) => setStatusPedidoFiltro(event.target.value as 'TODOS' | StatusPedido)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="TODOS">Todos</option>
+                <option value="FEITO">Novos</option>
+                <option value="ACEITO">Aceitos</option>
+                <option value="PREPARACAO">Em preparo</option>
+                <option value="ENTREGUE">Entregues</option>
+                <option value="CANCELADO">Cancelados</option>
+              </select>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-3"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
+          ) : pedidosFiltrados.length ? (
+            <div className="space-y-3">
+              {pedidosFiltrados.map((pedido) => (
                 <div key={pedido.id} className="rounded-xl border bg-card/80 p-4 transition-colors hover:border-[#22C0D4]/45">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -345,7 +426,7 @@ export function RelatoriosPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum pedido encontrado para o periodo.</p>
+            <p className="text-sm text-muted-foreground">Nenhum pedido encontrado com os filtros selecionados.</p>
           )}
         </CardContent>
       </Card>
