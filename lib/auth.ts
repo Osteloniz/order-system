@@ -1,7 +1,8 @@
-﻿import type { NextAuthOptions } from 'next-auth'
+import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
+import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 import { rateLimitByIp, resetRateLimitByIp } from '@/lib/rateLimit'
 
 function getHeaderValue(headers: unknown, name: string) {
@@ -15,6 +16,18 @@ function getHeaderValue(headers: unknown, name: string) {
   return Array.isArray(value) ? value[0]?.toString() : value?.toString()
 }
 
+function getCookieValue(headers: unknown, name: string) {
+  const cookieHeader = getHeaderValue(headers, 'cookie')
+  if (!cookieHeader) return undefined
+
+  const entry = cookieHeader
+    .split(';')
+    .map((part: string) => part.trim())
+    .find((part: string) => part.startsWith(`${name}=`))
+
+  return entry?.slice(name.length + 1)
+}
+
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: 'jwt' },
@@ -26,6 +39,13 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials, req) {
+        if (isAdminAccessEnabled()) {
+          const accessCookie = getCookieValue(req?.headers, ADMIN_ACCESS_COOKIE)
+          if (!hasAdminAccessCookie(accessCookie)) {
+            throw new Error('Acesso admin bloqueado.')
+          }
+        }
+
         const forwardedFor = getHeaderValue(req?.headers, 'x-forwarded-for')
         const realIp = getHeaderValue(req?.headers, 'x-real-ip')
         const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
@@ -42,7 +62,6 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        // Force Brookie Pregiato como único tenant
         const tenant = await prisma.tenant.findUnique({
           where: { slug: 'brookie-pregiato' }
         })

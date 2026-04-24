@@ -1,6 +1,7 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 
 function withSecurityHeaders(response: NextResponse) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
@@ -13,8 +14,25 @@ function withSecurityHeaders(response: NextResponse) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const defaultTenantSlug = 'brookie-pregiato'
+
+  if (isAdminAccessEnabled()) {
+    const isAdminArea = pathname.startsWith('/admin')
+    const isAdminAuthApi = pathname.startsWith('/api/auth')
+    const isAccessScreen = pathname.startsWith('/admin-access')
+    const hasPreAccess = hasAdminAccessCookie(req.cookies.get(ADMIN_ACCESS_COOKIE)?.value)
+
+    if ((isAdminArea || isAdminAuthApi) && !isAccessScreen && !hasPreAccess) {
+      if (isAdminAuthApi) {
+        return withSecurityHeaders(
+          NextResponse.json({ error: 'Acesso admin bloqueado.' }, { status: 403 })
+        )
+      }
+
+      const accessUrl = new URL('/admin-access', req.url)
+      return withSecurityHeaders(NextResponse.redirect(accessUrl))
+    }
+  }
   
-  // Garante que o cookie de tenant sempre aponta para o tenant unico atual.
   if (req.cookies.get('tenant_slug')?.value !== defaultTenantSlug) {
     const response = NextResponse.next()
     response.cookies.set('tenant_slug', defaultTenantSlug, {
@@ -43,5 +61,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/(cliente)/:path*', '/admin/:path*', '/api/:path*']
+  matcher: ['/(cliente)/:path*', '/admin-access', '/admin/:path*', '/api/:path*']
 }
