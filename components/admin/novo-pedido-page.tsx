@@ -77,7 +77,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
   const [clienteId, setClienteId] = useState('')
   const [nome, setNome] = useState('')
-  const [telefone, setTelefone] = useState('')
+  const [contatoPrincipal, setContatoPrincipal] = useState('')
+  const [usarWhatsappDiferente, setUsarWhatsappDiferente] = useState(false)
   const [whatsapp, setWhatsapp] = useState('')
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
@@ -112,8 +113,19 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
     setClienteId(initialPedido.clienteId || '')
     setNome(initialPedido.clienteNome || '')
-    setTelefone(formatPhoneInput(initialPedido.clienteTelefone || ''))
-    setWhatsapp(formatPhoneInput(initialPedido.clienteWhatsapp || ''))
+    const telefoneInicial = formatPhoneInput(initialPedido.clienteTelefone || '')
+    const whatsappInicial = formatPhoneInput(initialPedido.clienteWhatsapp || '')
+    setContatoPrincipal(telefoneInicial || whatsappInicial)
+    setUsarWhatsappDiferente(Boolean(
+      initialPedido.clienteWhatsapp &&
+      normalizePhone(initialPedido.clienteWhatsapp) !== normalizePhone(initialPedido.clienteTelefone)
+    ))
+    setWhatsapp(
+      initialPedido.clienteWhatsapp &&
+      normalizePhone(initialPedido.clienteWhatsapp) !== normalizePhone(initialPedido.clienteTelefone)
+        ? whatsappInicial
+        : ''
+    )
     setBloco(initialPedido.clienteBloco || '')
     setApartamento(initialPedido.clienteApartamento || '')
     setObservacoesPedido(initialPedido.observacoesPedido || '')
@@ -179,8 +191,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const descontoCupom = valorPromocional > 0 ? 0 : calcularDescontoCupom(subtotal, cupomCodigo, cupons, initialPedido?.cupomCodigoSnapshot || undefined)
   const descontoValor = valorPromocional > 0 ? Math.min(valorPromocional, subtotal) : descontoCupom
   const total = Math.max(0, subtotal - descontoValor)
-  const telefoneLimpo = normalizePhone(telefone)
-  const whatsappLimpo = normalizePhone(whatsapp)
+  const telefoneLimpo = normalizePhone(contatoPrincipal)
+  const whatsappLimpo = normalizePhone(usarWhatsappDiferente ? whatsapp : contatoPrincipal)
 
   const addProduct = (produto: ProdutoAdmin) => {
     setItems(current => {
@@ -202,8 +214,18 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const selectCliente = (cliente: Cliente) => {
     setClienteId(cliente.id)
     setNome(cliente.nome || '')
-    setTelefone(formatPhoneInput(cliente.telefone || ''))
-    setWhatsapp(formatPhoneInput(cliente.whatsapp || cliente.telefone || ''))
+    const telefoneCliente = formatPhoneInput(cliente.telefone || cliente.whatsapp || '')
+    const whatsappCliente = formatPhoneInput(cliente.whatsapp || '')
+    setContatoPrincipal(telefoneCliente)
+    setUsarWhatsappDiferente(Boolean(
+      cliente.whatsapp &&
+      normalizePhone(cliente.whatsapp) !== normalizePhone(cliente.telefone)
+    ))
+    setWhatsapp(
+      cliente.whatsapp && normalizePhone(cliente.whatsapp) !== normalizePhone(cliente.telefone)
+        ? whatsappCliente
+        : ''
+    )
     setBloco(cliente.clienteBloco || '')
     setApartamento(cliente.clienteApartamento || '')
     setObservacoes(cliente.observacoes || '')
@@ -218,7 +240,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const resetForm = () => {
     setClienteId('')
     setNome('')
-    setTelefone('')
+    setContatoPrincipal('')
+    setUsarWhatsappDiferente(false)
     setWhatsapp('')
     setBloco('')
     setApartamento('')
@@ -376,8 +399,19 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
                 <div className="min-w-0 space-y-2"><Label>Data do pedido</Label><Input value={dataPedidoLabel} readOnly /></div>
-                <div className="min-w-0 space-y-2"><Label>Celular opcional</Label><Input value={telefone} onChange={event => setTelefone(formatPhoneInput(event.target.value))} placeholder="(47) 99999-9999 ou +47..." /></div>
-                <div className="min-w-0 space-y-2"><Label>WhatsApp opcional</Label><Input value={whatsapp} onChange={event => setWhatsapp(formatPhoneInput(event.target.value))} placeholder="(47) 99999-9999 ou +47..." /></div>
+                <div className="min-w-0 space-y-2 sm:col-span-2">
+                  <Label>Contato principal</Label>
+                  <Input value={contatoPrincipal} onChange={event => setContatoPrincipal(formatPhoneInput(event.target.value))} placeholder="Celular ou WhatsApp do cliente" />
+                  <button type="button" onClick={() => setUsarWhatsappDiferente((current) => !current)} className="text-xs text-primary hover:underline">
+                    {usarWhatsappDiferente ? 'Usar apenas um contato' : 'Informar WhatsApp diferente'}
+                  </button>
+                </div>
+                {usarWhatsappDiferente && (
+                  <div className="min-w-0 space-y-2 sm:col-span-2">
+                    <Label>WhatsApp separado</Label>
+                    <Input value={whatsapp} onChange={event => setWhatsapp(formatPhoneInput(event.target.value))} placeholder="Preencha somente se o WhatsApp for diferente" />
+                  </div>
+                )}
                 <div className="min-w-0 space-y-2"><Label>Entrega</Label><select value={tipoEntrega} onChange={event => setTipoEntrega(event.target.value as TipoEntrega)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="RESERVA_PAULISTANO">Condominio (Reserva Paulistano)</option><option value="RETIRADA">Retirada</option><option value="ENCOMENDA">Encomenda</option></select></div>
                 {tipoEntrega === 'RESERVA_PAULISTANO' && (
                   <>

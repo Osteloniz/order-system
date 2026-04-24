@@ -3,9 +3,11 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { BarChart3, Download, PackageCheck, ReceiptText, RefreshCw, Search, Sparkles, TrendingUp, XCircle } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -154,6 +156,8 @@ export function RelatoriosPage() {
   const today = todayInSaoPaulo()
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
+  const [listFrom, setListFrom] = useState(today)
+  const [listTo, setListTo] = useState(today)
   const [searchPedido, setSearchPedido] = useState('')
   const [statusPagamentoFiltro, setStatusPagamentoFiltro] = useState<'TODOS' | StatusPagamento>('TODOS')
   const [statusPedidoFiltro, setStatusPedidoFiltro] = useState<'TODOS' | StatusPedido>('TODOS')
@@ -170,6 +174,13 @@ export function RelatoriosPage() {
   const pedidosFiltrados = useMemo(() => {
     const pedidos = data?.pedidos ?? []
     return pedidos.filter((pedido) => {
+      const dataReferencia = pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara ? pedido.encomendaPara : pedido.criadoEm
+      const diaPedido = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(dataReferencia))
       const busca = searchPedido.trim().toLowerCase()
       const textoBusca = [
         pedido.numero,
@@ -183,11 +194,20 @@ export function RelatoriosPage() {
       ].filter(Boolean).join(' ').toLowerCase()
 
       if (busca && !textoBusca.includes(busca)) return false
+      if (listFrom && diaPedido < listFrom) return false
+      if (listTo && diaPedido > listTo) return false
       if (statusPagamentoFiltro !== 'TODOS' && pedido.statusPagamento !== statusPagamentoFiltro) return false
       if (statusPedidoFiltro !== 'TODOS' && pedido.status !== statusPedidoFiltro) return false
       return true
     })
-  }, [data?.pedidos, searchPedido, statusPagamentoFiltro, statusPedidoFiltro])
+  }, [data?.pedidos, listFrom, listTo, searchPedido, statusPagamentoFiltro, statusPedidoFiltro])
+
+  const graficoGestao = useMemo(() => [
+    { chave: 'receitaEntregue', label: 'Receita entregue', valor: data?.receitaEntregue ?? 0, fill: '#AF6E2A' },
+    { chave: 'cartaoLiquido', label: 'Cartao liquido', valor: data?.receitaCartaoLiquida ?? 0, fill: '#0E6C77' },
+    { chave: 'receitaTotal', label: 'Receita geral', valor: data?.receitaTotal ?? 0, fill: '#22C0D4' },
+    { chave: 'cancelado', label: 'Cancelado', valor: data?.totalCancelado ?? 0, fill: '#E11D48' },
+  ], [data?.receitaCartaoLiquida, data?.receitaEntregue, data?.receitaTotal, data?.totalCancelado])
 
   const handleExportProdutos = () => {
     if (!data?.produtos.length) return
@@ -297,6 +317,39 @@ export function RelatoriosPage() {
         </Card>
       </div>
 
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <CardTitle>Panorama financeiro</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <Skeleton className="h-[280px] w-full" />
+          ) : (
+            <ChartContainer
+              className="h-[280px] w-full"
+              config={{
+                valor: { label: 'Valor', color: '#AF6E2A' },
+              }}
+            >
+              <BarChart data={graficoGestao} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} tickMargin={10} />
+                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatarMoeda(Number(value)).replace('R$', 'R$ ')} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatarMoeda(Number(value))} />} />
+                <Bar dataKey="valor" radius={[10, 10, 0, 0]}>
+                  {graficoGestao.map((item) => (
+                    <Cell key={item.chave} fill={item.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Visão executiva para gestão: entregue mostra o resultado operacional, cartão líquido mostra o valor real após taxa, e cancelado evidencia perda no período.
+          </p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Sabores e valores</CardTitle>
@@ -385,7 +438,15 @@ export function RelatoriosPage() {
           <Badge variant="outline">{pedidosFiltrados.length} pedido(s)</Badge>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="mb-4 grid gap-3 lg:grid-cols-5">
+            <div className="space-y-2">
+              <Label>Periodo da listagem: de</Label>
+              <Input type="date" value={listFrom} onChange={(event) => setListFrom(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Periodo da listagem: ate</Label>
+              <Input type="date" value={listTo} onChange={(event) => setListTo(event.target.value)} />
+            </div>
             <div className="space-y-2">
               <Label>Buscar no historico</Label>
               <div className="relative">
