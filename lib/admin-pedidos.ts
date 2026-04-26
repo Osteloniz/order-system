@@ -294,9 +294,13 @@ async function sincronizarEstoquePedidoComum(
   proximo: PedidoCalculado,
   actorNome?: string | null
 ) {
-  if (atual.tipoEntrega === 'ENCOMENDA' || !atual.estoqueBaixadoEm) {
+  if (atual.tipoEntrega === 'ENCOMENDA') {
     return
   }
+
+  const estavaConsumido = Boolean(atual.estoqueBaixadoEm)
+  const estavaReservado = !estavaConsumido && Boolean(atual.estoqueReservadoEm)
+  if (!estavaConsumido && !estavaReservado) return
 
   const atualMap = agruparQuantidadePorProduto(atual.itens)
   const novoMap = agruparQuantidadePorProduto(proximo.itens)
@@ -311,7 +315,7 @@ async function sincronizarEstoquePedidoComum(
       ?? 'produto'
     const pedidoNumero = numeroPedidoCurto(atual.id) ?? atual.id
 
-    if (delta > 0) {
+    if (delta > 0 && estavaConsumido) {
       await consumeAvailableStock(tx, tenantId, produtoId, delta, nomeProduto, {
         tipo: 'BAIXA_ESTOQUE_ENTREGA',
         descricao: `Ajuste de itens do pedido entregue #${pedidoNumero}.`,
@@ -319,7 +323,7 @@ async function sincronizarEstoquePedidoComum(
         pedidoId: atual.id,
         pedidoNumero,
       })
-    } else if (delta < 0) {
+    } else if (delta < 0 && estavaConsumido) {
       await addAvailableStock(tx, tenantId, produtoId, Math.abs(delta), {
         tipo: 'ESTORNO_ESTOQUE',
         descricao: `Estorno de itens removidos do pedido entregue #${pedidoNumero}.`,
@@ -327,6 +331,25 @@ async function sincronizarEstoquePedidoComum(
         pedidoId: atual.id,
         pedidoNumero,
         nomeProduto,
+      })
+    } else if (delta > 0 && estavaReservado) {
+      await reserveFromAvailableStock(tx, tenantId, produtoId, delta, nomeProduto, {
+        tipo: 'RESERVA_ENCOMENDA',
+        descricao: `Ajuste da reserva operacional do pedido #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: atual.id,
+        pedidoNumero,
+        metadata: { origem: 'PEDIDO_COMUM' },
+      })
+    } else if (delta < 0 && estavaReservado) {
+      await releaseReservedToAvailableStock(tx, tenantId, produtoId, Math.abs(delta), {
+        tipo: 'LIBERACAO_RESERVA',
+        descricao: `Reducao da reserva operacional do pedido #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: atual.id,
+        pedidoNumero,
+        nomeProduto,
+        metadata: { origem: 'PEDIDO_COMUM' },
       })
     }
   }
@@ -390,6 +413,7 @@ export async function atualizarPedidoAdmin(
   actorNome?: string | null
 ) {
   const calculado = await calcularPedidoAdmin(tx, tenantId, payload, pedidoAtual.cupomId)
+  const pedidoNumero = numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id
 
   if (pedidoAtual.status === 'CANCELADO' || pedidoAtual.status === 'ENTREGUE') {
     throw new Error('Somente pedidos em aberto podem ser editados')
@@ -401,6 +425,26 @@ export async function atualizarPedidoAdmin(
     await sincronizarEstoqueEncomenda(tx, tenantId, pedidoAtual, calculado, actorNome)
   } else {
     await sincronizarEstoquePedidoComum(tx, tenantId, pedidoAtual, calculado, actorNome)
+
+    const precisaCriarReservaLegada = (
+      !pedidoAtual.estoqueBaixadoEm &&
+      !pedidoAtual.estoqueReservadoEm &&
+      (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')
+    )
+
+    if (precisaCriarReservaLegada) {
+      for (const item of calculado.itens) {
+        await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+          tipo: 'RESERVA_ENCOMENDA',
+          descricao: `Reserva operacional criada para pedido ja aberto #${pedidoNumero}.`,
+          actorNome,
+          pedidoId: pedidoAtual.id,
+          pedidoNumero,
+          metadata: { origem: 'PEDIDO_COMUM' },
+        })
+      }
+      pedidoAtual.estoqueReservadoEm = new Date()
+    }
   }
 
   const reservadoDesejadoPorProduto = pedidoAtual.tipoEntrega === 'ENCOMENDA'
@@ -441,6 +485,9 @@ export async function atualizarPedidoAdmin(
       descontoValor: calculado.descontoValor > 0 ? calculado.descontoValor : null,
       cupomCodigoSnapshot: calculado.cupomCodigoSnapshot,
       cupomId: calculado.cupomId,
+      estoqueReservadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' && !pedidoAtual.estoqueBaixadoEm && (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')
+        ? (pedidoAtual.estoqueReservadoEm ?? new Date())
+        : pedidoAtual.estoqueReservadoEm,
       itens: {
         create: calculado.itens.map((item) => ({
           produtoId: item.produtoId,
@@ -463,10 +510,10 @@ export async function atualizarPedidoAdmin(
   await registrarLogOperacao(tx, {
     tenantId,
     tipo: 'PEDIDO_EDITADO',
-    descricao: `Pedido #${numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id} editado no painel.`,
+    descricao: `Pedido #${pedidoNumero} editado no painel.`,
     actorNome,
     pedidoId: pedidoAtual.id,
-    pedidoNumero: numeroPedidoCurto(pedidoAtual.id),
+    pedidoNumero,
     quantidade: pedidoAtualizado.itens.reduce((acc, item) => acc + item.quantidade, 0),
     metadata: {
       status: pedidoAtual.status,

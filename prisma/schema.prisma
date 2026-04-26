@@ -124,6 +124,7 @@ model Pedido {
   id              String        @id @default(uuid())
   clienteId       String?
   status          StatusPedido  @default(FEITO)
+  estoqueReservadoEm DateTime?
   estoqueBaixadoEm DateTime?
   clienteNome     String
   clienteTelefone String?

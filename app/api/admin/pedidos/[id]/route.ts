@@ -168,6 +168,22 @@ export async function DELETE(
       }
     }
 
+    if (
+      pedido.tipoEntrega !== 'ENCOMENDA' &&
+      !pedido.estoqueBaixadoEm &&
+      pedido.estoqueReservadoEm
+    ) {
+      for (const item of pedido.itens) {
+        await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, {
+          tipo: 'LIBERACAO_RESERVA',
+          descricao: `Liberacao da reserva operacional ao excluir o pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id}.`,
+          actorNome: admin.session.user?.name?.toString().trim() || null,
+          pedidoId: pedido.id,
+          pedidoNumero: numeroPedidoCurto(pedido.id),
+        })
+      }
+    }
+
     if (pedido.tipoEntrega === 'ENCOMENDA' && pedido.status !== 'ENTREGUE') {
       for (const item of pedido.itens) {
         if (item.quantidadePreparada > 0) {

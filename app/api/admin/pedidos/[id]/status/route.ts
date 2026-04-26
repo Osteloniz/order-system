@@ -12,8 +12,16 @@ const statusValidos: StatusPedido[] = ['FEITO', 'ACEITO', 'PREPARACAO', 'ENTREGU
 type Tx = Prisma.TransactionClient
 type PedidoComItens = Prisma.PedidoGetPayload<{ include: { itens: true } }>
 
-function statusConsomeEstoque(status: StatusPedido) {
-  return status === 'ENTREGUE'
+function classificarEstadoPedidoComum(pedido: Pick<PedidoComItens, 'estoqueReservadoEm' | 'estoqueBaixadoEm'>) {
+  if (pedido.estoqueBaixadoEm) return 'CONSUMIDO' as const
+  if (pedido.estoqueReservadoEm) return 'RESERVADO' as const
+  return 'LIVRE' as const
+}
+
+function classificarEstadoPedidoComumDestino(status: StatusPedido) {
+  if (status === 'ACEITO' || status === 'PREPARACAO') return 'RESERVADO' as const
+  if (status === 'ENTREGUE') return 'CONSUMIDO' as const
+  return 'LIVRE' as const
 }
 
 function classificarEstadoEncomenda(status: StatusPedido) {
@@ -31,10 +39,34 @@ async function sincronizarPedidoComum(params: {
   pedidoNumero: string
 }) {
   const { tx, tenantId, pedidoAtual, targetStatus, actorNome, pedidoNumero } = params
-  const consumiaAntes = Boolean(pedidoAtual.estoqueBaixadoEm)
-  const deveConsumirAgora = statusConsomeEstoque(targetStatus)
+  const estadoAtual = classificarEstadoPedidoComum(pedidoAtual)
+  const estadoDestino = classificarEstadoPedidoComumDestino(targetStatus)
 
-  if (!consumiaAntes && deveConsumirAgora) {
+  if (estadoAtual === estadoDestino) {
+    return {
+      estoqueReservadoEm: pedidoAtual.estoqueReservadoEm,
+      estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm,
+    }
+  }
+
+  if (estadoAtual === 'LIVRE' && estadoDestino === 'RESERVADO') {
+    for (const item of pedidoAtual.itens) {
+      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+        tipo: 'RESERVA_ENCOMENDA',
+        descricao: `Reserva operacional do pedido #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus, origem: 'PEDIDO_COMUM' },
+      })
+    }
+    return {
+      estoqueReservadoEm: pedidoAtual.estoqueReservadoEm ?? new Date(),
+      estoqueBaixadoEm: null,
+    }
+  }
+
+  if (estadoAtual === 'LIVRE' && estadoDestino === 'CONSUMIDO') {
     for (const item of pedidoAtual.itens) {
       await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
         tipo: 'BAIXA_ESTOQUE_ENTREGA',
@@ -45,9 +77,49 @@ async function sincronizarPedidoComum(params: {
         metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
       })
     }
+    return {
+      estoqueReservadoEm: null,
+      estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm ?? new Date(),
+    }
   }
 
-  if (consumiaAntes && !deveConsumirAgora) {
+  if (estadoAtual === 'RESERVADO' && estadoDestino === 'LIVRE') {
+    for (const item of pedidoAtual.itens) {
+      await releaseReservedToAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
+        tipo: 'LIBERACAO_RESERVA',
+        descricao: `Liberacao da reserva do pedido #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        nomeProduto: item.nomeProdutoSnapshot,
+        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
+      })
+    }
+    return {
+      estoqueReservadoEm: null,
+      estoqueBaixadoEm: null,
+    }
+  }
+
+  if (estadoAtual === 'RESERVADO' && estadoDestino === 'CONSUMIDO') {
+    for (const item of pedidoAtual.itens) {
+      await consumeReservedStock(tx, tenantId, item.produtoId, item.quantidade, {
+        tipo: 'BAIXA_ESTOQUE_ENTREGA',
+        descricao: `Baixa efetiva do pedido #${pedidoNumero} ao entregar o que estava reservado.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        nomeProduto: item.nomeProdutoSnapshot,
+        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus, origem: 'PEDIDO_COMUM' },
+      })
+    }
+    return {
+      estoqueReservadoEm: pedidoAtual.estoqueReservadoEm ?? new Date(),
+      estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm ?? new Date(),
+    }
+  }
+
+  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'LIVRE') {
     for (const item of pedidoAtual.itens) {
       await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
         tipo: 'ESTORNO_ESTOQUE',
@@ -59,9 +131,41 @@ async function sincronizarPedidoComum(params: {
         metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
       })
     }
+    return {
+      estoqueReservadoEm: null,
+      estoqueBaixadoEm: null,
+    }
   }
 
-  return deveConsumirAgora ? pedidoAtual.estoqueBaixadoEm ?? new Date() : null
+  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'RESERVADO') {
+    for (const item of pedidoAtual.itens) {
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
+        tipo: 'ESTORNO_ESTOQUE',
+        descricao: `Estorno temporario do pedido #${pedidoNumero} para voltar ao estado reservado.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        nomeProduto: item.nomeProdutoSnapshot,
+      })
+      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+        tipo: 'RESERVA_ENCOMENDA',
+        descricao: `Nova reserva operacional do pedido #${pedidoNumero} apos retorno de status.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        metadata: { origem: 'PEDIDO_COMUM' },
+      })
+    }
+    return {
+      estoqueReservadoEm: new Date(),
+      estoqueBaixadoEm: null,
+    }
+  }
+
+  return {
+    estoqueReservadoEm: pedidoAtual.estoqueReservadoEm,
+    estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm,
+  }
 }
 
 async function sincronizarPedidoEncomenda(params: {
@@ -251,8 +355,11 @@ export async function PATCH(
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
-        const estoqueBaixadoEm = pedidoAtual.tipoEntrega === 'ENCOMENDA'
-          ? pedidoAtual.estoqueBaixadoEm
+        const estoqueControle = pedidoAtual.tipoEntrega === 'ENCOMENDA'
+          ? {
+            estoqueReservadoEm: pedidoAtual.estoqueReservadoEm,
+            estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm,
+          }
           : await sincronizarPedidoComum({
             tx,
             tenantId: admin.tenantId,
@@ -280,7 +387,8 @@ export async function PATCH(
             motivoCancelamento: status === 'CANCELADO'
               ? (typeof motivoCancelamento === 'string' && motivoCancelamento.trim() ? motivoCancelamento.trim() : 'Cancelado manualmente no painel')
               : null,
-            estoqueBaixadoEm,
+            estoqueReservadoEm: estoqueControle.estoqueReservadoEm,
+            estoqueBaixadoEm: estoqueControle.estoqueBaixadoEm,
           },
           include: { itens: true }
         })
