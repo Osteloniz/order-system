@@ -36,6 +36,17 @@ export interface ItemPedido {
   preparadoEm?: string | null
 }
 
+export interface SeparacaoResponsavelItem {
+  produtoId: string
+  nomeProduto: string
+  quantidade: number
+}
+
+export interface SeparacaoResponsavelPessoa {
+  nome: string
+  itens: SeparacaoResponsavelItem[]
+}
+
 export interface Pedido {
   id: string
   clienteId?: string | null
@@ -51,6 +62,7 @@ export interface Pedido {
   observacoesPedido?: string | null
   responsavelPedido?: string | null
   destinatariosPedido?: string | null
+  separacaoResponsavel?: SeparacaoResponsavelPessoa[] | null
   levadoEm?: string | null
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega
@@ -144,6 +156,7 @@ export interface PedidoAdminPayload {
   observacoesPedido?: string
   responsavelPedido?: string
   destinatariosPedido?: string
+  separacaoResponsavel?: SeparacaoResponsavelPessoa[]
   levadoEm?: string
   pagamento: TipoPagamento
   tipoEntrega: TipoEntrega

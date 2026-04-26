@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { z } from 'zod'
@@ -8,6 +9,15 @@ import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { addAvailableStock, releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
+
+const separacaoPessoaSchema = z.object({
+  nome: z.string().trim().min(1).max(80),
+  itens: z.array(z.object({
+    produtoId: z.string().uuid(),
+    nomeProduto: z.string().trim().min(1).max(120),
+    quantidade: z.number().int().min(1).max(99),
+  })).min(1).max(50),
+})
 
 const pedidoAdminSchema = z.object({
   clienteId: z.string().uuid().optional(),
@@ -20,6 +30,7 @@ const pedidoAdminSchema = z.object({
   observacoesPedido: z.string().trim().max(1000).optional(),
   responsavelPedido: z.string().trim().max(120).optional(),
   destinatariosPedido: z.string().trim().max(1000).optional(),
+  separacaoResponsavel: z.array(separacaoPessoaSchema).max(50).optional(),
   levadoEm: z.string().trim().optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
@@ -49,6 +60,15 @@ const pedidoAdminSchema = z.object({
   }
   if (data.cupomCodigo?.trim() && (data.valorPromocional ?? 0) > 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['valorPromocional'], message: 'Use cupom ou valor promocional' })
+  }
+  const temResponsavel = Boolean(data.responsavelPedido?.trim())
+  if (!temResponsavel) {
+    if (data.separacaoResponsavel?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelPedido'], message: 'Informe o responsavel para usar etiquetas' })
+    }
+    if (data.levadoEm?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelPedido'], message: 'Data e hora de levado exigem um responsavel' })
+    }
   }
 })
 

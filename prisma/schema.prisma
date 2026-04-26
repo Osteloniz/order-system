@@ -134,6 +134,7 @@ model Pedido {
   observacoesPedido String?
   responsavelPedido String?
   destinatariosPedido String?
+  separacaoResponsavel Json?
   levadoEm        DateTime?
   pagamento       TipoPagamento
   statusPagamento StatusPagamento @default(NAO_APLICAVEL)

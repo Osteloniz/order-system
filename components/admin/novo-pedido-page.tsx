@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
 import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
-import type { Cliente, Cupom, Pedido, Produto, TipoEntrega, TipoPagamento } from '@/lib/types'
+import type { Cliente, Cupom, Pedido, Produto, SeparacaoResponsavelPessoa, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 const fetcher = async <T,>(url: string): Promise<T> => {
   const response = await fetch(url)
@@ -27,6 +27,35 @@ const fetcher = async <T,>(url: string): Promise<T> => {
 
 type ProdutoAdmin = Produto & { categoriaNome?: string }
 type CartItem = { produto: ProdutoAdmin; quantidade: number }
+
+function normalizeSeparacaoResponsavel(
+  separacoes: SeparacaoResponsavelPessoa[],
+  items: CartItem[]
+): SeparacaoResponsavelPessoa[] {
+  const produtosMap = new Map(items.map((item) => [item.produto.id, item.produto.nome]))
+  return separacoes.map((pessoa) => ({
+    nome: pessoa.nome,
+    itens: items.map((item) => {
+      const atual = pessoa.itens.find((separacaoItem) => separacaoItem.produtoId === item.produto.id)
+      return {
+        produtoId: item.produto.id,
+        nomeProduto: produtosMap.get(item.produto.id) ?? item.produto.nome,
+        quantidade: atual?.quantidade ?? 0,
+      }
+    }),
+  }))
+}
+
+function criarSeparacaoVazia(items: CartItem[]): SeparacaoResponsavelPessoa {
+  return {
+    nome: '',
+    itens: items.map((item) => ({
+      produtoId: item.produto.id,
+      nomeProduto: item.produto.nome,
+      quantidade: 0,
+    })),
+  }
+}
 
 type NovoPedidoAdminPageProps = {
   compact?: boolean
@@ -84,10 +113,12 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [apartamento, setApartamento] = useState('')
   const [observacoes, setObservacoes] = useState('')
   const [observacoesPedido, setObservacoesPedido] = useState('')
+  const [temResponsavel, setTemResponsavel] = useState(false)
   const [responsavelPedido, setResponsavelPedido] = useState('')
-  const [destinatariosPedido, setDestinatariosPedido] = useState('')
   const [levadoEmData, setLevadoEmData] = useState('')
   const [levadoEmHora, setLevadoEmHora] = useState('')
+  const [separacaoResponsavel, setSeparacaoResponsavel] = useState<SeparacaoResponsavelPessoa[]>([])
+  const [destinatariosLegado, setDestinatariosLegado] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('DINHEIRO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [encomendaData, setEncomendaData] = useState('')
@@ -129,8 +160,9 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setBloco(initialPedido.clienteBloco || '')
     setApartamento(initialPedido.clienteApartamento || '')
     setObservacoesPedido(initialPedido.observacoesPedido || '')
+    setTemResponsavel(Boolean(initialPedido.responsavelPedido))
     setResponsavelPedido(initialPedido.responsavelPedido || '')
-    setDestinatariosPedido(initialPedido.destinatariosPedido || '')
+    setDestinatariosLegado(initialPedido.destinatariosPedido || '')
     setPagamento(initialPedido.pagamento)
     setTipoEntrega(initialPedido.tipoEntrega)
     setCupomCodigo(initialPedido.cupomCodigoSnapshot || '')
@@ -178,8 +210,22 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         .filter(produto => itemMap.has(produto.id))
         .map(produto => ({ produto, quantidade: itemMap.get(produto.id) ?? 1 }))
     )
+    if (Array.isArray(initialPedido.separacaoResponsavel) && initialPedido.separacaoResponsavel.length > 0) {
+      const baseItems = produtosAtivos
+        .filter(produto => itemMap.has(produto.id))
+        .map(produto => ({ produto, quantidade: itemMap.get(produto.id) ?? 1 }))
+      setSeparacaoResponsavel(normalizeSeparacaoResponsavel(initialPedido.separacaoResponsavel, baseItems))
+    }
     setInitializedEditState(true)
   }, [initialPedido, produtosAtivos, initializedEditState])
+
+  useEffect(() => {
+    if (!temResponsavel) return
+    setSeparacaoResponsavel((current) => {
+      if (current.length === 0) return items.length ? [criarSeparacaoVazia(items)] : []
+      return normalizeSeparacaoResponsavel(current, items)
+    })
+  }, [items, temResponsavel])
 
   const clienteSelecionado = useMemo(
     () => (clientes || []).find(cliente => cliente.id === clienteId) || null,
@@ -193,6 +239,39 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const total = Math.max(0, subtotal - descontoValor)
   const telefoneLimpo = normalizePhone(contatoPrincipal)
   const whatsappLimpo = normalizePhone(usarWhatsappDiferente ? whatsapp : contatoPrincipal)
+  const separacaoAtiva = temResponsavel
+    ? separacaoResponsavel
+        .map((pessoa) => ({
+          nome: pessoa.nome.trim(),
+          itens: pessoa.itens.filter((item) => item.quantidade > 0),
+        }))
+        .filter((pessoa) => pessoa.nome && pessoa.itens.length > 0)
+    : []
+
+  const resumoSeparacaoPorProduto = useMemo(() => {
+    const mapa = new Map<string, { nomeProduto: string; pedido: number; separado: number }>()
+    for (const item of items) {
+      mapa.set(item.produto.id, {
+        nomeProduto: item.produto.nome,
+        pedido: item.quantidade,
+        separado: 0,
+      })
+    }
+
+    for (const pessoa of separacaoResponsavel) {
+      for (const item of pessoa.itens) {
+        const atual = mapa.get(item.produtoId)
+        if (!atual) continue
+        atual.separado += item.quantidade
+      }
+    }
+
+    return Array.from(mapa.entries()).map(([produtoId, value]) => ({
+      produtoId,
+      ...value,
+      restante: value.pedido - value.separado,
+    }))
+  }, [items, separacaoResponsavel])
 
   const addProduct = (produto: ProdutoAdmin) => {
     setItems(current => {
@@ -209,6 +288,30 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
       .map(item => item.produto.id === produtoId ? { ...item, quantidade: item.quantidade + delta } : item)
       .filter(item => item.quantidade > 0)
     )
+  }
+
+  const addPessoaSeparacao = () => {
+    if (!items.length) return
+    setSeparacaoResponsavel((current) => [...current, criarSeparacaoVazia(items)])
+  }
+
+  const removePessoaSeparacao = (index: number) => {
+    setSeparacaoResponsavel((current) => current.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  const updatePessoaSeparacaoNome = (index: number, value: string) => {
+    setSeparacaoResponsavel((current) => current.map((pessoa, currentIndex) => currentIndex === index ? { ...pessoa, nome: value } : pessoa))
+  }
+
+  const updatePessoaSeparacaoQuantidade = (index: number, produtoId: string, value: string) => {
+    const quantidade = Math.max(0, Number(value.replace(/\D/g, '') || 0))
+    setSeparacaoResponsavel((current) => current.map((pessoa, currentIndex) => {
+      if (currentIndex !== index) return pessoa
+      return {
+        ...pessoa,
+        itens: pessoa.itens.map((item) => item.produtoId === produtoId ? { ...item, quantidade } : item),
+      }
+    }))
   }
 
   const selectCliente = (cliente: Cliente) => {
@@ -247,10 +350,12 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setApartamento('')
     setObservacoes('')
     setObservacoesPedido('')
+    setTemResponsavel(false)
     setResponsavelPedido('')
-    setDestinatariosPedido('')
     setLevadoEmData('')
     setLevadoEmHora('')
+    setSeparacaoResponsavel([])
+    setDestinatariosLegado('')
     setPagamento('DINHEIRO')
     setTipoEntrega('RESERVA_PAULISTANO')
     setEncomendaData('')
@@ -270,9 +375,18 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     if (whatsappLimpo && !isValidPhone(whatsappLimpo)) return setError('WhatsApp invalido')
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
     if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
-    if ((levadoEmData && !levadoEmHora) || (!levadoEmData && levadoEmHora)) return setError('Informe data e hora de quando o pedido foi levado')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
     if (cupomCodigo && valorPromocional > 0) return setError('Use cupom ou valor promocional, nao os dois')
+    if (temResponsavel && !responsavelPedido.trim()) return setError('Informe quem e o responsavel pelo pedido')
+    if (temResponsavel && ((levadoEmData && !levadoEmHora) || (!levadoEmData && levadoEmHora))) return setError('Informe data e hora de quando o pedido foi levado')
+    if (!temResponsavel && (levadoEmData || levadoEmHora)) return setError('Data e hora de levado so devem ser usadas quando houver responsavel')
+    if (temResponsavel) {
+      if (!separacaoAtiva.length) return setError('Cadastre pelo menos uma etiqueta final para separar o pedido')
+      const divergencia = resumoSeparacaoPorProduto.find((item) => item.restante !== 0)
+      if (divergencia) {
+        return setError(`A separacao do sabor ${divergencia.nomeProduto} precisa bater com o pedido. Falta ajustar ${Math.abs(divergencia.restante)} unidade(s).`)
+      }
+    }
 
     setIsSubmitting(true)
     try {
@@ -288,9 +402,10 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
           clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() || undefined : undefined,
           clienteObservacoes: observacoes.trim() || undefined,
           observacoesPedido: observacoesPedido.trim() || undefined,
-          responsavelPedido: responsavelPedido.trim() || undefined,
-          destinatariosPedido: destinatariosPedido.trim() || undefined,
-          levadoEm: levadoEmData && levadoEmHora ? `${levadoEmData}T${levadoEmHora}:00-03:00` : undefined,
+          responsavelPedido: temResponsavel ? responsavelPedido.trim() || undefined : undefined,
+          destinatariosPedido: temResponsavel ? separacaoAtiva.map((pessoa) => pessoa.nome).join(', ') || undefined : undefined,
+          separacaoResponsavel: temResponsavel ? separacaoAtiva : undefined,
+          levadoEm: temResponsavel && levadoEmData && levadoEmHora ? `${levadoEmData}T${levadoEmHora}:00-03:00` : undefined,
           pagamento,
           tipoEntrega,
           encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
@@ -426,12 +541,63 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
                   </>
                 )}
                 <div className="min-w-0 space-y-2"><Label>Pagamento</Label><select value={pagamento} onChange={event => setPagamento(event.target.value as TipoPagamento)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartao</option></select></div>
-                <div className="min-w-0 space-y-2"><Label>Responsavel pelo pedido</Label><Input value={responsavelPedido} onChange={event => setResponsavelPedido(event.target.value)} placeholder="Ex: Vitor" /></div>
+                <div className="min-w-0 space-y-2">
+                  <Label>Controle por responsável</Label>
+                  <label className="flex h-9 items-center gap-3 rounded-md border border-input bg-background px-3 text-sm">
+                    <input type="checkbox" checked={temResponsavel} onChange={event => {
+                      const enabled = event.target.checked
+                      setTemResponsavel(enabled)
+                      if (!enabled) {
+                        setResponsavelPedido('')
+                        setLevadoEmData('')
+                        setLevadoEmHora('')
+                        setSeparacaoResponsavel([])
+                      } else if (items.length && separacaoResponsavel.length === 0) {
+                        setSeparacaoResponsavel([criarSeparacaoVazia(items)])
+                      }
+                    }} />
+                    <span>Tem responsável e etiquetas finais</span>
+                  </label>
+                </div>
                 <div className="min-w-0 space-y-2"><Label>Cupom</Label><select value={cupomCodigo} onChange={event => { setCupomCodigo(event.target.value); if (event.target.value) setValorPromocionalInput('') }} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"><option value="">Sem cupom</option>{cupons?.map(cupom => <option key={cupom.id} value={cupom.codigo}>{cupom.codigo}</option>)}</select></div>
                 <div className="min-w-0 space-y-2"><Label>Valor promocional interno</Label><Input value={valorPromocionalInput} onChange={event => { setValorPromocionalInput(formatCurrencyInput(event.target.value)); if (parseCurrencyToCents(event.target.value) > 0) setCupomCodigo('') }} placeholder="R$ 0,00" /></div>
-                <div className="min-w-0 space-y-2"><Label>Data que levou</Label><Input type="date" value={levadoEmData} onChange={event => setLevadoEmData(event.target.value)} /></div>
-                <div className="min-w-0 space-y-2"><Label>Hora que levou</Label><Input type="time" value={levadoEmHora} onChange={event => setLevadoEmHora(event.target.value)} /></div>
-                <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Separar para / nomes finais</Label><Input value={destinatariosPedido} onChange={event => setDestinatariosPedido(event.target.value)} placeholder="Ex: Ana, Julia, Marcos" /></div>
+                {temResponsavel && (
+                  <>
+                    <div className="min-w-0 space-y-2"><Label>Responsavel pelo pedido</Label><Input value={responsavelPedido} onChange={event => setResponsavelPedido(event.target.value)} placeholder="Ex: Vitor" /></div>
+                    <div className="min-w-0 space-y-2"><Label>Data que levou</Label><Input type="date" value={levadoEmData} onChange={event => setLevadoEmData(event.target.value)} /></div>
+                    <div className="min-w-0 space-y-2"><Label>Hora que levou</Label><Input type="time" value={levadoEmHora} onChange={event => setLevadoEmHora(event.target.value)} /></div>
+                    <div className="min-w-0 space-y-2 sm:col-span-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>Separação final por pessoa</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={addPessoaSeparacao} disabled={!items.length}><Plus className="mr-2 h-4 w-4" />Adicionar pessoa</Button>
+                      </div>
+                      {!!destinatariosLegado && !initialPedido?.separacaoResponsavel?.length && <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">Pedido antigo com texto legado: {destinatariosLegado}. Refaça abaixo no modelo de etiquetas para manter o rastreamento.</div>}
+                      <div className="rounded-xl border bg-muted/20 p-3">
+                        <p className="text-xs font-medium text-muted-foreground">Conferência por sabor</p>
+                        <div className="mt-2 grid gap-2 md:grid-cols-2">
+                          {resumoSeparacaoPorProduto.map((item) => <div key={item.produtoId} className="rounded-lg bg-background p-3 text-sm"><p className="font-medium">{item.nomeProduto}</p><p className="text-muted-foreground">Pedido: {item.pedido} | Etiquetado: {item.separado} | Restante: {item.restante}</p></div>)}
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {separacaoResponsavel.map((pessoa, index) => (
+                          <div key={`pessoa-${index}`} className="rounded-xl border p-3">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <Input value={pessoa.nome} onChange={event => updatePessoaSeparacaoNome(index, event.target.value)} placeholder={`Nome final ${index + 1}`} />
+                              <Button type="button" variant="ghost" size="sm" onClick={() => removePessoaSeparacao(index)}><X className="h-4 w-4" /></Button>
+                            </div>
+                            <div className="grid gap-2">
+                              {pessoa.itens.map((item) => {
+                                const quantidadePedido = items.find((cartItem) => cartItem.produto.id === item.produtoId)?.quantidade ?? 0
+                                return <div key={`${index}-${item.produtoId}`} className="grid items-center gap-2 rounded-lg bg-muted/25 p-3 sm:grid-cols-[minmax(0,1fr)_120px]"><div className="min-w-0"><p className="truncate font-medium">{item.nomeProduto}</p><p className="text-xs text-muted-foreground">Pedido total desse sabor: {quantidadePedido}</p></div><Input type="number" min={0} max={quantidadePedido} value={item.quantidade || ''} onChange={event => updatePessoaSeparacaoQuantidade(index, item.produtoId, event.target.value)} placeholder="Qtd." /></div>
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                        {separacaoResponsavel.length === 0 && <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Adicione pelo menos uma pessoa final para montar as etiquetas do pedido.</div>}
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observações do cliente</Label><Input value={observacoes} onChange={event => setObservacoes(event.target.value)} placeholder="Preferências, restrições, observações de entrega..." /></div>
                 <div className="min-w-0 space-y-2 sm:col-span-2"><Label>Observacoes do pedido</Label><Input value={observacoesPedido} onChange={event => setObservacoesPedido(event.target.value)} placeholder="Controle interno, combinados, detalhes da venda..." /></div>
               </div>

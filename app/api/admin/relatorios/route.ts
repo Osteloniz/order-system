@@ -142,6 +142,7 @@ export async function GET(request: NextRequest) {
       pagamento: pedido.pagamento,
       responsavelPedido: pedido.responsavelPedido,
       destinatariosPedido: pedido.destinatariosPedido,
+      separacaoResponsavel: pedido.separacaoResponsavel,
       observacoesPedido: pedido.observacoesPedido,
       levadoEm: pedido.levadoEm,
       tipoEntrega: pedido.tipoEntrega,

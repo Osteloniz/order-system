@@ -1,8 +1,8 @@
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { normalizePhone } from '@/lib/phone'
-import type { PedidoAdminPayload } from '@/lib/types'
+import type { PedidoAdminPayload, SeparacaoResponsavelPessoa } from '@/lib/types'
 import { addAvailableStock, consumeAvailableStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
 
 type Tx = Prisma.TransactionClient
@@ -31,6 +31,7 @@ export type PedidoCalculado = {
   observacoesPedido: string | null
   responsavelPedido: string | null
   destinatariosPedido: string | null
+  separacaoResponsavel: SeparacaoResponsavelPessoa[] | null
   levadoEm: Date | null
   pagamento: PedidoAdminPayload['pagamento']
   tipoEntrega: PedidoAdminPayload['tipoEntrega']
@@ -233,12 +234,17 @@ export async function calcularPedidoAdmin(
     ? new Date(payload.encomendaPara)
     : null
   const levadoEm = payload.levadoEm ? new Date(payload.levadoEm) : null
+  const separacaoResponsavel = payload.separacaoResponsavel?.length ? payload.separacaoResponsavel : null
+  const destinatariosPedido = separacaoResponsavel?.length
+    ? separacaoResponsavel.map((pessoa) => pessoa.nome.trim()).filter(Boolean).join(', ')
+    : payload.destinatariosPedido?.trim() || null
 
   return {
     ...cliente,
     observacoesPedido: payload.observacoesPedido?.trim() || null,
     responsavelPedido: payload.responsavelPedido?.trim() || null,
-    destinatariosPedido: payload.destinatariosPedido?.trim() || null,
+    destinatariosPedido,
+    separacaoResponsavel,
     levadoEm,
     pagamento: payload.pagamento,
     tipoEntrega: payload.tipoEntrega,
@@ -472,6 +478,9 @@ export async function atualizarPedidoAdmin(
       observacoesPedido: calculado.observacoesPedido,
       responsavelPedido: calculado.responsavelPedido,
       destinatariosPedido: calculado.destinatariosPedido,
+      separacaoResponsavel: calculado.separacaoResponsavel
+        ? calculado.separacaoResponsavel as unknown as Prisma.InputJsonValue
+        : Prisma.DbNull,
       levadoEm: calculado.levadoEm,
       pagamento: calculado.pagamento,
       tipoEntrega: calculado.tipoEntrega,
