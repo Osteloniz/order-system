@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { addAvailableStock, consumeAvailableStock, consumeReservedStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -12,7 +13,7 @@ type Tx = Prisma.TransactionClient
 type PedidoComItens = Prisma.PedidoGetPayload<{ include: { itens: true } }>
 
 function statusConsomeEstoque(status: StatusPedido) {
-  return status === 'ACEITO' || status === 'PREPARACAO' || status === 'ENTREGUE'
+  return status === 'ENTREGUE'
 }
 
 function classificarEstadoEncomenda(status: StatusPedido) {
@@ -26,20 +27,37 @@ async function sincronizarPedidoComum(params: {
   tenantId: string
   pedidoAtual: PedidoComItens
   targetStatus: StatusPedido
+  actorNome?: string | null
+  pedidoNumero: string
 }) {
-  const { tx, tenantId, pedidoAtual, targetStatus } = params
+  const { tx, tenantId, pedidoAtual, targetStatus, actorNome, pedidoNumero } = params
   const consumiaAntes = Boolean(pedidoAtual.estoqueBaixadoEm)
   const deveConsumirAgora = statusConsomeEstoque(targetStatus)
 
   if (!consumiaAntes && deveConsumirAgora) {
     for (const item of pedidoAtual.itens) {
-      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+        tipo: 'BAIXA_ESTOQUE_ENTREGA',
+        descricao: `Baixa por entrega do pedido #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
+      })
     }
   }
 
   if (consumiaAntes && !deveConsumirAgora) {
     for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade)
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
+        tipo: 'ESTORNO_ESTOQUE',
+        descricao: `Estorno da baixa do pedido #${pedidoNumero} ao sair de Entregue.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        nomeProduto: item.nomeProdutoSnapshot,
+        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
+      })
     }
   }
 
@@ -51,8 +69,10 @@ async function sincronizarPedidoEncomenda(params: {
   tenantId: string
   pedidoAtual: PedidoComItens
   targetStatus: StatusPedido
+  actorNome?: string | null
+  pedidoNumero: string
 }) {
-  const { tx, tenantId, pedidoAtual, targetStatus } = params
+  const { tx, tenantId, pedidoAtual, targetStatus, actorNome, pedidoNumero } = params
   const estadoAtual = classificarEstadoEncomenda(pedidoAtual.status)
   const estadoDestino = classificarEstadoEncomenda(targetStatus)
 
@@ -62,7 +82,13 @@ async function sincronizarPedidoEncomenda(params: {
 
   if (estadoAtual === 'LIVRE' && estadoDestino === 'RESERVADO') {
     for (const item of pedidoAtual.itens) {
-      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+        tipo: 'RESERVA_ENCOMENDA',
+        descricao: `Reserva para encomenda do pedido #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+      })
       await tx.itemPedido.update({
         where: { id: item.id },
         data: {
@@ -76,7 +102,13 @@ async function sincronizarPedidoEncomenda(params: {
 
   if (estadoAtual === 'LIVRE' && estadoDestino === 'CONSUMIDO') {
     for (const item of pedidoAtual.itens) {
-      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+        tipo: 'BAIXA_ESTOQUE_ENTREGA',
+        descricao: `Baixa direta da encomenda do pedido #${pedidoNumero} entregue sem reserva previa.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+      })
       await tx.itemPedido.update({
         where: { id: item.id },
         data: {
@@ -91,7 +123,14 @@ async function sincronizarPedidoEncomenda(params: {
   if (estadoAtual === 'RESERVADO' && estadoDestino === 'LIVRE') {
     for (const item of pedidoAtual.itens) {
       if (item.quantidadePreparada > 0) {
-        await releaseReservedToAvailableStock(tx, tenantId, item.produtoId, item.quantidadePreparada)
+        await releaseReservedToAvailableStock(tx, tenantId, item.produtoId, item.quantidadePreparada, {
+          tipo: 'LIBERACAO_RESERVA',
+          descricao: `Liberacao da reserva da encomenda #${pedidoNumero}.`,
+          actorNome,
+          pedidoId: pedidoAtual.id,
+          pedidoNumero,
+          nomeProduto: item.nomeProdutoSnapshot,
+        })
       }
       await tx.itemPedido.update({
         where: { id: item.id },
@@ -107,7 +146,14 @@ async function sincronizarPedidoEncomenda(params: {
   if (estadoAtual === 'RESERVADO' && estadoDestino === 'CONSUMIDO') {
     for (const item of pedidoAtual.itens) {
       if (item.quantidadePreparada > 0) {
-        await consumeReservedStock(tx, tenantId, item.produtoId, item.quantidadePreparada)
+        await consumeReservedStock(tx, tenantId, item.produtoId, item.quantidadePreparada, {
+          tipo: 'BAIXA_ESTOQUE_ENTREGA',
+          descricao: `Baixa da reserva ao entregar a encomenda #${pedidoNumero}.`,
+          actorNome,
+          pedidoId: pedidoAtual.id,
+          pedidoNumero,
+          nomeProduto: item.nomeProdutoSnapshot,
+        })
       }
     }
     return
@@ -115,7 +161,14 @@ async function sincronizarPedidoEncomenda(params: {
 
   if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'LIVRE') {
     for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade)
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
+        tipo: 'ESTORNO_ESTOQUE',
+        descricao: `Estorno da encomenda #${pedidoNumero} ao sair de Entregue.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        nomeProduto: item.nomeProdutoSnapshot,
+      })
       await tx.itemPedido.update({
         where: { id: item.id },
         data: {
@@ -129,8 +182,21 @@ async function sincronizarPedidoEncomenda(params: {
 
   if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'RESERVADO') {
     for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade)
-      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
+        tipo: 'ESTORNO_ESTOQUE',
+        descricao: `Estorno temporario da encomenda #${pedidoNumero} para voltar a status reservado.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+        nomeProduto: item.nomeProdutoSnapshot,
+      })
+      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+        tipo: 'RESERVA_ENCOMENDA',
+        descricao: `Nova reserva da encomenda #${pedidoNumero} apos retorno de status.`,
+        actorNome,
+        pedidoId: pedidoAtual.id,
+        pedidoNumero,
+      })
       await tx.itemPedido.update({
         where: { id: item.id },
         data: {
@@ -180,6 +246,8 @@ export async function PATCH(
     if (pedidoAtual.status === status) {
       return NextResponse.json(pedidoAtual)
     }
+    const actorNome = admin.session.user?.name?.toString().trim() || null
+    const pedidoNumero = numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
@@ -190,6 +258,8 @@ export async function PATCH(
             tenantId: admin.tenantId,
             pedidoAtual,
             targetStatus: status,
+            actorNome,
+            pedidoNumero,
           })
 
         if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
@@ -198,10 +268,12 @@ export async function PATCH(
             tenantId: admin.tenantId,
             pedidoAtual,
             targetStatus: status,
+            actorNome,
+            pedidoNumero,
           })
         }
 
-        return tx.pedido.update({
+        const atualizado = await tx.pedido.update({
           where: { id },
           data: {
             status,
@@ -212,6 +284,22 @@ export async function PATCH(
           },
           include: { itens: true }
         })
+
+        await registrarLogOperacao(tx, {
+          tenantId: admin.tenantId,
+          tipo: 'PEDIDO_STATUS_ALTERADO',
+          descricao: `Status do pedido #${pedidoNumero} alterado de ${pedidoAtual.status} para ${status}.`,
+          actorNome,
+          pedidoId: pedidoAtual.id,
+          pedidoNumero,
+          metadata: {
+            statusAnterior: pedidoAtual.status,
+            statusNovo: status,
+            motivoCancelamento: status === 'CANCELADO' ? motivoCancelamento ?? null : null,
+          },
+        })
+
+        return atualizado
       })
 
       console.log(`[v0] Pedido ${id} atualizado para status: ${status}`)

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
+import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { normalizePhone } from '@/lib/phone'
 import type { PedidoAdminPayload } from '@/lib/types'
 import { addAvailableStock, consumeAvailableStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
@@ -286,7 +287,13 @@ async function ajustarUsoCupom(tx: Tx, anterior: string | null, proximo: string 
   }
 }
 
-async function sincronizarEstoquePedidoComum(tx: Tx, tenantId: string, atual: PedidoComItens, proximo: PedidoCalculado) {
+async function sincronizarEstoquePedidoComum(
+  tx: Tx,
+  tenantId: string,
+  atual: PedidoComItens,
+  proximo: PedidoCalculado,
+  actorNome?: string | null
+) {
   if (atual.tipoEntrega === 'ENCOMENDA' || !atual.estoqueBaixadoEm) {
     return
   }
@@ -302,19 +309,40 @@ async function sincronizarEstoquePedidoComum(tx: Tx, tenantId: string, atual: Pe
     const nomeProduto = proximo.itens.find((item) => item.produtoId === produtoId)?.nomeProdutoSnapshot
       ?? atual.itens.find((item) => item.produtoId === produtoId)?.nomeProdutoSnapshot
       ?? 'produto'
+    const pedidoNumero = numeroPedidoCurto(atual.id) ?? atual.id
 
     if (delta > 0) {
-      await consumeAvailableStock(tx, tenantId, produtoId, delta, nomeProduto)
+      await consumeAvailableStock(tx, tenantId, produtoId, delta, nomeProduto, {
+        tipo: 'BAIXA_ESTOQUE_ENTREGA',
+        descricao: `Ajuste de itens do pedido entregue #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: atual.id,
+        pedidoNumero,
+      })
     } else if (delta < 0) {
-      await addAvailableStock(tx, tenantId, produtoId, Math.abs(delta))
+      await addAvailableStock(tx, tenantId, produtoId, Math.abs(delta), {
+        tipo: 'ESTORNO_ESTOQUE',
+        descricao: `Estorno de itens removidos do pedido entregue #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: atual.id,
+        pedidoNumero,
+        nomeProduto,
+      })
     }
   }
 }
 
-async function sincronizarEstoqueEncomenda(tx: Tx, tenantId: string, atual: PedidoComItens, proximo: PedidoCalculado) {
+async function sincronizarEstoqueEncomenda(
+  tx: Tx,
+  tenantId: string,
+  atual: PedidoComItens,
+  proximo: PedidoCalculado,
+  actorNome?: string | null
+) {
   const reservadoAtual = agruparReservadoPorProduto(atual.itens)
   const reservadoDesejado = new Map<string, number>()
   const novoMap = agruparQuantidadePorProduto(proximo.itens)
+  const pedidoNumero = numeroPedidoCurto(atual.id) ?? atual.id
 
   if (atual.status === 'PREPARACAO') {
     for (const [produtoId, quantidade] of novoMap.entries()) {
@@ -328,14 +356,28 @@ async function sincronizarEstoqueEncomenda(tx: Tx, tenantId: string, atual: Pedi
 
   for (const [produtoId, quantidadeReservadaAtual] of reservadoAtual.entries()) {
     if (quantidadeReservadaAtual > 0) {
-      await releaseReservedToAvailableStock(tx, tenantId, produtoId, quantidadeReservadaAtual)
+      const nomeProduto = atual.itens.find((item) => item.produtoId === produtoId)?.nomeProdutoSnapshot ?? 'produto'
+      await releaseReservedToAvailableStock(tx, tenantId, produtoId, quantidadeReservadaAtual, {
+        tipo: 'LIBERACAO_RESERVA',
+        descricao: `Recalculo da reserva da encomenda #${pedidoNumero}.`,
+        actorNome,
+        pedidoId: atual.id,
+        pedidoNumero,
+        nomeProduto,
+      })
     }
   }
 
   for (const [produtoId, quantidadeReservar] of reservadoDesejado.entries()) {
     if (quantidadeReservar <= 0) continue
     const nomeProduto = proximo.itens.find((item) => item.produtoId === produtoId)?.nomeProdutoSnapshot ?? 'produto'
-    await reserveFromAvailableStock(tx, tenantId, produtoId, quantidadeReservar, nomeProduto)
+    await reserveFromAvailableStock(tx, tenantId, produtoId, quantidadeReservar, nomeProduto, {
+      tipo: 'RESERVA_ENCOMENDA',
+      descricao: `Reserva recalculada da encomenda #${pedidoNumero}.`,
+      actorNome,
+      pedidoId: atual.id,
+      pedidoNumero,
+    })
   }
 }
 
@@ -344,7 +386,8 @@ export async function atualizarPedidoAdmin(
   tenantId: string,
   pedidoAtual: PedidoComItens,
   payload: PedidoAdminPayload,
-  configuracao: { enderecoRetirada: string } | null
+  configuracao: { enderecoRetirada: string } | null,
+  actorNome?: string | null
 ) {
   const calculado = await calcularPedidoAdmin(tx, tenantId, payload, pedidoAtual.cupomId)
 
@@ -355,9 +398,9 @@ export async function atualizarPedidoAdmin(
   await ajustarUsoCupom(tx, pedidoAtual.cupomId, calculado.cupomId)
 
   if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
-    await sincronizarEstoqueEncomenda(tx, tenantId, pedidoAtual, calculado)
+    await sincronizarEstoqueEncomenda(tx, tenantId, pedidoAtual, calculado, actorNome)
   } else {
-    await sincronizarEstoquePedidoComum(tx, tenantId, pedidoAtual, calculado)
+    await sincronizarEstoquePedidoComum(tx, tenantId, pedidoAtual, calculado, actorNome)
   }
 
   const reservadoDesejadoPorProduto = pedidoAtual.tipoEntrega === 'ENCOMENDA'
@@ -373,7 +416,7 @@ export async function atualizarPedidoAdmin(
     where: { pedidoId: pedidoAtual.id },
   })
 
-  return tx.pedido.update({
+  const pedidoAtualizado = await tx.pedido.update({
     where: { id: pedidoAtual.id },
     data: {
       clienteId: calculado.clienteId,
@@ -416,6 +459,23 @@ export async function atualizarPedidoAdmin(
     },
     include: { itens: true },
   })
+
+  await registrarLogOperacao(tx, {
+    tenantId,
+    tipo: 'PEDIDO_EDITADO',
+    descricao: `Pedido #${numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id} editado no painel.`,
+    actorNome,
+    pedidoId: pedidoAtual.id,
+    pedidoNumero: numeroPedidoCurto(pedidoAtual.id),
+    quantidade: pedidoAtualizado.itens.reduce((acc, item) => acc + item.quantidade, 0),
+    metadata: {
+      status: pedidoAtual.status,
+      tipoEntrega: pedidoAtualizado.tipoEntrega,
+      statusPagamento: pedidoAtualizado.statusPagamento,
+    },
+  })
+
+  return pedidoAtualizado
 }
 
 function calcularReservadoDesejadoPorProduto(atual: PedidoComItens, proximo: PedidoCalculado) {

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { numeroPedidoCurto } from '@/lib/operation-log'
 import { addAvailableStock, consumeAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -175,7 +176,7 @@ export async function GET(request: NextRequest) {
       where: {
         tenantId: admin.tenantId,
         tipoEntrega: { not: 'ENCOMENDA' },
-        status: { in: ['ACEITO', 'PREPARACAO', 'ENTREGUE'] },
+        status: 'ENTREGUE',
         estoqueBaixadoEm: null,
       },
       include: { itens: true },
@@ -265,7 +266,7 @@ export async function GET(request: NextRequest) {
       estoqueBaixadoEm: pedido.estoqueBaixadoEm,
       totalItens: itens.reduce((acc, item) => acc + item.quantidade, 0),
       possuiFaltaNoMomento: itens.some((item) => !item.estoqueSuficiente),
-      motivo: `Pedido em ${pedido.status} sem baixa registrada no estoque.`,
+      motivo: `Pedido entregue sem baixa registrada no estoque.`,
       itens,
     }
   })
@@ -386,7 +387,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     const estoque = await prisma.$transaction((tx) =>
-      setAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidadeDisponivel)
+      setAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidadeDisponivel, {
+        tipo: 'AJUSTE_ESTOQUE',
+        descricao: 'Ajuste manual de saldo disponivel.',
+        actorNome: adminName,
+      })
     )
 
     return NextResponse.json(estoque)
@@ -412,7 +417,15 @@ export async function PATCH(request: NextRequest) {
         },
       })
 
-      await addAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidade)
+      await addAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidade, {
+        tipo: 'REGISTRO_PRODUCAO',
+        descricao: `Registro de producao do dia ${data.dataProducao}.`,
+        actorNome: admin.session.user?.name?.toString().trim() || null,
+        pedidoId: null,
+        pedidoNumero: null,
+        metadata: { dataProducao: data.dataProducao },
+        nomeProduto: produto.nome,
+      })
       return registro
     })
 
@@ -424,7 +437,7 @@ export async function PATCH(request: NextRequest) {
       where: {
         tenantId: admin.tenantId,
         tipoEntrega: { not: 'ENCOMENDA' },
-        status: { in: ['ACEITO', 'PREPARACAO', 'ENTREGUE'] },
+        status: 'ENTREGUE',
         estoqueBaixadoEm: null,
       },
       include: { itens: true },
@@ -436,10 +449,17 @@ export async function PATCH(request: NextRequest) {
     const bloqueadosDetalhes: { numero: string; motivo: string }[] = []
 
     for (const pedido of pedidosLegados) {
+      const pedidoNumero = numeroPedidoCurto(pedido.id) ?? pedido.id
       try {
         await prisma.$transaction(async (tx) => {
           for (const item of pedido.itens) {
-            await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot)
+            await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
+              tipo: 'SINCRONIZACAO_LEGADA',
+              descricao: `Baixa de pedido legado #${pedidoNumero} entregue e ainda nao sincronizado.`,
+              actorNome: admin.session.user?.name?.toString().trim() || 'Sistema',
+              pedidoId: pedido.id,
+              pedidoNumero,
+            })
           }
 
           await tx.pedido.update({
@@ -483,9 +503,22 @@ export async function PATCH(request: NextRequest) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       if (deltaReservado > 0) {
-        await reserveFromAvailableStock(tx, admin.tenantId, item.produtoId, deltaReservado, item.nomeProdutoSnapshot)
+        await reserveFromAvailableStock(tx, admin.tenantId, item.produtoId, deltaReservado, item.nomeProdutoSnapshot, {
+          tipo: 'RESERVA_ENCOMENDA',
+          descricao: `Reserva manual na producao para o pedido #${numeroPedidoCurto(item.pedido.id) ?? item.pedido.id}.`,
+          actorNome: admin.session.user?.name?.toString().trim() || null,
+          pedidoId: item.pedido.id,
+          pedidoNumero: numeroPedidoCurto(item.pedido.id),
+        })
       } else if (deltaReservado < 0) {
-        await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, Math.abs(deltaReservado))
+        await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, Math.abs(deltaReservado), {
+          tipo: 'LIBERACAO_RESERVA',
+          descricao: `Liberacao manual da reserva na producao para o pedido #${numeroPedidoCurto(item.pedido.id) ?? item.pedido.id}.`,
+          actorNome: admin.session.user?.name?.toString().trim() || null,
+          pedidoId: item.pedido.id,
+          pedidoNumero: numeroPedidoCurto(item.pedido.id),
+          nomeProduto: item.nomeProdutoSnapshot,
+        })
       }
 
       return tx.itemPedido.update({

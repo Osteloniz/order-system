@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { releaseReservedToAvailableStock } from '@/lib/stock'
 
@@ -79,7 +80,13 @@ export async function PATCH(
     if (pedido.tipoEntrega === 'ENCOMENDA') {
       for (const item of pedido.itens) {
         if (item.quantidadePreparada > 0) {
-          await releaseReservedToAvailableStock(tx, tenant.id, item.produtoId, item.quantidadePreparada)
+          await releaseReservedToAvailableStock(tx, tenant.id, item.produtoId, item.quantidadePreparada, {
+            tipo: 'LIBERACAO_RESERVA',
+            descricao: `Liberacao da reserva pelo cancelamento do cliente no pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id}.`,
+            actorNome: 'Cliente',
+            pedidoId: pedido.id,
+            pedidoNumero: numeroPedidoCurto(pedido.id),
+          })
         }
 
         await tx.itemPedido.update({
@@ -92,7 +99,7 @@ export async function PATCH(
       }
     }
 
-    return tx.pedido.update({
+    const atualizado = await tx.pedido.update({
       where: { id },
       data: {
         status: 'CANCELADO',
@@ -100,6 +107,21 @@ export async function PATCH(
       },
       include: { itens: true },
     })
+
+    await registrarLogOperacao(tx, {
+      tenantId: tenant.id,
+      tipo: 'PEDIDO_STATUS_ALTERADO',
+      descricao: `Pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} cancelado pelo cliente.`,
+      actorNome: 'Cliente',
+      pedidoId: pedido.id,
+      pedidoNumero: numeroPedidoCurto(pedido.id),
+      metadata: {
+        statusAnterior: pedido.status,
+        statusNovo: 'CANCELADO',
+      },
+    })
+
+    return atualizado
   })
 
   return NextResponse.json(pedidoAtualizado)

@@ -47,6 +47,20 @@ enum StatusPagamento {
   REEMBOLSADO
 }
 
+enum LogOperacaoTipo {
+  AJUSTE_ESTOQUE
+  REGISTRO_PRODUCAO
+  RESERVA_ENCOMENDA
+  LIBERACAO_RESERVA
+  BAIXA_ESTOQUE_ENTREGA
+  ESTORNO_ESTOQUE
+  SINCRONIZACAO_LEGADA
+  PEDIDO_CRIADO
+  PEDIDO_EDITADO
+  PEDIDO_STATUS_ALTERADO
+  PEDIDO_EXCLUIDO
+}
+
 model Configuracao {
   id                  String   @id @default(uuid())
   nomeEstabelecimento String
@@ -223,6 +237,30 @@ model ProducaoRegistro {
   @@index([produtoId])
 }
 
+model LogOperacao {
+  id               String          @id @default(uuid())
+  tenantId         String
+  tipo             LogOperacaoTipo
+  produtoId        String?
+  produtoNome      String?
+  pedidoId         String?
+  pedidoNumero     String?
+  quantidade       Int?
+  saldoDisponivel  Int?
+  saldoReservado   Int?
+  descricao        String
+  metadata         Json?
+  actorNome        String?
+  criadoEm         DateTime        @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, criadoEm])
+  @@index([tenantId, tipo, criadoEm])
+  @@index([pedidoId])
+  @@index([produtoId])
+}
+
 model Cupom {
   id        String     @id @default(uuid())
   codigo    String
@@ -260,6 +298,7 @@ model Tenant {
   adminUsers  AdminUser[]
   estoqueProdutos ProdutoEstoque[]
   producaoRegistros ProducaoRegistro[]
+  logsOperacao LogOperacao[]
 }
 
 model AdminUser {

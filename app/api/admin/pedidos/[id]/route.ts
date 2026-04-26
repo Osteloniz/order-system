@@ -4,6 +4,7 @@ import { getAdminSession } from '@/lib/auth-helpers'
 import { z } from 'zod'
 import { atualizarPedidoAdmin } from '@/lib/admin-pedidos'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
+import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { addAvailableStock, releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -93,7 +94,14 @@ export async function PATCH(
         select: { enderecoRetirada: true },
       })
 
-      return atualizarPedidoAdmin(tx, admin.tenantId, pedido, parsed.data, configuracao)
+      return atualizarPedidoAdmin(
+        tx,
+        admin.tenantId,
+        pedido,
+        parsed.data,
+        configuracao,
+        admin.session.user?.name?.toString().trim() || null
+      )
     })
 
     return NextResponse.json(pedidoAtualizado)
@@ -147,21 +155,46 @@ export async function DELETE(
   await prisma.$transaction(async (tx) => {
     if (
       pedido.tipoEntrega !== 'ENCOMENDA' &&
-      pedido.estoqueBaixadoEm &&
-      (pedido.status === 'ACEITO' || pedido.status === 'PREPARACAO' || pedido.status === 'ENTREGUE')
+      pedido.estoqueBaixadoEm
     ) {
       for (const item of pedido.itens) {
-        await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade)
+        await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, {
+          tipo: 'ESTORNO_ESTOQUE',
+          descricao: `Estorno ao excluir o pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id}.`,
+          actorNome: admin.session.user?.name?.toString().trim() || null,
+          pedidoId: pedido.id,
+          pedidoNumero: numeroPedidoCurto(pedido.id),
+        })
       }
     }
 
     if (pedido.tipoEntrega === 'ENCOMENDA' && pedido.status !== 'ENTREGUE') {
       for (const item of pedido.itens) {
         if (item.quantidadePreparada > 0) {
-          await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidadePreparada)
+          await releaseReservedToAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidadePreparada, {
+            tipo: 'LIBERACAO_RESERVA',
+            descricao: `Liberacao da reserva ao excluir o pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id}.`,
+            actorNome: admin.session.user?.name?.toString().trim() || null,
+            pedidoId: pedido.id,
+            pedidoNumero: numeroPedidoCurto(pedido.id),
+          })
         }
       }
     }
+
+    await registrarLogOperacao(tx, {
+      tenantId: admin.tenantId,
+      tipo: 'PEDIDO_EXCLUIDO',
+      descricao: `Pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} excluido do painel.`,
+      actorNome: admin.session.user?.name?.toString().trim() || null,
+      pedidoId: pedido.id,
+      pedidoNumero: numeroPedidoCurto(pedido.id),
+      quantidade: pedido.itens.reduce((acc, item) => acc + item.quantidade, 0),
+      metadata: {
+        status: pedido.status,
+        statusPagamento: pedido.statusPagamento,
+      },
+    })
 
     await tx.itemPedido.deleteMany({ where: { pedidoId: id } })
     await tx.pedido.delete({ where: { id } })

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { calcularTotalItem, calcularSubtotal, calcularTotal } from '@/lib/calc'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
+import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import type { CriarPedidoPayload } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -203,6 +204,21 @@ export async function POST(request: NextRequest) {
           data: { usos: { increment: 1 } }
         })
       }
+
+      await registrarLogOperacao(tx, {
+        tenantId: tenant.id,
+        tipo: 'PEDIDO_CRIADO',
+        descricao: `Pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} criado pelo checkout.`,
+        actorNome: 'Cliente',
+        pedidoId: pedido.id,
+        pedidoNumero: numeroPedidoCurto(pedido.id),
+        quantidade: pedido.itens.reduce((acc, item) => acc + item.quantidade, 0),
+        metadata: {
+          origem: 'CHECKOUT',
+          tipoEntrega: pedido.tipoEntrega,
+          statusPagamento: pedido.statusPagamento,
+        },
+      })
 
       return pedido
     })

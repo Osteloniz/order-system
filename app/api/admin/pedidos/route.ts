@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { calcularPedidoAdmin } from '@/lib/admin-pedidos'
+import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 
 export const runtime = 'nodejs'
@@ -181,6 +182,21 @@ export async function POST(request: NextRequest) {
           data: { usos: { increment: 1 } }
         })
       }
+
+      await registrarLogOperacao(tx, {
+        tenantId: admin.tenantId,
+        tipo: 'PEDIDO_CRIADO',
+        descricao: `Pedido #${numeroPedidoCurto(novoPedido.id) ?? novoPedido.id} criado pelo painel.`,
+        actorNome: admin.session.user?.name?.toString().trim() || null,
+        pedidoId: novoPedido.id,
+        pedidoNumero: numeroPedidoCurto(novoPedido.id),
+        quantidade: novoPedido.itens.reduce((acc, item) => acc + item.quantidade, 0),
+        metadata: {
+          origem: 'ADMIN',
+          tipoEntrega: novoPedido.tipoEntrega,
+          statusPagamento: novoPedido.statusPagamento,
+        },
+      })
 
       return novoPedido
     })

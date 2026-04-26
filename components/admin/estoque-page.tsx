@@ -235,7 +235,7 @@ export function EstoquePage() {
             Estoque
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Controle a entrada de producao, veja o saldo projetado e sincronize pedidos antigos que ainda nao baixaram estoque.
+            Controle a entrada de producao, veja o saldo projetado e sincronize pedidos entregues antigos que ainda nao baixaram estoque.
           </p>
         </div>
 
@@ -269,7 +269,7 @@ export function EstoquePage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="font-medium">{data?.pedidosLegadosPendentes ?? 0} pedidos antigos ainda nao baixaram estoque</p>
-              <p className="text-sm text-muted-foreground">Veja abaixo o motivo por pedido e use a sincronizacao uma vez para aplicar a baixa dos pedidos antigos em ACEITO, PREPARACAO ou ENTREGUE.</p>
+              <p className="text-sm text-muted-foreground">Veja abaixo o motivo por pedido e use a sincronizacao uma vez para aplicar a baixa dos pedidos antigos que ja foram entregues.</p>
             </div>
             <Button type="button" onClick={syncLegacyStock} disabled={syncingLegacy || !data?.pedidosLegadosPendentes}>
               {syncingLegacy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
