@@ -1,9 +1,9 @@
 ﻿'use client'
 
 import type { DragEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
+import { Archive, Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +49,20 @@ const statusPagamentoColors = {
   RECUSADO: 'bg-destructive text-destructive-foreground',
   CANCELADO: 'bg-destructive text-destructive-foreground',
   REEMBOLSADO: 'bg-accent text-accent-foreground'
+}
+
+type EstoqueConsultaItem = {
+  produtoId: string
+  nomeProduto: string
+  categoriaNome: string
+  quantidadeDisponivel: number
+  quantidadeReservada: number
+  pendenteBaixaLegada: number
+  saldoProjetado: number
+}
+
+type EstoqueConsultaData = {
+  estoque: EstoqueConsultaItem[]
 }
 
 function getPedidoWhatsapp(pedido: Pedido) {
@@ -99,6 +113,8 @@ export function PedidosDashboard() {
   const [dateFilter, setDateFilter] = useState(todayInSaoPaulo)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [editingPedido, setEditingPedido] = useState<Pedido | null>(null)
+  const [stockLookupOpen, setStockLookupOpen] = useState(false)
+  const [stockSearch, setStockSearch] = useState('')
   const [soundUnlocked, setSoundUnlocked] = useState(false)
   const seenPedidoIdsRef = useRef<Set<string>>(new Set())
   const initialPedidosLoadedRef = useRef(false)
@@ -107,6 +123,8 @@ export function PedidosDashboard() {
   const pedidosUrl = `/api/admin/pedidos?date=${dateFilter}&carryoverNovos=1`
   const { data: pedidos, isLoading } = useSWR<Pedido[]>(pedidosUrl, fetcher, { refreshInterval: 5000 })
   const { data: rawConfig } = useSWR<Configuracao>('/api/admin/config', fetcher)
+  const estoqueConsultaUrl = `/api/admin/producao?from=${todayInSaoPaulo()}&to=${todayInSaoPaulo()}`
+  const { data: estoqueConsulta, isLoading: isLoadingEstoqueConsulta, mutate: mutateEstoqueConsulta } = useSWR<EstoqueConsultaData>(stockLookupOpen ? estoqueConsultaUrl : null, fetcher, { refreshInterval: 15000 })
   const config = hydrateConfigWithMessageDefaults(rawConfig)
 
   const contadores = {
@@ -151,6 +169,13 @@ export function PedidosDashboard() {
     paymentStatusFilter !== 'TODOS' ||
     dateFilter !== todayInSaoPaulo()
   )
+
+  const estoqueConsultaFiltrado = useMemo(() => {
+    const busca = stockSearch.trim().toLowerCase()
+    const itens = estoqueConsulta?.estoque ?? []
+    if (!busca) return itens
+    return itens.filter((item) => `${item.nomeProduto} ${item.categoriaNome}`.toLowerCase().includes(busca))
+  }, [estoqueConsulta?.estoque, stockSearch])
 
   const clearFilters = () => {
     setSearchTerm('')
@@ -445,6 +470,10 @@ export function PedidosDashboard() {
             <Plus className="h-4 w-4 mr-0 md:mr-2" />
             <span className="hidden md:inline">Novo pedido</span>
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setStockLookupOpen(true)}>
+            <Archive className="h-4 w-4 mr-0 md:mr-2" />
+            <span className="hidden md:inline">Consultar estoque</span>
+          </Button>
           {alertsEnabled && !soundUnlocked && (
             <Button variant="outline" size="sm" onClick={handleUnlockSound}>
               <Volume2 className="h-4 w-4 mr-0 md:mr-2" />
@@ -708,6 +737,78 @@ export function PedidosDashboard() {
               window.setTimeout(() => setNewOrderOpen(false), 900)
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={stockLookupOpen} onOpenChange={setStockLookupOpen}>
+        <DialogContent className="max-h-[88vh] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Consulta rápida de estoque</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Atalho para venda: veja o que está livre agora e o que já está reservado.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => mutateEstoqueConsulta()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Buscar sabor</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={stockSearch} onChange={(event) => setStockSearch(event.target.value)} placeholder="Digite o sabor ou categoria" className="pl-9" />
+              </div>
+            </div>
+
+            {isLoadingEstoqueConsulta ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <Skeleton className="h-28" />
+                <Skeleton className="h-28" />
+                <Skeleton className="h-28" />
+                <Skeleton className="h-28" />
+              </div>
+            ) : estoqueConsultaFiltrado.length ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {estoqueConsultaFiltrado.map((item) => (
+                  <Card key={item.produtoId} className={item.quantidadeDisponivel > 0 ? 'border-primary/20' : 'border-warning/35'}>
+                    <CardContent className="space-y-3 p-4">
+                      <div>
+                        <p className="font-semibold">{item.nomeProduto}</p>
+                        <p className="text-sm text-muted-foreground">{item.categoriaNome}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-sm">
+                        <div className="rounded-lg bg-muted/35 p-3">
+                          <p className="text-xs text-muted-foreground">Disponível</p>
+                          <p className={`text-xl font-bold ${item.quantidadeDisponivel > 0 ? 'text-primary' : 'text-warning-foreground'}`}>{item.quantidadeDisponivel}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/35 p-3">
+                          <p className="text-xs text-muted-foreground">Reservado</p>
+                          <p className="text-xl font-bold">{item.quantidadeReservada}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/35 p-3">
+                          <p className="text-xs text-muted-foreground">Projetado</p>
+                          <p className={`text-xl font-bold ${item.saldoProjetado < 0 ? 'text-destructive' : 'text-success'}`}>{item.saldoProjetado}</p>
+                        </div>
+                      </div>
+                      {item.quantidadeDisponivel <= 0 && (
+                        <div className="rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground">
+                          Sem saldo livre no momento para venda imediata.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Nenhum sabor encontrado para essa busca.
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
