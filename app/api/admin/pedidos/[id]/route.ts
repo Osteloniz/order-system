@@ -22,6 +22,7 @@ const separacaoPessoaSchema = z.object({
 const pedidoAdminSchema = z.object({
   clienteId: z.string().uuid().optional(),
   clienteNome: z.string().trim().min(2).max(80),
+  criadoEm: z.string().trim().optional(),
   clienteTelefone: z.string().trim().max(20).optional(),
   clienteWhatsapp: z.string().trim().max(20).optional(),
   clienteBloco: z.string().trim().max(20).optional(),
@@ -56,6 +57,12 @@ const pedidoAdminSchema = z.object({
     const parsedDate = data.encomendaPara ? new Date(data.encomendaPara) : null
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
+    }
+  }
+  if (data.criadoEm?.trim()) {
+    const parsedDate = new Date(data.criadoEm)
+    if (Number.isNaN(parsedDate.getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['criadoEm'], message: 'Data do pedido invalida' })
     }
   }
   if (data.cupomCodigo?.trim() && (data.valorPromocional ?? 0) > 0) {

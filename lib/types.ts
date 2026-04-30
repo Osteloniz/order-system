@@ -148,6 +148,7 @@ export interface Cupom {
 export interface PedidoAdminPayload {
   clienteId?: string
   clienteNome: string
+  criadoEm?: string
   clienteTelefone?: string
   clienteWhatsapp?: string
   clienteBloco?: string

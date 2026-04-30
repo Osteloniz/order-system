@@ -77,6 +77,21 @@ function formatCurrencyInput(value: string) {
   }).format(cents / 100)
 }
 
+function formatDateTimeLocal(value: string | Date) {
+  const date = typeof value === 'string' ? new Date(value) : value
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date) + 'T' + new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
 function calcularDescontoCupom(subtotal: number, cupomCodigo: string, cupons?: Cupom[], currentCouponCode?: string) {
   const cupom = cupons?.find(item => item.codigo === cupomCodigo)
   if (!cupom) return 0
@@ -106,6 +121,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
   const [clienteId, setClienteId] = useState('')
   const [nome, setNome] = useState('')
+  const [dataPedido, setDataPedido] = useState(() => formatDateTimeLocal(new Date()))
   const [contatoPrincipal, setContatoPrincipal] = useState('')
   const [usarWhatsappDiferente, setUsarWhatsappDiferente] = useState(false)
   const [whatsapp, setWhatsapp] = useState('')
@@ -130,20 +146,12 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [initializedEditState, setInitializedEditState] = useState(false)
-  const dataPedidoLabel = useMemo(() => {
-    const value = initialPedido?.criadoEm ?? new Date().toISOString()
-    return new Date(value).toLocaleString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      dateStyle: 'short',
-      timeStyle: 'short',
-    })
-  }, [initialPedido?.criadoEm])
-
   useEffect(() => {
     if (!initialPedido || !produtosAtivos.length || initializedEditState) return
 
     setClienteId(initialPedido.clienteId || '')
     setNome(initialPedido.clienteNome || '')
+    setDataPedido(formatDateTimeLocal(initialPedido.criadoEm))
     const telefoneInicial = formatPhoneInput(initialPedido.clienteTelefone || '')
     const whatsappInicial = formatPhoneInput(initialPedido.clienteWhatsapp || '')
     setContatoPrincipal(telefoneInicial || whatsappInicial)
@@ -343,6 +351,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const resetForm = () => {
     setClienteId('')
     setNome('')
+    setDataPedido(formatDateTimeLocal(new Date()))
     setContatoPrincipal('')
     setUsarWhatsappDiferente(false)
     setWhatsapp('')
@@ -371,6 +380,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setMessage('')
 
     if (!nome.trim()) return setError('Informe o nome do cliente')
+    if (!dataPedido) return setError('Informe a data do pedido')
     if (telefoneLimpo && !isValidPhone(telefoneLimpo)) return setError('Celular invalido')
     if (whatsappLimpo && !isValidPhone(whatsappLimpo)) return setError('WhatsApp invalido')
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
@@ -396,6 +406,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         body: JSON.stringify({
           clienteId: clienteId || undefined,
           clienteNome: nome.trim(),
+          criadoEm: `${dataPedido}:00-03:00`,
           clienteTelefone: telefoneLimpo || undefined,
           clienteWhatsapp: whatsappLimpo || undefined,
           clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() || undefined : undefined,
@@ -513,7 +524,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <div className="min-w-0 space-y-2"><Label>Nome</Label><Input value={nome} onChange={event => setNome(event.target.value)} placeholder="Nome do cliente" /></div>
-                <div className="min-w-0 space-y-2"><Label>Data do pedido</Label><Input value={dataPedidoLabel} readOnly /></div>
+                <div className="min-w-0 space-y-2"><Label>Data do pedido</Label><Input type="datetime-local" value={dataPedido} onChange={event => setDataPedido(event.target.value)} /></div>
                 <div className="min-w-0 space-y-2 sm:col-span-2">
                   <Label>Contato principal</Label>
                   <Input value={contatoPrincipal} onChange={event => setContatoPrincipal(formatPhoneInput(event.target.value))} placeholder="Celular ou WhatsApp do cliente" />

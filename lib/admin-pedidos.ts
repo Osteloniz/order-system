@@ -24,6 +24,7 @@ export type PedidoItemCalculado = {
 export type PedidoCalculado = {
   clienteId: string | null
   clienteNome: string
+  criadoEm: Date
   clienteTelefone: string | null
   clienteWhatsapp: string | null
   clienteBloco: string | null
@@ -229,6 +230,7 @@ export async function calcularPedidoAdmin(
   }
 
   const cliente = await resolveClientePedido(tx, tenantId, payload)
+  const criadoEm = payload.criadoEm ? new Date(payload.criadoEm) : new Date()
   const statusPagamento = payload.statusPagamento ?? (payload.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE')
   const encomendaPara = payload.tipoEntrega === 'ENCOMENDA' && payload.encomendaPara
     ? new Date(payload.encomendaPara)
@@ -241,6 +243,7 @@ export async function calcularPedidoAdmin(
 
   return {
     ...cliente,
+    criadoEm,
     observacoesPedido: payload.observacoesPedido?.trim() || null,
     responsavelPedido: payload.responsavelPedido?.trim() || null,
     destinatariosPedido,
@@ -471,6 +474,7 @@ export async function atualizarPedidoAdmin(
     data: {
       clienteId: calculado.clienteId,
       clienteNome: calculado.clienteNome,
+      criadoEm: calculado.criadoEm,
       clienteTelefone: calculado.clienteTelefone,
       clienteWhatsapp: calculado.clienteWhatsapp,
       clienteBloco: calculado.clienteBloco,
