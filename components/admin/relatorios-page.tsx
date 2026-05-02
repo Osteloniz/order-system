@@ -244,7 +244,7 @@ export function RelatoriosPage() {
               Acompanhe faturamento, ticket medio, sabores mais vendidos e exporte os dados para planilha.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[180px_180px_auto_auto] sm:items-end">
+          <div className="grid gap-2 lg:grid-cols-[180px_180px_auto_auto] lg:items-end">
             <div className="space-y-2">
               <Label>De</Label>
               <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
@@ -273,7 +273,7 @@ export function RelatoriosPage() {
           <Skeleton className="h-32" />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Card className="border-[#22C0D4]/35 bg-[#22C0D4]/10"><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-[#22C0D4]" /><p className="text-sm text-muted-foreground">Pedidos no periodo</p><p className="text-3xl font-bold">{data?.totalPedidos ?? 0}</p><p className="mt-2 text-xs text-muted-foreground">{entregues} entregues</p></CardContent></Card>
           <Card className="border-[#AF6E2A]/35 bg-[#AF6E2A]/10"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Receita entregue</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Base para resultado real</p></CardContent></Card>
           <Card className="border-[#F8CF40]/45 bg-[#F8CF40]/15"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Ticket medio</p><p className="text-3xl font-bold">{formatarMoeda(data?.ticketMedioEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Sobre pedidos entregues</p></CardContent></Card>

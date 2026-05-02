@@ -102,15 +102,15 @@ export function ClientesPage() {
           <h1 className="flex items-center gap-2 text-2xl font-bold"><UserRound className="h-6 w-6 text-primary" />Clientes</h1>
           <p className="mt-1 text-sm text-muted-foreground">Cadastro por WhatsApp, endereço no Paulistano, observações e histórico de pedidos.</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={startNewCliente}><Plus className="mr-2 h-4 w-4" />Novo cliente</Button>
-          <Button variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button className="w-full sm:w-auto" onClick={startNewCliente}><Plus className="mr-2 h-4 w-4" />Novo cliente</Button>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
         </div>
       </div>
 
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
 
-      <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
         <Card>
           <CardHeader><CardTitle>Buscar cliente</CardTitle></CardHeader>
           <CardContent className="space-y-4">

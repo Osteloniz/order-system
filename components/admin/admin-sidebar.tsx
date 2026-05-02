@@ -40,10 +40,10 @@ export function AdminSidebar() {
   return (
     <>
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b border-border flex items-center justify-between px-4 z-50">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex min-h-14 items-center justify-between border-b border-border bg-card px-4 pt-[env(safe-area-inset-top)]">
         <div className="flex items-center gap-2 text-primary">
           <Store className="h-5 w-5" />
-          <span className="font-bold">{tenantNome}</span>
+          <span className="max-w-[60vw] truncate font-bold">{tenantNome}</span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -56,10 +56,10 @@ export function AdminSidebar() {
       {/* Mobile Overlay */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-40 pt-14"
+          className="md:hidden fixed inset-0 z-40 bg-background/80 pt-[calc(env(safe-area-inset-top)+3.5rem)] backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         >
-          <nav className="bg-card border-r border-border h-full w-64 p-4 space-y-2" onClick={e => e.stopPropagation()}>
+          <nav className="h-full w-[min(18rem,85vw)] overflow-y-auto border-r border-border bg-card p-4 pb-[max(env(safe-area-inset-bottom),1rem)] space-y-2" onClick={e => e.stopPropagation()}>
             {menuItems.map(item => (
               <Link
                 key={item.href}
@@ -91,7 +91,7 @@ export function AdminSidebar() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border h-screen sticky top-0">
+      <aside className="hidden h-screen sticky top-0 w-64 flex-col border-r border-border bg-card md:flex">
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-2 text-primary">
             <Store className="h-6 w-6" />

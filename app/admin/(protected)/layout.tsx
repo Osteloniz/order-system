@@ -35,9 +35,9 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-dvh overflow-x-hidden bg-background">
       <AdminSidebar />
-      <main className="flex-1 p-6 md:p-8 pt-20 md:pt-8">
+      <main className="flex-1 overflow-x-hidden px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+4.5rem)] md:p-8 md:pt-8">
         {children}
       </main>
     </div>

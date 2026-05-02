@@ -128,10 +128,27 @@
 }
 
 @layer base {
+  html {
+    min-height: 100%;
+    overflow-x: hidden;
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    overscroll-behavior-x: none;
+  }
+
+  .mobile-app-shell {
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
   }
 }

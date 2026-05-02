@@ -208,7 +208,7 @@ export function ProducaoPage() {
           </p>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-[160px_160px_160px_auto] sm:items-end">
+        <div className="grid gap-2 lg:grid-cols-[160px_160px_160px_auto] lg:items-end">
           <div className="space-y-2">
             <Label htmlFor="data-producao-inicio">De</Label>
             <Input id="data-producao-inicio" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
@@ -231,14 +231,14 @@ export function ProducaoPage() {
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Skeleton className="h-28" />
           <Skeleton className="h-28" />
           <Skeleton className="h-28" />
           <Skeleton className="h-28" />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">Pedidos no período</p><p className="text-2xl font-bold">{data?.totalPedidos ?? 0}</p></CardContent></Card>
           <Card><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">Unidades pedidas</p><p className="text-2xl font-bold">{data?.totalItens ?? 0}</p></CardContent></Card>
           <Card><CardContent className="p-5"><Flame className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Pedidos novos sem estoque</p><p className="text-2xl font-bold">{data?.totalAProduzir ?? 0}</p></CardContent></Card>

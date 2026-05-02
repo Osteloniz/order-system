@@ -239,7 +239,7 @@ export function EstoquePage() {
           </p>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-[160px_160px_160px_auto] sm:items-end">
+        <div className="grid gap-2 lg:grid-cols-[160px_160px_160px_auto] lg:items-end">
           <div className="space-y-2">
             <Label htmlFor="estoque-data-inicio">De</Label>
             <Input id="estoque-data-inicio" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />

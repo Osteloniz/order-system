@@ -111,7 +111,7 @@ export function LogsPage() {
           </p>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-[160px_160px_220px_auto] sm:items-end">
+        <div className="grid gap-2 lg:grid-cols-[160px_160px_220px_auto] lg:items-end">
           <div className="space-y-2">
             <Label htmlFor="logs-from">De</Label>
             <Input id="logs-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
@@ -140,7 +140,7 @@ export function LogsPage() {
         <CardHeader>
           <CardTitle>Resumo do período</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-5">
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-xl border border-primary/25 bg-primary/10 p-4">
             <ScanSearch className="mb-3 h-5 w-5 text-primary" />
             <p className="text-sm text-muted-foreground">Eventos rastreados</p>
