@@ -199,7 +199,7 @@ export function CheckoutPage() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <h1 className="text-xl font-bold mb-4">Carrinho vazio</h1>
         <p className="text-muted-foreground mb-6">Adicione itens antes de finalizar o pedido</p>
-        <Button onClick={() => router.push('/')}>
+        <Button onClick={() => router.push('/menu')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar ao menu
         </Button>
@@ -212,7 +212,7 @@ export function CheckoutPage() {
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
+          <Button variant="ghost" size="icon" onClick={() => router.push('/menu')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-bold">Finalizar Pedido</h1>

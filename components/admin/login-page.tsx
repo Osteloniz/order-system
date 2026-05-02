@@ -3,6 +3,7 @@
 import React from "react"
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Lock, Loader2, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -112,6 +113,10 @@ export function LoginPage() {
               ) : (
                 'Entrar'
               )}
+            </Button>
+
+            <Button asChild type="button" variant="outline" className="w-full">
+              <Link href="/menu">Ver somente catalogo</Link>
             </Button>
           </form>
         </CardContent>
