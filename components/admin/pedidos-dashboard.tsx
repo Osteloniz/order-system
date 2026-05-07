@@ -7,6 +7,7 @@ import { Archive, Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertica
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -97,11 +98,13 @@ function todayInSaoPaulo() {
 
 export function PedidosDashboard() {
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
+  const [selectedPedidoIds, setSelectedPedidoIds] = useState<string[]>([])
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [isCancelling, setIsCancelling] = useState(false)
   const [deletingPedidoId, setDeletingPedidoId] = useState<string | null>(null)
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState<'deliver' | 'payment' | null>(null)
   const [alertsEnabled, setAlertsEnabled] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission)
   const [lastAlertMessage, setLastAlertMessage] = useState<string | null>(null)
@@ -161,6 +164,21 @@ export function PedidosDashboard() {
 
     return true
   })
+
+  const selectedPedidos = useMemo(() => {
+    const ids = new Set(selectedPedidoIds)
+    return (pedidos || []).filter((pedido) => ids.has(pedido.id))
+  }, [pedidos, selectedPedidoIds])
+
+  const selectedPedidosEntregaveis = useMemo(
+    () => selectedPedidos.filter((pedido) => pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO'),
+    [selectedPedidos]
+  )
+
+  const selectedPedidosPagamentoPendente = useMemo(
+    () => selectedPedidos.filter((pedido) => pedido.status !== 'CANCELADO' && pedido.statusPagamento !== 'APROVADO'),
+    [selectedPedidos]
+  )
 
   const hasActiveFilters = Boolean(
     searchTerm.trim() ||
@@ -270,6 +288,40 @@ export function PedidosDashboard() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!pedidos) return
+    const idsDisponiveis = new Set(pedidos.map((pedido) => pedido.id))
+    setSelectedPedidoIds((atual) => atual.filter((id) => idsDisponiveis.has(id)))
+  }, [pedidos])
+
+  const patchPedidoStatus = async (pedidoId: string, status: StatusPedido, motivoCancelamento?: string) => {
+    const response = await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(motivoCancelamento ? { status, motivoCancelamento } : { status })
+    })
+    const data = await response.json().catch(() => null)
+    return {
+      ok: response.ok,
+      data,
+      error: data?.error || 'Nao foi possivel atualizar o status.',
+    }
+  }
+
+  const patchPedidoPagamento = async (pedidoId: string, statusPagamento: Pedido['statusPagamento']) => {
+    const response = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statusPagamento })
+    })
+    const data = await response.json().catch(() => null)
+    return {
+      ok: response.ok,
+      data,
+      error: data?.error || 'Nao foi possivel atualizar o pagamento.',
+    }
+  }
+
   const handleEnableAlerts = async () => {
     await unlockAlertSound()
     let permission = getNotificationPermission()
@@ -299,16 +351,12 @@ export function PedidosDashboard() {
     const pedidoId = pedido.id
     setUpdatingStatus(pedidoId)
     try {
-      const response = await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      })
-      const pedidoAtualizado = await response.json()
-      if (!response.ok) {
-        setLastAlertMessage(pedidoAtualizado.error || 'Nao foi possivel atualizar o status.')
+      const result = await patchPedidoStatus(pedidoId, newStatus)
+      if (!result.ok) {
+        setLastAlertMessage(result.error)
         return
       }
+      const pedidoAtualizado = result.data
       await mutate(pedidosUrl)
       await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
@@ -344,16 +392,12 @@ export function PedidosDashboard() {
     if (!cancelReason.trim()) return
     setIsCancelling(true)
     try {
-      const response = await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CANCELADO', motivoCancelamento: cancelReason })
-      })
-      const pedidoAtualizado = await response.json()
-      if (!response.ok) {
-        setLastAlertMessage(pedidoAtualizado.error || 'Nao foi possivel cancelar o pedido.')
+      const result = await patchPedidoStatus(pedidoId, 'CANCELADO', cancelReason)
+      if (!result.ok) {
+        setLastAlertMessage(result.error)
         return
       }
+      const pedidoAtualizado = result.data
       await mutate(pedidosUrl)
       await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
@@ -387,17 +431,93 @@ export function PedidosDashboard() {
   const handleUpdatePaymentStatus = async (pedidoId: string, statusPagamento: Pedido['statusPagamento']) => {
     setConfirmingPaymentId(pedidoId)
     try {
-      const response = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statusPagamento })
-      })
-      if (!response.ok) return
-      const pedidoAtualizado = await response.json()
+      const result = await patchPedidoPagamento(pedidoId, statusPagamento)
+      if (!result.ok) {
+        setLastAlertMessage(result.error)
+        return
+      }
+      const pedidoAtualizado = result.data
       mutate(pedidosUrl)
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
     } finally {
       setConfirmingPaymentId(null)
+    }
+  }
+
+  const togglePedidoSelection = (pedidoId: string, checked: boolean) => {
+    setSelectedPedidoIds((atual) => {
+      if (checked) {
+        if (atual.includes(pedidoId)) return atual
+        return [...atual, pedidoId]
+      }
+      return atual.filter((id) => id !== pedidoId)
+    })
+  }
+
+  const handleSelectAllFiltered = () => {
+    setSelectedPedidoIds((atual) => {
+      const ids = new Set(atual)
+      pedidosFiltrados.forEach((pedido) => ids.add(pedido.id))
+      return Array.from(ids)
+    })
+  }
+
+  const handleClearSelection = () => setSelectedPedidoIds([])
+
+  const handleBulkMarkDelivered = async () => {
+    if (selectedPedidosEntregaveis.length === 0) return
+    setBulkActionLoading('deliver')
+    const falhas: string[] = []
+    let pedidoAtualizadoSelecionado: Pedido | null = null
+    try {
+      for (const pedido of selectedPedidosEntregaveis) {
+        const result = await patchPedidoStatus(pedido.id, 'ENTREGUE')
+        if (!result.ok) {
+          falhas.push(`#${pedido.id.slice(-8).toUpperCase()}: ${result.error}`)
+          continue
+        }
+        if (selectedPedido?.id === pedido.id) pedidoAtualizadoSelecionado = result.data
+      }
+
+      await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
+      if (pedidoAtualizadoSelecionado) setSelectedPedido(pedidoAtualizadoSelecionado)
+      setSelectedPedidoIds([])
+      setLastAlertMessage(
+        falhas.length === 0
+          ? `${selectedPedidosEntregaveis.length} pedido(s) marcado(s) como entregue(s).`
+          : `${selectedPedidosEntregaveis.length - falhas.length} pedido(s) entregues, ${falhas.length} com erro.`
+      )
+    } finally {
+      setBulkActionLoading(null)
+    }
+  }
+
+  const handleBulkConfirmPayment = async () => {
+    if (selectedPedidosPagamentoPendente.length === 0) return
+    setBulkActionLoading('payment')
+    const falhas: string[] = []
+    let pedidoAtualizadoSelecionado: Pedido | null = null
+    try {
+      for (const pedido of selectedPedidosPagamentoPendente) {
+        const result = await patchPedidoPagamento(pedido.id, 'APROVADO')
+        if (!result.ok) {
+          falhas.push(`#${pedido.id.slice(-8).toUpperCase()}: ${result.error}`)
+          continue
+        }
+        if (selectedPedido?.id === pedido.id) pedidoAtualizadoSelecionado = result.data
+      }
+
+      await mutate(pedidosUrl)
+      if (pedidoAtualizadoSelecionado) setSelectedPedido(pedidoAtualizadoSelecionado)
+      setSelectedPedidoIds([])
+      setLastAlertMessage(
+        falhas.length === 0
+          ? `${selectedPedidosPagamentoPendente.length} pagamento(s) confirmado(s) manualmente.`
+          : `${selectedPedidosPagamentoPendente.length - falhas.length} pagamento(s) confirmados, ${falhas.length} com erro.`
+      )
+    } finally {
+      setBulkActionLoading(null)
     }
   }
 
@@ -423,6 +543,7 @@ export function PedidosDashboard() {
     const status = statusConfig[pedido.status]
     const StatusIcon = status.icon
     const isUpdating = updatingStatus === pedido.id
+    const isSelected = selectedPedidoIds.includes(pedido.id)
 
     return (
       <Card
@@ -434,12 +555,18 @@ export function PedidosDashboard() {
           event.dataTransfer.effectAllowed = 'move'
         }}
         onDragEnd={() => setDraggedPedidoId(null)}
-        className={`cursor-pointer border-border/70 bg-card/95 transition-all hover:-translate-y-0.5 hover:shadow-md ${draggedPedidoId === pedido.id ? 'opacity-50' : ''}`}
+        className={`cursor-pointer border-border/70 bg-card/95 transition-all hover:-translate-y-0.5 hover:shadow-md ${draggedPedidoId === pedido.id ? 'opacity-50' : ''} ${isSelected ? 'ring-2 ring-primary/60 border-primary/50' : ''}`}
         onClick={() => { setSelectedPedido(pedido); setCancelReason('') }}
       >
         <CardContent className="space-y-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
+              <Checkbox
+                checked={isSelected}
+                aria-label={`Selecionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
+                onCheckedChange={(checked) => togglePedidoSelection(pedido.id, checked === true)}
+                onClick={(event) => event.stopPropagation()}
+              />
               <div className={`rounded-full p-2 ${status.color}`}><StatusIcon className="h-4 w-4" /></div>
               <div className="min-w-0"><p className="truncate font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p><p className="truncate text-sm text-muted-foreground">{pedido.clienteNome}</p></div>
             </div>
@@ -572,6 +699,37 @@ export function PedidosDashboard() {
           </CardContent>
         </Card>
       )}
+
+      <Card className={selectedPedidoIds.length > 0 ? 'border-primary/35 bg-primary/5' : 'border-dashed border-border/70'}>
+        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">
+              {selectedPedidoIds.length > 0 ? `${selectedPedidoIds.length} pedido(s) selecionado(s)` : 'Selecione pedidos para agir em lote'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {selectedPedidoIds.length > 0
+                ? `${selectedPedidosEntregaveis.length} podem virar entregues e ${selectedPedidosPagamentoPendente.length} podem ter pagamento confirmado.`
+                : 'Use o checkbox de cada card ou selecione todos os pedidos filtrados.'}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" size="sm" onClick={handleSelectAllFiltered} disabled={pedidosFiltrados.length === 0}>
+              Selecionar filtrados
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleClearSelection} disabled={selectedPedidoIds.length === 0}>
+              Limpar selecao
+            </Button>
+            <Button size="sm" onClick={handleBulkMarkDelivered} disabled={selectedPedidosEntregaveis.length === 0 || bulkActionLoading !== null}>
+              {bulkActionLoading === 'deliver' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}
+              Tudo entregue
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleBulkConfirmPayment} disabled={selectedPedidosPagamentoPendente.length === 0 || bulkActionLoading !== null}>
+              {bulkActionLoading === 'payment' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+              Confirmar pagamentos
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="grid gap-4 lg:grid-cols-5">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-96 w-full" />)}</div>
