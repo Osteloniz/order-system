@@ -12,7 +12,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
-import type { StatusPagamento, StatusPedido, TipoEntrega, TipoPagamento } from '@/lib/types'
+import { entregaLabels, getPagamentoLabel, statusPagamentoLabels, statusPedidoReportLabels, statusPedidoReportStyles } from '@/lib/order-display'
+import { isPedidoRealizadoFinanceiramente } from '@/lib/order-finance'
+import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import type { StatusPagamento, StatusPedido, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 type RelatorioProduto = {
   chave: string
@@ -33,6 +36,7 @@ type RelatorioPedido = {
   clienteTelefone?: string | null
   clienteWhatsapp?: string | null
   pagamento: TipoPagamento
+  tipoCartao?: TipoCartao | null
   responsavelPedido?: string | null
   destinatariosPedido?: string | null
   observacoesPedido?: string | null
@@ -61,6 +65,14 @@ type RelatorioData = {
   receitaCartaoBruta: number
   taxaCartao: number
   receitaCartaoLiquida: number
+  recebimentoPrevisto: number
+  recebimentoRealizado: number
+  recebimentoEmAberto: number
+  valorCancelado: number
+  taxaCartaoPrevista: number
+  taxaCartaoRealizada: number
+  cartaoCreditoBruto: number
+  cartaoDebitoBruto: number
   ticketMedioGeral: number
   ticketMedioEntregue: number
   porStatus: Record<StatusPedido, number>
@@ -73,61 +85,6 @@ const fetcher = async (url: string) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Erro ao carregar relatorio')
   return data
-}
-
-const statusLabels: Record<StatusPedido, string> = {
-  FEITO: 'Novos',
-  ACEITO: 'Aceitos',
-  PREPARACAO: 'Em preparo',
-  ENTREGUE: 'Entregues',
-  CANCELADO: 'Cancelados',
-}
-
-const statusStyles: Record<StatusPedido, string> = {
-  FEITO: 'border-[#F8CF40]/50 bg-[#F8CF40]/15 text-[#7a5713]',
-  ACEITO: 'border-[#FF6BBB]/45 bg-[#FF6BBB]/12 text-[#8a2861]',
-  PREPARACAO: 'border-[#22C0D4]/45 bg-[#22C0D4]/12 text-[#0e6c77]',
-  ENTREGUE: 'border-[#AF6E2A]/45 bg-[#AF6E2A]/12 text-[#744516]',
-  CANCELADO: 'border-destructive/35 bg-destructive/10 text-destructive',
-}
-
-const entregaLabels: Record<TipoEntrega, string> = {
-  RESERVA_PAULISTANO: 'Condominio',
-  RETIRADA: 'Retirada',
-  ENCOMENDA: 'Encomenda',
-}
-
-const statusPagamentoLabels: Record<StatusPagamento, string> = {
-  NAO_APLICAVEL: 'Na entrega',
-  PENDENTE: 'Pendente',
-  APROVADO: 'Aprovado',
-  RECUSADO: 'Recusado',
-  CANCELADO: 'Cancelado',
-  REEMBOLSADO: 'Reembolsado',
-}
-
-const pagamentoLabels: Record<TipoPagamento, string> = {
-  PIX: 'PIX',
-  DINHEIRO: 'Dinheiro',
-  CARTAO: 'Cartao',
-}
-
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
 }
 
 function moneyForCsv(value: number) {
@@ -154,6 +111,8 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 
 export function RelatoriosPage() {
   const today = todayInSaoPaulo()
+  const [fromInput, setFromInput] = useState(today)
+  const [toInput, setToInput] = useState(today)
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
   const [listFrom, setListFrom] = useState(today)
@@ -163,6 +122,7 @@ export function RelatoriosPage() {
   const [statusPedidoFiltro, setStatusPedidoFiltro] = useState<'TODOS' | StatusPedido>('TODOS')
   const url = useMemo(() => `/api/admin/relatorios?from=${from}&to=${to}`, [from, to])
   const { data, isLoading, mutate } = useSWR<RelatorioData>(url, fetcher)
+  const periodoPendente = fromInput !== from || toInput !== to
 
   const totalUnidades = useMemo(() => data?.produtos.reduce((acc, produto) => acc + produto.quantidade, 0) ?? 0, [data])
   const topProduto = data?.produtos[0]
@@ -202,12 +162,28 @@ export function RelatoriosPage() {
     })
   }, [data?.pedidos, listFrom, listTo, searchPedido, statusPagamentoFiltro, statusPedidoFiltro])
 
+  const resumoFiltrado = useMemo(() => {
+    return pedidosFiltrados.reduce((acc, pedido) => {
+      acc.total += pedido.total
+      if (pedido.status === 'CANCELADO') {
+        acc.cancelado += pedido.total
+        return acc
+      }
+      if (isPedidoRealizadoFinanceiramente(pedido)) {
+        acc.realizado += pedido.total
+      } else {
+        acc.previsto += pedido.total
+      }
+      return acc
+    }, { total: 0, realizado: 0, previsto: 0, cancelado: 0 })
+  }, [pedidosFiltrados])
+
   const graficoGestao = useMemo(() => [
-    { chave: 'receitaEntregue', label: 'Receita entregue', valor: data?.receitaEntregue ?? 0, fill: '#AF6E2A' },
-    { chave: 'cartaoLiquido', label: 'Cartao liquido', valor: data?.receitaCartaoLiquida ?? 0, fill: '#0E6C77' },
-    { chave: 'receitaTotal', label: 'Receita geral', valor: data?.receitaTotal ?? 0, fill: '#22C0D4' },
-    { chave: 'cancelado', label: 'Cancelado', valor: data?.totalCancelado ?? 0, fill: '#E11D48' },
-  ], [data?.receitaCartaoLiquida, data?.receitaEntregue, data?.receitaTotal, data?.totalCancelado])
+    { chave: 'realizado', label: 'Realizado', valor: data?.recebimentoRealizado ?? 0, fill: '#AF6E2A' },
+    { chave: 'previsto', label: 'Previsto', valor: data?.recebimentoPrevisto ?? 0, fill: '#22C0D4' },
+    { chave: 'aberto', label: 'Em aberto', valor: data?.recebimentoEmAberto ?? 0, fill: '#0E6C77' },
+    { chave: 'cancelado', label: 'Cancelado', valor: data?.valorCancelado ?? 0, fill: '#E11D48' },
+  ], [data?.recebimentoEmAberto, data?.recebimentoPrevisto, data?.recebimentoRealizado, data?.valorCancelado])
 
   const handleExportProdutos = () => {
     if (!data?.produtos.length) return
@@ -228,6 +204,18 @@ export function RelatoriosPage() {
     ])
   }
 
+  const handleAplicarPeriodo = () => {
+    setFrom(fromInput)
+    setTo(toInput)
+  }
+
+  const handleLimparPeriodo = () => {
+    setFromInput(today)
+    setToInput(today)
+    setFrom(today)
+    setTo(today)
+  }
+
   return (
     <div className="space-y-6">
       <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(34,192,212,0.16),rgba(255,107,187,0.10)_40%,rgba(248,207,64,0.18))] p-5 shadow-sm md:p-6">
@@ -244,19 +232,22 @@ export function RelatoriosPage() {
               Acompanhe faturamento, ticket medio, sabores mais vendidos e exporte os dados para planilha.
             </p>
           </div>
-          <div className="grid gap-2 lg:grid-cols-[180px_180px_auto_auto] lg:items-end">
+          <div className="grid gap-2 lg:grid-cols-[180px_180px_auto_auto_auto] lg:items-end">
             <div className="space-y-2">
               <Label>De</Label>
-              <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+              <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Ate</Label>
-              <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+              <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} />
             </div>
-            <Button type="button" variant="outline" onClick={() => mutate()}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
+            <Button type="button" onClick={handleAplicarPeriodo} disabled={!periodoPendente}>
+              <Search className="mr-2 h-4 w-4" /> Buscar
             </Button>
-            <Button type="button" onClick={handleExportProdutos} disabled={!data?.produtos.length}>
+            <Button type="button" variant="outline" onClick={periodoPendente ? handleLimparPeriodo : () => mutate()}>
+              <RefreshCw className="mr-2 h-4 w-4" /> {periodoPendente ? 'Limpar periodo' : 'Atualizar'}
+            </Button>
+            <Button type="button" variant="outline" onClick={handleExportProdutos} disabled={!data?.produtos.length}>
               <Download className="mr-2 h-4 w-4" /> Exportar Excel
             </Button>
           </div>
@@ -278,8 +269,8 @@ export function RelatoriosPage() {
           <Card className="border-[#AF6E2A]/35 bg-[#AF6E2A]/10"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Receita entregue</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Base para resultado real</p></CardContent></Card>
           <Card className="border-[#F8CF40]/45 bg-[#F8CF40]/15"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Ticket medio</p><p className="text-3xl font-bold">{formatarMoeda(data?.ticketMedioEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Sobre pedidos entregues</p></CardContent></Card>
           <Card className="border-[#FF6BBB]/35 bg-[#FF6BBB]/10"><CardContent className="p-5"><BarChart3 className="mb-3 h-5 w-5 text-[#FF6BBB]" /><p className="text-sm text-muted-foreground">Unidades vendidas</p><p className="text-3xl font-bold">{totalUnidades}</p><p className="mt-2 text-xs text-muted-foreground">Somando todos os sabores</p></CardContent></Card>
-          <Card className="border-[#0e6c77]/25 bg-[#22C0D4]/5"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao bruto</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoBruta ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Somente pedidos entregues no cartao</p></CardContent></Card>
-          <Card className="border-[#0e6c77]/25 bg-[#0e6c77]/10"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao liquido</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoLiquida ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Ja descontando 3,09% ({formatarMoeda(data?.taxaCartao ?? 0)})</p></CardContent></Card>
+          <Card className="border-[#0e6c77]/25 bg-[#22C0D4]/5"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao bruto</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoBruta ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Credito: {formatarMoeda(data?.cartaoCreditoBruto ?? 0)} • Debito: {formatarMoeda(data?.cartaoDebitoBruto ?? 0)}</p></CardContent></Card>
+          <Card className="border-[#0e6c77]/25 bg-[#0e6c77]/10"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao liquido</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoLiquida ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Taxas realizadas de credito/debito: {formatarMoeda(data?.taxaCartao ?? 0)}</p></CardContent></Card>
           <Card className="border-warning/35 bg-warning/10"><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-warning-foreground" /><p className="text-sm text-muted-foreground">Pagamentos pendentes</p><p className="text-3xl font-bold">{data?.pagamentosPendentes ?? 0}</p><p className="mt-2 text-xs text-muted-foreground">Use a tela de pedidos para cobrar ou ajustar</p></CardContent></Card>
           <Card className="border-destructive/25 bg-destructive/10"><CardContent className="p-5"><XCircle className="mb-3 h-5 w-5 text-destructive" /><p className="text-sm text-muted-foreground">Valor cancelado</p><p className="text-3xl font-bold">{formatarMoeda(data?.totalCancelado ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Pedidos cancelados</p></CardContent></Card>
         </div>
@@ -289,10 +280,10 @@ export function RelatoriosPage() {
         <Card className="overflow-hidden">
           <CardHeader className="border-b bg-muted/25"><CardTitle>Status do periodo</CardTitle></CardHeader>
           <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-1">
-            {(Object.keys(statusLabels) as StatusPedido[]).map((status) => (
-              <div key={status} className={`rounded-xl border p-4 ${statusStyles[status]}`}>
+            {(Object.keys(statusPedidoReportLabels) as StatusPedido[]).map((status) => (
+              <div key={status} className={`rounded-xl border p-4 ${statusPedidoReportStyles[status]}`}>
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{statusLabels[status]}</p>
+                  <p className="text-sm font-medium">{statusPedidoReportLabels[status]}</p>
                   <p className="text-2xl font-bold">{data?.porStatus?.[status] ?? 0}</p>
                 </div>
               </div>
@@ -312,7 +303,11 @@ export function RelatoriosPage() {
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Ticket geral</p><p className="text-xl font-bold">{formatarMoeda(data?.ticketMedioGeral ?? 0)}</p></div>
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Receita geral</p><p className="text-xl font-bold">{formatarMoeda(data?.receitaTotal ?? 0)}</p></div>
             </div>
-            <p className="text-xs text-muted-foreground">Dica: o cartao liquido ja considera a taxa de 3,09%; pagamentos pendentes podem ser cobrados e ajustados na tela de pedidos.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Previsto para receber</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoPrevisto ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Ainda nao realizado</p></div>
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Pagamento aprovado ou dinheiro entregue</p></div>
+            </div>
+            <p className="text-xs text-muted-foreground">Dica: os valores de cartao ja diferenciam credito e debito, e o fluxo de caixa separa previsto, realizado e cancelado.</p>
           </CardContent>
         </Card>
       </div>
@@ -345,7 +340,7 @@ export function RelatoriosPage() {
             </ChartContainer>
           )}
           <p className="mt-3 text-xs text-muted-foreground">
-            Visão executiva para gestão: entregue mostra o resultado operacional, cartão líquido mostra o valor real após taxa, e cancelado evidencia perda no período.
+            Visao executiva para gestao: realizado mostra o que de fato entrou, previsto mostra o que ainda deve entrar, e cancelado evidencia a perda no periodo.
           </p>
         </CardContent>
       </Card>
@@ -406,11 +401,11 @@ export function RelatoriosPage() {
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
-                      <p className="text-sm text-muted-foreground">Criado: {formatDateTime(pedido.criadoEm)}</p>
+                      <p className="text-sm text-muted-foreground">Criado: {formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
-                      <Badge variant="outline">{statusLabels[pedido.status]}</Badge>
+                      <Badge variant="outline">{statusPedidoReportLabels[pedido.status]}</Badge>
                       <Badge className="border-warning/30 bg-warning/15 text-warning-foreground hover:bg-warning/15">Pagamento pendente</Badge>
                       <Badge>{formatarMoeda(pedido.total)}</Badge>
                     </div>
@@ -419,7 +414,7 @@ export function RelatoriosPage() {
                     <div className="mt-3 space-y-1 rounded-lg bg-background/80 p-3 text-sm text-muted-foreground">
                       {pedido.responsavelPedido && <p>Responsavel: {pedido.responsavelPedido}</p>}
                       {pedido.destinatariosPedido && <p>Separar para: {pedido.destinatariosPedido}</p>}
-                      {pedido.levadoEm && <p>Levado em: {formatDateTime(pedido.levadoEm)}</p>}
+                      {pedido.levadoEm && <p>Levado em: {formatDateTimeInSaoPaulo(pedido.levadoEm)}</p>}
                       {pedido.observacoesPedido && <p>Obs. do pedido: {pedido.observacoesPedido}</p>}
                     </div>
                   )}
@@ -479,6 +474,31 @@ export function RelatoriosPage() {
             </div>
           </div>
 
+          {!isLoading && (
+            <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-sm text-muted-foreground">Total filtrado</p>
+                <p className="mt-1 text-2xl font-bold">{formatarMoeda(resumoFiltrado.total)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{pedidosFiltrados.length} pedido(s)</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-sm text-muted-foreground">Realizado no filtro</p>
+                <p className="mt-1 text-2xl font-bold">{formatarMoeda(resumoFiltrado.realizado)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Ja entrou no caixa</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-sm text-muted-foreground">Previsto no filtro</p>
+                <p className="mt-1 text-2xl font-bold">{formatarMoeda(resumoFiltrado.previsto)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Ainda em aberto</p>
+              </div>
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-sm text-muted-foreground">Cancelado no filtro</p>
+                <p className="mt-1 text-2xl font-bold">{formatarMoeda(resumoFiltrado.cancelado)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Saiu do fluxo</p>
+              </div>
+            </div>
+          )}
+
           {!isLoading && pedidosFiltrados.length > 0 && (
             <div className="mb-5 overflow-x-auto rounded-xl border">
               <table className="w-full min-w-[980px] text-sm">
@@ -498,7 +518,7 @@ export function RelatoriosPage() {
                   {pedidosFiltrados.map((pedido) => (
                     <tr key={`linha-${pedido.id}`} className="border-t odd:bg-background even:bg-muted/15">
                       <td className="py-3 pl-4 pr-4 font-semibold">#{pedido.numero}</td>
-                      <td className="py-3 pr-4 whitespace-nowrap">{formatDateTime(pedido.criadoEm)}</td>
+                      <td className="py-3 pr-4 whitespace-nowrap">{formatDateTimeInSaoPaulo(pedido.criadoEm)}</td>
                       <td className="py-3 pr-4">
                         <div>
                           <p className="font-medium">{pedido.clienteNome}</p>
@@ -508,11 +528,11 @@ export function RelatoriosPage() {
                       <td className="py-3 pr-4">{pedido.responsavelPedido || '-'}</td>
                       <td className="py-3 pr-4">
                         <div>
-                          <p>{pagamentoLabels[pedido.pagamento]}</p>
+                          <p>{getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}</p>
                           <p className="text-xs text-muted-foreground">{statusPagamentoLabels[pedido.statusPagamento]}</p>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">{statusLabels[pedido.status]}</td>
+                      <td className="py-3 pr-4">{statusPedidoReportLabels[pedido.status]}</td>
                       <td className="py-3 pr-4">{entregaLabels[pedido.tipoEntrega]}</td>
                       <td className="py-3 pr-4 font-semibold">{formatarMoeda(pedido.total)}</td>
                     </tr>
@@ -532,14 +552,15 @@ export function RelatoriosPage() {
                     <div>
                       <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
                       <p className="text-sm text-muted-foreground">
-                        {pedido.tipoEntrega === 'ENCOMENDA' ? `Encomenda: ${formatDateTime(pedido.encomendaPara)}` : `Criado: ${formatDateTime(pedido.criadoEm)}`}
+                        {pedido.tipoEntrega === 'ENCOMENDA' ? `Encomenda: ${formatDateTimeInSaoPaulo(pedido.encomendaPara)}` : `Criado: ${formatDateTimeInSaoPaulo(pedido.criadoEm)}`}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {pedido.tipoEntrega === 'ENCOMENDA' && <Badge className="bg-[#FF6BBB] text-white hover:bg-[#FF6BBB]">Encomenda</Badge>}
                       <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
-                      <Badge className={statusStyles[pedido.status]} variant="outline">{statusLabels[pedido.status]}</Badge>
+                      <Badge className={statusPedidoReportStyles[pedido.status]} variant="outline">{statusPedidoReportLabels[pedido.status]}</Badge>
                       <Badge variant="outline">{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
+                      <Badge variant="outline">{getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}</Badge>
                       <Badge>{formatarMoeda(pedido.total)}</Badge>
                     </div>
                   </div>
@@ -547,7 +568,7 @@ export function RelatoriosPage() {
                     <div className="mt-3 space-y-1 rounded-lg bg-muted/30 p-3 text-sm text-muted-foreground">
                       {pedido.responsavelPedido && <p>Responsavel: {pedido.responsavelPedido}</p>}
                       {pedido.destinatariosPedido && <p>Separar para: {pedido.destinatariosPedido}</p>}
-                      {pedido.levadoEm && <p>Levado em: {formatDateTime(pedido.levadoEm)}</p>}
+                      {pedido.levadoEm && <p>Levado em: {formatDateTimeInSaoPaulo(pedido.levadoEm)}</p>}
                       {pedido.observacoesPedido && <p>Obs. do pedido: {pedido.observacoesPedido}</p>}
                     </div>
                   )}

@@ -26,6 +26,11 @@ enum TipoPagamento {
   CARTAO
 }
 
+enum TipoCartao {
+  CREDITO
+  DEBITO
+}
+
 enum TipoEntrega {
   ENTREGA
   RETIRADA
@@ -137,6 +142,7 @@ model Pedido {
   separacaoResponsavel Json?
   levadoEm        DateTime?
   pagamento       TipoPagamento
+  tipoCartao      TipoCartao?
   statusPagamento StatusPagamento @default(NAO_APLICAVEL)
   mercadoPagoPaymentId String?
   mercadoPagoPreferenceId String?

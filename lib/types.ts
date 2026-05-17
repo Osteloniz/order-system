@@ -3,6 +3,7 @@
 export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
 export type StatusPagamento = 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
 export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
+export type TipoCartao = 'CREDITO' | 'DEBITO'
 export type TipoEntrega = 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOMENDA'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 
@@ -65,6 +66,7 @@ export interface Pedido {
   separacaoResponsavel?: SeparacaoResponsavelPessoa[] | null
   levadoEm?: string | null
   pagamento: TipoPagamento
+  tipoCartao?: TipoCartao | null
   tipoEntrega: TipoEntrega
   encomendaPara?: string | null
   enderecoEntrega?: string
@@ -121,6 +123,7 @@ export interface CriarPedidoPayload {
   clienteApartamento?: string
   clienteObservacoes?: string
   pagamento: TipoPagamento
+  tipoCartao?: TipoCartao
   tipoEntrega: TipoEntrega
   encomendaPara?: string
   enderecoEntrega?: string
@@ -160,6 +163,7 @@ export interface PedidoAdminPayload {
   separacaoResponsavel?: SeparacaoResponsavelPessoa[]
   levadoEm?: string
   pagamento: TipoPagamento
+  tipoCartao?: TipoCartao
   tipoEntrega: TipoEntrega
   encomendaPara?: string
   statusPagamento?: StatusPagamento

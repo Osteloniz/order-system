@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 
 type EstoqueItem = {
   produtoId: string
@@ -70,30 +71,6 @@ const fetcher = async (url: string) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Erro ao carregar estoque')
   return data
-}
-
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
-}
-
-function formatDate(value: string) {
-  return new Date(`${value}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-  })
 }
 
 export function EstoquePage() {
@@ -251,7 +228,7 @@ export function EstoquePage() {
           <div className="space-y-2">
             <Label htmlFor="estoque-data-producao">Data produzida</Label>
             <Input id="estoque-data-producao" type="date" value={productionDate} onChange={(event) => setProductionDate(event.target.value)} />
-            <p className="text-xs text-muted-foreground">Tudo que voce registrar abaixo entra como producao do dia {formatDate(productionDate)}.</p>
+            <p className="text-xs text-muted-foreground">Tudo que voce registrar abaixo entra como producao do dia {formatDateInSaoPaulo(productionDate)}.</p>
           </div>
           <Button type="button" variant="outline" onClick={() => mutate()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
@@ -271,7 +248,7 @@ export function EstoquePage() {
               <p className="font-medium">{data?.pedidosLegadosPendentes ?? 0} pedidos antigos ainda nao baixaram estoque</p>
               <p className="text-sm text-muted-foreground">Veja abaixo o motivo por pedido e use a sincronizacao uma vez para aplicar a baixa dos pedidos antigos que ja foram entregues.</p>
             </div>
-            <Button type="button" onClick={syncLegacyStock} disabled={syncingLegacy || !data?.pedidosLegadosPendentes}>
+            <Button type="button" className="w-full md:w-auto" onClick={syncLegacyStock} disabled={syncingLegacy || !data?.pedidosLegadosPendentes}>
               {syncingLegacy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
               Sincronizar pedidos antigos
             </Button>
@@ -288,8 +265,8 @@ export function EstoquePage() {
                     <div className="space-y-1">
                       <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
                       <p className="text-muted-foreground">Status atual: {pedido.status}</p>
-                      <p className="text-muted-foreground">Criado em: {formatDateTime(pedido.criadoEm)}</p>
-                      <p className="text-muted-foreground">Baixa registrada: {pedido.estoqueBaixadoEm ? formatDateTime(pedido.estoqueBaixadoEm) : 'Nao'}</p>
+                      <p className="text-muted-foreground">Criado em: {formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
+                      <p className="text-muted-foreground">Baixa registrada: {pedido.estoqueBaixadoEm ? formatDateTimeInSaoPaulo(pedido.estoqueBaixadoEm) : 'Nao'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="secondary">{pedido.totalItens} unidades</Badge>
@@ -390,7 +367,7 @@ export function EstoquePage() {
                     />
                     <Button type="button" variant="outline" onClick={() => recordProduction(item.produtoId)} disabled={savingProductionId === item.produtoId}>
                       {savingProductionId === item.produtoId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      Registrar producao de {formatDate(productionDate)}
+                      Registrar producao de {formatDateInSaoPaulo(productionDate)}
                     </Button>
                   </div>
                 </div>

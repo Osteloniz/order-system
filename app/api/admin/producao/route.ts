@@ -4,6 +4,7 @@ import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { numeroPedidoCurto } from '@/lib/operation-log'
+import { formatDateInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 import { addAvailableStock, consumeAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -37,15 +38,6 @@ const patchSchema = z.discriminatedUnion('action', [
   }).strict(),
 ])
 
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
 function getPeriodRange(fromParam?: string, toParam?: string, dateParam?: string) {
   const today = todayInSaoPaulo()
   const from = fromParam ?? dateParam ?? today
@@ -60,15 +52,6 @@ function getPeriodRange(fromParam?: string, toParam?: string, dateParam?: string
 
 function parseProductionDate(value: string) {
   return new Date(`${value}T12:00:00-03:00`)
-}
-
-function formatDateInSaoPaulo(value: Date) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(value)
 }
 
 type ProdutoResumo = {

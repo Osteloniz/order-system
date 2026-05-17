@@ -34,6 +34,7 @@ const pedidoAdminSchema = z.object({
   separacaoResponsavel: z.array(separacaoPessoaSchema).max(50).optional(),
   levadoEm: z.string().trim().optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
+  tipoCartao: z.enum(['CREDITO', 'DEBITO']).optional(),
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
   encomendaPara: z.string().trim().optional(),
   statusPagamento: z.enum(['NAO_APLICAVEL', 'PENDENTE', 'APROVADO']).optional(),
@@ -67,6 +68,9 @@ const pedidoAdminSchema = z.object({
   }
   if (data.cupomCodigo?.trim() && (data.valorPromocional ?? 0) > 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['valorPromocional'], message: 'Use cupom ou valor promocional' })
+  }
+  if (data.pagamento === 'CARTAO' && !data.tipoCartao) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoCartao'], message: 'Tipo do cartao obrigatorio' })
   }
   const temResponsavel = Boolean(data.responsavelPedido?.trim())
   if (!temResponsavel) {
@@ -180,6 +184,7 @@ export async function POST(request: NextRequest) {
             : Prisma.DbNull,
           levadoEm: calculado.levadoEm,
           pagamento: calculado.pagamento,
+          tipoCartao: calculado.tipoCartao,
           tipoEntrega: calculado.tipoEntrega,
           encomendaPara: calculado.encomendaPara,
           enderecoEntrega: null,
@@ -225,6 +230,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           origem: 'ADMIN',
           tipoEntrega: novoPedido.tipoEntrega,
+          tipoCartao: novoPedido.tipoCartao,
           statusPagamento: novoPedido.statusPagamento,
         },
       })

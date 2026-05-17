@@ -1,16 +1,8 @@
 import type { Configuracao, Pedido, StatusPedido } from '@/lib/types'
 import { formatarMoeda } from '@/lib/calc'
+import { getPagamentoLabel, statusPagamentoLabelsLong } from '@/lib/order-display'
 
-const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartao', DINHEIRO: 'Dinheiro' } as const
 const entregaLabels = { RESERVA_PAULISTANO: 'Reserva', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' } as const
-const statusPagamentoLabels = {
-  NAO_APLICAVEL: 'Pagamento na entrega',
-  PENDENTE: 'Pagamento pendente',
-  APROVADO: 'Pagamento aprovado',
-  RECUSADO: 'Pagamento recusado',
-  CANCELADO: 'Pagamento cancelado',
-  REEMBOLSADO: 'Pagamento reembolsado',
-} as const
 
 export const defaultStatusMessageTemplates = {
   ACEITO: [
@@ -118,8 +110,8 @@ export function buildStatusMessage(pedido: Pedido, status: StatusPedido, config?
     cliente_nome: pedido.clienteNome,
     itens: pedido.itens.map(item => `- ${item.quantidade}x ${item.nomeProdutoSnapshot}`).join('\n'),
     total: formatarMoeda(pedido.total),
-    pagamento: pagamentoLabels[pedido.pagamento],
-    status_pagamento: statusPagamentoLabels[pedido.statusPagamento],
+    pagamento: getPagamentoLabel(pedido.pagamento, pedido.tipoCartao),
+    status_pagamento: statusPagamentoLabelsLong[pedido.statusPagamento],
     tipo_entrega: entregaLabels[pedido.tipoEntrega],
     linha_pagamento: pedido.statusPagamento === 'APROVADO' ? 'Pagamento confirmado.' : 'Estamos aguardando pagamento.',
   }
@@ -138,7 +130,7 @@ export function buildPaymentReminderMessage(pedido: Pedido) {
     itens,
     '',
     `Total: ${formatarMoeda(pedido.total)}`,
-    `Forma de pagamento: ${pagamentoLabels[pedido.pagamento]}`,
+    `Forma de pagamento: ${getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}`,
     '',
     'Se precisar, me chama por aqui que eu te ajudo.',
   ].join('\n')

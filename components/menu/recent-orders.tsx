@@ -8,29 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatarMoeda } from '@/lib/calc'
 import { clearRecentOrdersForCurrentCustomer, getRecentOrderIds } from '@/lib/customer-session'
-import type { Pedido, StatusPagamento, StatusPedido } from '@/lib/types'
+import { statusPagamentoLabelsLong, statusPedidoShortLabels } from '@/lib/order-display'
+import type { Pedido } from '@/lib/types'
 
 const fetcher = async (url: string) => {
   const response = await fetch(url)
   if (!response.ok) throw new Error('Pedido nao encontrado')
   return response.json()
-}
-
-const statusLabels: Record<StatusPedido, string> = {
-  FEITO: 'Recebido',
-  ACEITO: 'Aceito',
-  PREPARACAO: 'Preparando',
-  ENTREGUE: 'Entregue',
-  CANCELADO: 'Cancelado',
-}
-
-const paymentLabels: Record<StatusPagamento, string> = {
-  NAO_APLICAVEL: 'Na entrega',
-  PENDENTE: 'Pagamento pendente',
-  APROVADO: 'Pago',
-  RECUSADO: 'Recusado',
-  CANCELADO: 'Cancelado',
-  REEMBOLSADO: 'Reembolsado',
 }
 
 function RecentOrderCard({ pedidoId }: { pedidoId: string }) {
@@ -52,8 +36,8 @@ function RecentOrderCard({ pedidoId }: { pedidoId: string }) {
           <p className="text-sm text-muted-foreground">{formatarMoeda(pedido.total)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <Badge variant="outline">{statusLabels[pedido.status]}</Badge>
-          <span className="text-xs text-muted-foreground">{paymentLabels[pedido.statusPagamento]}</span>
+          <Badge variant="outline">{statusPedidoShortLabels[pedido.status]}</Badge>
+          <span className="text-xs text-muted-foreground">{statusPagamentoLabelsLong[pedido.statusPagamento]}</span>
         </div>
       </div>
     </Link>

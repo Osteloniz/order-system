@@ -2,7 +2,6 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -23,6 +22,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { formatarMoeda, formatarDataHora, formatarTelefone } from '@/lib/calc'
 import { saveRecentOrder } from '@/lib/customer-session'
+import { getPagamentoLabel, statusPagamentoLabelsLong } from '@/lib/order-display'
 import { buildWhatsappUrl } from '@/lib/phone'
 import type { Pedido, StatusPedido } from '@/lib/types'
 
@@ -36,30 +36,12 @@ const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
   CANCELADO: { label: 'Cancelado', color: 'bg-destructive text-destructive-foreground' }
 }
 
-const pagamentoLabels = {
-  PIX: 'PIX',
-  CARTAO: 'Cartão',
-  DINHEIRO: 'Dinheiro'
-}
-
-const statusPagamentoLabels = {
-  NAO_APLICAVEL: 'Pagamento na entrega',
-  PENDENTE: 'Pagamento pendente',
-  APROVADO: 'Pagamento aprovado',
-  RECUSADO: 'Pagamento recusado',
-  CANCELADO: 'Pagamento cancelado',
-  REEMBOLSADO: 'Pagamento reembolsado'
-}
-
 interface ConfirmationPageProps {
   pedidoId: string
 }
 
 export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
-  const searchParams = useSearchParams()
-  const [isPaying, setIsPaying] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
-  const [paymentError, setPaymentError] = useState('')
   const [cancelError, setCancelError] = useState('')
   const { data: pedido, isLoading, error, mutate } = useSWR<Pedido>(
     `/api/pedidos/${pedidoId}`,
@@ -102,32 +84,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
   if (!pedido) return null
 
   const statusInfo = statusConfig[pedido.status]
-  const shouldShowPaymentButton = pedido.status === 'FEITO' && (pedido.pagamento === 'PIX' || pedido.pagamento === 'CARTAO')
   const canCancelOrder = pedido.status === 'FEITO' && pedido.statusPagamento !== 'APROVADO'
-  const checkoutUrl = searchParams.get('checkoutUrl')
-
-  const handlePayNow = async () => {
-    setPaymentError('')
-    setIsPaying(true)
-
-    try {
-      const response = await fetch('/api/pagamentos/mercado-pago/preference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedidoId: pedido.id })
-      })
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao iniciar pagamento')
-      }
-
-      window.location.assign(data.checkoutUrl)
-    } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : 'Erro ao iniciar pagamento')
-      setIsPaying(false)
-    }
-  }
 
   const handleCancelOrder = async () => {
     setCancelError('')
@@ -274,13 +231,18 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
               <span className="text-muted-foreground">Pagamento</span>
               <span className="font-medium flex items-center gap-1">
                 <CreditCard className="h-4 w-4" />
-                {pagamentoLabels[pedido.pagamento]}
+                {getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Status do pagamento</span>
-              <span className="font-medium">{statusPagamentoLabels[pedido.statusPagamento]}</span>
+              <span className="font-medium">{statusPagamentoLabelsLong[pedido.statusPagamento]}</span>
             </div>
+            {pedido.statusPagamento === 'PENDENTE' && pedido.pagamento !== 'DINHEIRO' && (
+              <p className="text-sm text-muted-foreground">
+                A loja vai orientar a confirmação do pagamento diretamente no atendimento.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -316,22 +278,6 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
               </AlertDialog>
               {cancelError && (
                 <p className="text-sm text-destructive text-center">{cancelError}</p>
-              )}
-            </>
-          )}
-          {shouldShowPaymentButton && (
-            <>
-              {checkoutUrl && (
-                <p className="text-sm text-muted-foreground text-center">
-                  Pedido criado. Toque no botão abaixo para abrir o pagamento com segurança no celular.
-                </p>
-              )}
-              <Button className="w-full h-12" onClick={handlePayNow} disabled={isPaying}>
-                <CreditCard className="h-4 w-4 mr-2" />
-                {isPaying ? 'Abrindo pagamento...' : `Pagar agora com ${pagamentoLabels[pedido.pagamento]}`}
-              </Button>
-              {paymentError && (
-                <p className="text-sm text-destructive text-center">{paymentError}</p>
               )}
             </>
           )}

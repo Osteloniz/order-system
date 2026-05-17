@@ -91,7 +91,7 @@ export function AdminSidebar() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden h-screen sticky top-0 w-64 flex-col border-r border-border bg-card md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-border bg-card md:flex">
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-2 text-primary">
             <Store className="h-6 w-6" />
@@ -99,7 +99,7 @@ export function AdminSidebar() {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-4 space-y-2">
           {menuItems.map(item => (
             <Link
               key={item.href}
@@ -117,7 +117,7 @@ export function AdminSidebar() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border">
+        <div className="shrink-0 border-t border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-muted-foreground">Tema</span>
             <ThemeToggle />

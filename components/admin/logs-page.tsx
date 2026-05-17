@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 
 type LogItem = {
   id: string
@@ -44,23 +45,6 @@ const fetcher = async (url: string) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Erro ao carregar logs')
   return data
-}
-
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
 }
 
 function formatQuantidade(value: number | null) {
@@ -216,7 +200,7 @@ export function LogsPage() {
                 <tbody>
                   {data.logs.map((log) => (
                     <tr key={log.id} className="border-t align-top">
-                      <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(log.criadoEm)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{formatDateTimeInSaoPaulo(log.criadoEm)}</td>
                       <td className="px-4 py-3">
                         <Badge variant="secondary">{log.tipo.replaceAll('_', ' ')}</Badge>
                       </td>

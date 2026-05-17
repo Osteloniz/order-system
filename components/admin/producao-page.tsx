@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { formatarMoeda, formatarHora } from '@/lib/calc'
+import { statusPagamentoLabels } from '@/lib/order-display'
+import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 import type { StatusPagamento, StatusPedido, TipoEntrega } from '@/lib/types'
 
 type ProducaoResumoItem = {
@@ -86,40 +88,6 @@ const fetcher = async (url: string) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Erro ao carregar producao')
   return data
-}
-
-const statusPagamentoLabels: Record<StatusPagamento, string> = {
-  NAO_APLICAVEL: 'Na entrega',
-  PENDENTE: 'Pendente',
-  APROVADO: 'Pago',
-  RECUSADO: 'Recusado',
-  CANCELADO: 'Cancelado',
-  REEMBOLSADO: 'Reembolsado',
-}
-
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-function formatarDataHora(value?: string | null) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
-}
-
-function formatarDataRegistro(value: string) {
-  return new Date(`${value}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-  })
 }
 
 export function ProducaoPage() {
@@ -220,7 +188,7 @@ export function ProducaoPage() {
           <div className="space-y-2">
             <Label htmlFor="data-registro-producao">Data produzida</Label>
             <Input id="data-registro-producao" type="date" value={productionDate} onChange={(event) => setProductionDate(event.target.value)} />
-            <p className="text-xs text-muted-foreground">Use essa data para registrar hoje uma producao que vai contar como {formatarDataRegistro(productionDate)}.</p>
+            <p className="text-xs text-muted-foreground">Use essa data para registrar hoje uma producao que vai contar como {formatDateInSaoPaulo(productionDate)}.</p>
           </div>
           <Button type="button" variant="outline" onClick={() => mutate()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
@@ -258,7 +226,7 @@ export function ProducaoPage() {
               <div className="space-y-3">
                 {data.aProduzir.map((item) => (
                   <div key={item.produtoId} className="rounded-xl border bg-background/85 p-4">
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{item.nomeProduto}</p>
                         <p className="text-sm text-muted-foreground">Pedidos novos {item.quantidade} · Estoque livre {item.estoqueDisponivel}</p>
@@ -287,7 +255,7 @@ export function ProducaoPage() {
             ) : data?.encomendasAProduzir.length ? (
               <div className="space-y-3">
                 {data.encomendasAProduzir.map((item) => (
-                  <div key={item.produtoId} className="flex items-center justify-between gap-4 rounded-xl border bg-background/85 p-4">
+                  <div key={item.produtoId} className="flex flex-col gap-3 rounded-xl border bg-background/85 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{item.nomeProduto}</p>
                       <p className="text-sm text-muted-foreground">Falta reservar para encomendas abertas</p>
@@ -339,9 +307,9 @@ export function ProducaoPage() {
                       value={productionDrafts[item.produtoId] ?? ''}
                       onChange={(event) => setProductionDrafts((current) => ({ ...current, [item.produtoId]: event.target.value }))}
                     />
-                    <Button type="button" variant="outline" onClick={() => recordProduction(item.produtoId)} disabled={savingProductionId === item.produtoId}>
+                    <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => recordProduction(item.produtoId)} disabled={savingProductionId === item.produtoId}>
                       {savingProductionId === item.produtoId ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      Registrar producao de {formatarDataRegistro(productionDate)}
+                      Registrar producao de {formatDateInSaoPaulo(productionDate)}
                     </Button>
                   </div>
                 </div>
@@ -364,7 +332,7 @@ export function ProducaoPage() {
             <div className="space-y-4">
               {data.historicoProducao.map((dia) => (
                 <div key={dia.data} className="rounded-xl border p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-semibold">{new Date(`${dia.data}T12:00:00-03:00`).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'full' })}</p>
                       <p className="text-sm text-muted-foreground">Total produzido: {dia.totalProduzido} unidades</p>
@@ -373,9 +341,9 @@ export function ProducaoPage() {
                   </div>
                   <div className="space-y-2">
                     {dia.itens.map((item) => (
-                      <div key={`${dia.data}-${item.produtoId}`} className="flex items-center justify-between rounded-lg bg-muted/35 p-3 text-sm">
-                        <span>{item.nomeProduto}</span>
-                        <span className="font-semibold">{item.quantidade}</span>
+                      <div key={`${dia.data}-${item.produtoId}`} className="flex items-center justify-between gap-3 rounded-lg bg-muted/35 p-3 text-sm">
+                        <span className="min-w-0 break-words">{item.nomeProduto}</span>
+                        <span className="shrink-0 font-semibold">{item.quantidade}</span>
                       </div>
                     ))}
                   </div>
@@ -402,7 +370,7 @@ export function ProducaoPage() {
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-semibold">#{pedido.numero} · {pedido.clienteNome}</p>
-                      <p className="text-sm text-muted-foreground">Entrega da encomenda: {formatarDataHora(pedido.encomendaPara)}</p>
+                      <p className="text-sm text-muted-foreground">Entrega da encomenda: {formatDateTimeInSaoPaulo(pedido.encomendaPara)}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge className="bg-[#FF6BBB] text-white hover:bg-[#FF6BBB]">Encomenda</Badge>

@@ -3,6 +3,7 @@ import type { LogOperacaoTipo } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { todayInSaoPaulo } from '@/lib/sao-paulo'
 
 export const runtime = 'nodejs'
 
@@ -12,15 +13,6 @@ const querySchema = z.object({
   tipo: z.string().trim().optional(),
   busca: z.string().trim().optional(),
 }).strict()
-
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
 
 function getPeriodRange(from: string, to: string) {
   return {

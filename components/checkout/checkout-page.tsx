@@ -16,7 +16,7 @@ import { useCart } from '@/contexts/cart-context'
 import { formatarMoeda } from '@/lib/calc'
 import { getCustomerProfile, saveCustomerProfile, saveRecentOrder } from '@/lib/customer-session'
 import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
-import type { TipoPagamento, TipoEntrega, CriarPedidoPayload } from '@/lib/types'
+import type { TipoCartao, TipoPagamento, TipoEntrega, CriarPedidoPayload } from '@/lib/types'
 
 interface MenuData {
   estabelecimento: string
@@ -39,6 +39,7 @@ export function CheckoutPage() {
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('PIX')
+  const [tipoCartao, setTipoCartao] = useState<TipoCartao>('CREDITO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [cupomCodigo, setCupomCodigo] = useState('')
   const [cupomErro, setCupomErro] = useState('')
@@ -146,6 +147,7 @@ export function CheckoutPage() {
         clienteBloco: tipoEntrega === 'RESERVA_PAULISTANO' ? bloco.trim() : undefined,
         clienteApartamento: tipoEntrega === 'RESERVA_PAULISTANO' ? apartamento.trim() : undefined,
         pagamento,
+        tipoCartao: pagamento === 'CARTAO' ? tipoCartao : undefined,
         tipoEntrega,
         cupomCodigo: cupomCodigo.trim() ? cupomCodigo.trim().toUpperCase() : undefined,
         itens: itens.map(item => ({
@@ -167,24 +169,6 @@ export function CheckoutPage() {
 
       const pedido = await response.json()
       saveRecentOrder(pedido)
-
-      if (pagamento === 'PIX' || pagamento === 'CARTAO') {
-        const paymentResponse = await fetch('/api/pagamentos/mercado-pago/preference', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pedidoId: pedido.id })
-        })
-        const paymentData = await paymentResponse.json()
-
-        if (!paymentResponse.ok) {
-          throw new Error(paymentData.error || 'Erro ao iniciar pagamento')
-        }
-
-        limparCarrinho()
-        router.push(`/confirmacao/${pedido.id}?checkoutUrl=${encodeURIComponent(paymentData.checkoutUrl)}`)
-        return
-      }
-
       limparCarrinho()
       router.push(`/confirmacao/${pedido.id}`)
     } catch (err) {
@@ -385,40 +369,82 @@ export function CheckoutPage() {
               <label
                 htmlFor="pix"
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                  pagamento === 'PIX' 
-                    ? 'border-primary bg-primary/5' 
+                  pagamento === 'PIX'
+                    ? 'border-primary bg-primary/5'
                     : 'border-border hover:bg-secondary/50'
                 }`}
               >
                 <RadioGroupItem value="PIX" id="pix" />
                 <QrCode className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">PIX</span>
+                <div className="flex-1">
+                  <p className="font-medium">PIX</p>
+                  <p className="text-sm text-muted-foreground">A loja confirma o pagamento depois do pedido.</p>
+                </div>
               </label>
 
               <label
                 htmlFor="cartao"
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                  pagamento === 'CARTAO' 
-                    ? 'border-primary bg-primary/5' 
+                  pagamento === 'CARTAO'
+                    ? 'border-primary bg-primary/5'
                     : 'border-border hover:bg-secondary/50'
                 }`}
               >
                 <RadioGroupItem value="CARTAO" id="cartao" />
                 <CreditCard className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">Cartão</span>
+                <div className="flex-1">
+                  <p className="font-medium">Cartão</p>
+                  <p className="text-sm text-muted-foreground">Pagamento combinado diretamente com a loja.</p>
+                </div>
               </label>
+
+              {pagamento === 'CARTAO' && (
+                <div className="space-y-3 pl-8">
+                  <p className="text-sm font-medium">Tipo de cartao</p>
+                  <RadioGroup value={tipoCartao} onValueChange={(value) => setTipoCartao(value as TipoCartao)} className="grid gap-3 sm:grid-cols-2">
+                  <label
+                    htmlFor="cartao-credito"
+                    className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                      tipoCartao === 'CREDITO' ? 'border-primary bg-primary/5' : 'border-border hover:bg-secondary/50'
+                    }`}
+                  >
+                    <RadioGroupItem value="CREDITO" id="cartao-credito" />
+                    <div className="flex-1">
+                      <p className="font-medium">Crédito</p>
+                      <p className="text-sm text-muted-foreground">Taxa prevista de 3,09% no fluxo de caixa.</p>
+                    </div>
+                  </label>
+
+                  <label
+                    htmlFor="cartao-debito"
+                    className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                      tipoCartao === 'DEBITO' ? 'border-primary bg-primary/5' : 'border-border hover:bg-secondary/50'
+                    }`}
+                  >
+                    <RadioGroupItem value="DEBITO" id="cartao-debito" />
+                    <div className="flex-1">
+                      <p className="font-medium">Débito</p>
+                      <p className="text-sm text-muted-foreground">Taxa prevista de 0,89% no fluxo de caixa.</p>
+                    </div>
+                  </label>
+                  </RadioGroup>
+                </div>
+              )}
 
               <label
                 htmlFor="dinheiro"
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                  pagamento === 'DINHEIRO' 
-                    ? 'border-primary bg-primary/5' 
+                  pagamento === 'DINHEIRO'
+                    ? 'border-primary bg-primary/5'
                     : 'border-border hover:bg-secondary/50'
                 }`}
               >
                 <RadioGroupItem value="DINHEIRO" id="dinheiro" />
                 <Banknote className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">Dinheiro</span>
+                <div className="flex-1">
+                  <p className="font-medium">Dinheiro</p>
+                  <p className="text-sm text-muted-foreground">Pagamento na entrega ou retirada.</p>
+                </div>
               </label>
             </RadioGroup>
           </CardContent>

@@ -24,6 +24,7 @@ const pedidoSchema = z.object({
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   pagamento: z.enum(['PIX', 'DINHEIRO', 'CARTAO']),
+  tipoCartao: z.enum(['CREDITO', 'DEBITO']).optional(),
   tipoEntrega: z.enum(['RESERVA_PAULISTANO', 'RETIRADA', 'ENCOMENDA']),
   encomendaPara: z.string().trim().optional(),
   enderecoEntrega: z.string().trim().max(200).optional(),
@@ -48,6 +49,9 @@ const pedidoSchema = z.object({
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
     }
+  }
+  if (data.pagamento === 'CARTAO' && !data.tipoCartao) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoCartao'], message: 'Tipo do cartao obrigatorio' })
   }
 })
 
@@ -171,6 +175,7 @@ export async function POST(request: NextRequest) {
           clienteBloco: body.clienteBloco?.trim() ?? null,
           clienteApartamento: body.clienteApartamento?.trim() ?? null,
           pagamento: body.pagamento,
+          tipoCartao: body.pagamento === 'CARTAO' ? body.tipoCartao ?? 'CREDITO' : null,
           tipoEntrega: body.tipoEntrega,
           encomendaPara: body.tipoEntrega === 'ENCOMENDA' && body.encomendaPara ? new Date(body.encomendaPara) : null,
           enderecoEntrega: null,
@@ -214,10 +219,11 @@ export async function POST(request: NextRequest) {
         pedidoNumero: numeroPedidoCurto(pedido.id),
         quantidade: pedido.itens.reduce((acc, item) => acc + item.quantidade, 0),
         metadata: {
-          origem: 'CHECKOUT',
-          tipoEntrega: pedido.tipoEntrega,
-          statusPagamento: pedido.statusPagamento,
-        },
+            origem: 'CHECKOUT',
+            tipoEntrega: pedido.tipoEntrega,
+            tipoCartao: pedido.tipoCartao,
+            statusPagamento: pedido.statusPagamento,
+          },
       })
 
       return pedido

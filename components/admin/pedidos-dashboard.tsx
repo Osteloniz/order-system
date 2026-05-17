@@ -19,7 +19,9 @@ import { NovoPedidoAdminPage } from '@/components/admin/novo-pedido-page'
 import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import { buildPaymentReminderMessage, buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
+import { entregaLabels, getPagamentoLabel, statusPagamentoColors, statusPagamentoLabels } from '@/lib/order-display'
 import { buildWhatsappUrl } from '@/lib/phone'
+import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 import type { Configuracao, Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -39,18 +41,6 @@ const kanbanColumns: { status: StatusPedido; title: string; hint: string }[] = [
   { status: 'ENTREGUE', title: 'Entregues', hint: 'Finalizados' },
   { status: 'CANCELADO', title: 'Cancelados', hint: 'Somente consulta' },
 ]
-
-const pagamentoLabels = { PIX: 'PIX', CARTAO: 'Cartao', DINHEIRO: 'Dinheiro' }
-const entregaLabels = { RESERVA_PAULISTANO: 'Condominio', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' }
-const statusPagamentoLabels = { NAO_APLICAVEL: 'Na entrega', PENDENTE: 'Pendente', APROVADO: 'Aprovado', RECUSADO: 'Recusado', CANCELADO: 'Cancelado', REEMBOLSADO: 'Reembolsado' }
-const statusPagamentoColors = {
-  NAO_APLICAVEL: 'bg-secondary text-secondary-foreground',
-  PENDENTE: 'bg-warning text-warning-foreground',
-  APROVADO: 'bg-success text-success-foreground',
-  RECUSADO: 'bg-destructive text-destructive-foreground',
-  CANCELADO: 'bg-destructive text-destructive-foreground',
-  REEMBOLSADO: 'bg-accent text-accent-foreground'
-}
 
 type EstoqueConsultaItem = {
   produtoId: string
@@ -85,15 +75,6 @@ function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido, config?: Conf
 
 function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
   return pedido.status !== targetStatus
-}
-
-function todayInSaoPaulo() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
 }
 
 export function PedidosDashboard() {
@@ -152,8 +133,6 @@ export function PedidosDashboard() {
       pedido.responsavelPedido,
       pedido.destinatariosPedido,
       pedido.observacoesPedido,
-      pedido.mercadoPagoPaymentId,
-      pedido.mercadoPagoPreferenceId,
       pedido.itens.map(item => item.nomeProdutoSnapshot).join(' '),
     ].filter(Boolean).join(' ').toLowerCase()
 
@@ -578,7 +557,7 @@ export function PedidosDashboard() {
             {pedido.encomendaPara && <Badge variant="secondary" className="text-xs">{new Date(pedido.encomendaPara).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Badge>}
             <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
           </div>
-          <div className="flex items-center justify-between text-sm"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} {formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
+          <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} {formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
           {isUpdating && <div className="flex items-center gap-2 text-xs text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Atualizando status...</div>}
         </CardContent>
       </Card>
@@ -592,26 +571,26 @@ export function PedidosDashboard() {
           <h1 className="text-2xl font-bold">Pedidos</h1>
           <p className="text-sm text-muted-foreground">Arraste os cards livremente entre as colunas. O estoque e as reservas sao ajustados automaticamente.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="default" size="sm" onClick={() => setNewOrderOpen(true)}>
-            <Plus className="h-4 w-4 mr-0 md:mr-2" />
-            <span className="hidden md:inline">Novo pedido</span>
+        <div className="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
+          <Button variant="default" size="sm" className="flex-1 justify-center sm:flex-none" onClick={() => setNewOrderOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo pedido
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setStockLookupOpen(true)}>
-            <Archive className="h-4 w-4 mr-0 md:mr-2" />
-            <span className="hidden md:inline">Consultar estoque</span>
+          <Button variant="outline" size="sm" className="flex-1 justify-center sm:flex-none" onClick={() => setStockLookupOpen(true)}>
+            <Archive className="mr-2 h-4 w-4" />
+            Estoque
           </Button>
           {alertsEnabled && !soundUnlocked && (
-            <Button variant="outline" size="sm" onClick={handleUnlockSound}>
-              <Volume2 className="h-4 w-4 mr-0 md:mr-2" />
-              <span className="hidden md:inline">Ativar som</span>
+            <Button variant="outline" size="sm" className="flex-1 justify-center sm:flex-none" onClick={handleUnlockSound}>
+              <Volume2 className="mr-2 h-4 w-4" />
+              Ativar som
             </Button>
           )}
-          <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
-            {alertsEnabled ? <BellRing className="h-4 w-4 mr-0 md:mr-2" /> : <Bell className="h-4 w-4 mr-0 md:mr-2" />}
-            <span className="hidden md:inline">{alertsEnabled ? 'Alertas ativos' : 'Ativar alertas'}</span>
+          <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" className="flex-1 justify-center sm:flex-none" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
+            {alertsEnabled ? <BellRing className="mr-2 h-4 w-4" /> : <Bell className="mr-2 h-4 w-4" />}
+            {alertsEnabled ? 'Alertas ativos' : 'Ativar alertas'}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRefresh}><RefreshCw className="h-4 w-4 mr-0 md:mr-2" /><span className="hidden md:inline">Atualizar</span></Button>
+          <Button variant="outline" size="sm" className="flex-1 justify-center sm:flex-none" onClick={handleRefresh}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
         </div>
       </div>
 
@@ -633,7 +612,7 @@ export function PedidosDashboard() {
                 <Input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Numero, nome, telefone, bloco, item ou ID Mercado Pago"
+                  placeholder="Numero, nome, telefone, bloco ou item"
                   className="pl-9"
                 />
               </div>
@@ -693,8 +672,8 @@ export function PedidosDashboard() {
 
       {lastAlertMessage && (
         <Card className={alertsEnabled ? 'border-primary/40 bg-primary/5' : 'border-muted'}>
-          <CardContent className="flex items-center justify-between gap-3 p-3 text-sm">
-            <div className="flex items-center gap-2">{alertsEnabled ? <BellRing className="h-4 w-4 text-primary" /> : <Bell className="h-4 w-4 text-muted-foreground" />}<span>{lastAlertMessage}</span></div>
+          <CardContent className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">{alertsEnabled ? <BellRing className="mt-0.5 h-4 w-4 text-primary" /> : <Bell className="mt-0.5 h-4 w-4 text-muted-foreground" />}<span className="break-words">{lastAlertMessage}</span></div>
             {notificationPermission === 'denied' && <span className="text-xs text-muted-foreground">Permissao do navegador bloqueada</span>}
           </CardContent>
         </Card>
@@ -732,9 +711,12 @@ export function PedidosDashboard() {
       </Card>
 
       {isLoading ? (
-        <div className="grid gap-4 lg:grid-cols-5">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-96 w-full" />)}</div>
+        <div className="overflow-x-auto pb-2">
+          <div className="grid min-w-[1180px] gap-4 xl:grid-cols-5">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-96 w-full" />)}</div>
+        </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-5">
+        <div className="overflow-x-auto pb-2">
+          <div className="grid min-w-[1180px] gap-4 xl:grid-cols-5">
           {kanbanColumns.map(column => {
             const columnPedidos = pedidosFiltrados.filter(pedido => pedido.status === column.status)
             const StatusIcon = statusConfig[column.status].icon
@@ -750,15 +732,16 @@ export function PedidosDashboard() {
               </div>
             )
           })}
+          </div>
         </div>
       )}
 
       <Sheet open={!!selectedPedido} onOpenChange={() => { setSelectedPedido(null); setCancelReason('') }}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full overflow-y-auto px-4 sm:max-w-lg">
           {selectedPedido && (
             <>
               <SheetHeader>
-                <SheetTitle className="flex items-center justify-between"><span>Pedido #{selectedPedido.id.slice(-8).toUpperCase()}</span><Badge className={statusConfig[selectedPedido.status].color}>{statusConfig[selectedPedido.status].label}</Badge></SheetTitle>
+                <SheetTitle className="flex flex-col items-start gap-2 pr-6 sm:flex-row sm:items-center sm:justify-between"><span className="break-words">Pedido #{selectedPedido.id.slice(-8).toUpperCase()}</span><Badge className={statusConfig[selectedPedido.status].color}>{statusConfig[selectedPedido.status].label}</Badge></SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-6">
                 {statusConfig[selectedPedido.status].nextStatus && (
@@ -842,7 +825,7 @@ export function PedidosDashboard() {
                 <Card>
                   <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4" />Itens</CardTitle></CardHeader>
                   <CardContent className="space-y-2">
-                    {selectedPedido.itens.map(item => <div key={item.id} className="flex justify-between text-sm"><span>{item.quantidade}x {item.nomeProdutoSnapshot}</span><span className="font-medium">{formatarMoeda(item.totalItem)}</span></div>)}
+                    {selectedPedido.itens.map(item => <div key={item.id} className="flex items-start justify-between gap-3 text-sm"><span className="min-w-0 break-words">{item.quantidade}x {item.nomeProdutoSnapshot}</span><span className="shrink-0 font-medium">{formatarMoeda(item.totalItem)}</span></div>)}
                     <Separator />
                     <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatarMoeda(selectedPedido.subtotal)}</span></div>
                     {selectedPedido.frete > 0 && <div className="flex justify-between text-sm"><span>Frete</span><span>{formatarMoeda(selectedPedido.frete)}</span></div>}
@@ -855,15 +838,15 @@ export function PedidosDashboard() {
                 <Card>
                   <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><User className="h-4 w-4" />Cliente</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm"><User className="h-4 w-4 text-muted-foreground" /><span>{selectedPedido.clienteNome}</span></div>
-                    <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" />{selectedPedido.clienteTelefone ? <a href={`tel:${selectedPedido.clienteTelefone}`} className="text-primary hover:underline">{formatarTelefone(selectedPedido.clienteTelefone)}</a> : <span className="text-muted-foreground">Nao informado</span>}</div>
-                    <div className="flex items-center gap-2 text-sm"><Clock className="h-4 w-4 text-muted-foreground" /><span>Pedido feito em {new Date(selectedPedido.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}</span></div>
-                    <div className="flex items-center gap-2 text-sm"><CreditCard className="h-4 w-4 text-muted-foreground" /><span>{pagamentoLabels[selectedPedido.pagamento]}</span></div>
-                    <div className="flex items-center gap-2 text-sm"><Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>{statusPagamentoLabels[selectedPedido.statusPagamento]}</Badge>{selectedPedido.mercadoPagoPaymentId && <span className="font-mono text-xs text-muted-foreground">MP {selectedPedido.mercadoPagoPaymentId}</span>}</div>
-                    {selectedPedido.responsavelPedido && <div className="flex items-center gap-2 text-sm"><User className="h-4 w-4 text-muted-foreground" /><span>Responsavel: {selectedPedido.responsavelPedido}</span></div>}
-                    {selectedPedido.destinatariosPedido && <div className="flex items-start gap-2 text-sm"><Package className="h-4 w-4 mt-0.5 text-muted-foreground" /><span>Separar para: {selectedPedido.destinatariosPedido}</span></div>}
-                    {selectedPedido.levadoEm && <div className="flex items-center gap-2 text-sm"><Truck className="h-4 w-4 text-muted-foreground" /><span>Levado em {new Date(selectedPedido.levadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}</span></div>}
-                    {selectedPedido.observacoesPedido && <div className="rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground">{selectedPedido.observacoesPedido}</div>}
+                    <div className="flex items-start gap-2 text-sm"><User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="break-words">{selectedPedido.clienteNome}</span></div>
+                    <div className="flex items-start gap-2 text-sm"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />{selectedPedido.clienteTelefone ? <a href={`tel:${selectedPedido.clienteTelefone}`} className="break-all text-primary hover:underline">{formatarTelefone(selectedPedido.clienteTelefone)}</a> : <span className="text-muted-foreground">Nao informado</span>}</div>
+                    <div className="flex items-start gap-2 text-sm"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span>Pedido feito em {formatDateTimeInSaoPaulo(selectedPedido.criadoEm)}</span></div>
+                    <div className="flex items-start gap-2 text-sm"><CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span>{getPagamentoLabel(selectedPedido.pagamento, selectedPedido.tipoCartao)}</span></div>
+                    <div className="flex items-center gap-2 text-sm"><Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>{statusPagamentoLabels[selectedPedido.statusPagamento]}</Badge></div>
+                    {selectedPedido.responsavelPedido && <div className="flex items-start gap-2 text-sm"><User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="break-words">Responsavel: {selectedPedido.responsavelPedido}</span></div>}
+                    {selectedPedido.destinatariosPedido && <div className="flex items-start gap-2 text-sm"><Package className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="break-words">Separar para: {selectedPedido.destinatariosPedido}</span></div>}
+                    {selectedPedido.levadoEm && <div className="flex items-start gap-2 text-sm"><Truck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span>Levado em {formatDateTimeInSaoPaulo(selectedPedido.levadoEm)}</span></div>}
+                    {selectedPedido.observacoesPedido && <div className="rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground break-words">{selectedPedido.observacoesPedido}</div>}
                   </CardContent>
                 </Card>
 
@@ -871,8 +854,8 @@ export function PedidosDashboard() {
                   <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4" />{entregaLabels[selectedPedido.tipoEntrega]}</CardTitle></CardHeader>
                   <CardContent className="space-y-2">
                     {selectedPedido.tipoEntrega === 'RESERVA_PAULISTANO' && <><p className="text-sm">Bloco: {selectedPedido.clienteBloco || '-'}</p><p className="text-sm">Apartamento: {selectedPedido.clienteApartamento || '-'}</p></>}
-                    {selectedPedido.tipoEntrega === 'RETIRADA' && <p className="text-sm">{selectedPedido.enderecoRetirada}</p>}
-                    {selectedPedido.tipoEntrega === 'ENCOMENDA' && <p className="text-sm">Entrega em {selectedPedido.encomendaPara ? new Date(selectedPedido.encomendaPara).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : '-'}</p>}
+                    {selectedPedido.tipoEntrega === 'RETIRADA' && <p className="break-words text-sm">{selectedPedido.enderecoRetirada}</p>}
+                    {selectedPedido.tipoEntrega === 'ENCOMENDA' && <p className="text-sm">Entrega em {selectedPedido.encomendaPara ? formatDateTimeInSaoPaulo(selectedPedido.encomendaPara) : '-'}</p>}
                   </CardContent>
                 </Card>
 
@@ -884,7 +867,7 @@ export function PedidosDashboard() {
       </Sheet>
 
       <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto overflow-x-hidden p-3 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
           <DialogHeader>
             <DialogTitle>Novo pedido manual</DialogTitle>
           </DialogHeader>
@@ -899,7 +882,7 @@ export function PedidosDashboard() {
       </Dialog>
 
       <Dialog open={stockLookupOpen} onOpenChange={setStockLookupOpen}>
-        <DialogContent className="max-h-[88vh] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-3xl">
+        <DialogContent className="max-h-[88vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto p-3 sm:max-w-3xl sm:p-6">
           <DialogHeader>
             <DialogTitle>Consulta rápida de estoque</DialogTitle>
           </DialogHeader>
@@ -971,7 +954,7 @@ export function PedidosDashboard() {
       </Dialog>
 
       <Dialog open={!!editingPedido} onOpenChange={(open) => { if (!open) setEditingPedido(null) }}>
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto overflow-x-hidden p-3 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
           <DialogHeader>
             <DialogTitle>Editar pedido</DialogTitle>
           </DialogHeader>

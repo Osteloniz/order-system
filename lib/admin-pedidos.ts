@@ -35,6 +35,7 @@ export type PedidoCalculado = {
   separacaoResponsavel: SeparacaoResponsavelPessoa[] | null
   levadoEm: Date | null
   pagamento: PedidoAdminPayload['pagamento']
+  tipoCartao: PedidoAdminPayload['tipoCartao'] | null
   tipoEntrega: PedidoAdminPayload['tipoEntrega']
   encomendaPara: Date | null
   statusPagamento: NonNullable<PedidoAdminPayload['statusPagamento']>
@@ -232,6 +233,7 @@ export async function calcularPedidoAdmin(
   const cliente = await resolveClientePedido(tx, tenantId, payload)
   const criadoEm = payload.criadoEm ? new Date(payload.criadoEm) : new Date()
   const statusPagamento = payload.statusPagamento ?? (payload.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE')
+  const tipoCartao = payload.pagamento === 'CARTAO' ? (payload.tipoCartao ?? 'CREDITO') : null
   const encomendaPara = payload.tipoEntrega === 'ENCOMENDA' && payload.encomendaPara
     ? new Date(payload.encomendaPara)
     : null
@@ -250,6 +252,7 @@ export async function calcularPedidoAdmin(
     separacaoResponsavel,
     levadoEm,
     pagamento: payload.pagamento,
+    tipoCartao,
     tipoEntrega: payload.tipoEntrega,
     encomendaPara,
     statusPagamento,
@@ -487,6 +490,7 @@ export async function atualizarPedidoAdmin(
         : Prisma.DbNull,
       levadoEm: calculado.levadoEm,
       pagamento: calculado.pagamento,
+      tipoCartao: calculado.tipoCartao,
       tipoEntrega: calculado.tipoEntrega,
       encomendaPara: calculado.encomendaPara,
       enderecoEntrega: null,

@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
+import { formatDateTimeInSaoPaulo } from '@/lib/sao-paulo'
 import type { Cliente } from '@/lib/types'
 
 const fetcher = async (url: string) => {
@@ -19,15 +20,6 @@ const fetcher = async (url: string) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Erro ao carregar clientes')
   return data
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
 }
 
 export function ClientesPage() {
@@ -157,7 +149,7 @@ export function ClientesPage() {
                         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                           <div>
                             <p className="font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p>
-                            <p className="text-sm text-muted-foreground">{formatDate(pedido.criadoEm)}</p>
+                            <p className="text-sm text-muted-foreground">{formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
                           </div>
                           <div className="flex flex-wrap gap-2"><Badge variant="outline">{pedido.status}</Badge><Badge>{formatarMoeda(pedido.total)}</Badge></div>
                         </div>
