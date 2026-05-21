@@ -61,6 +61,14 @@ export async function GET(request: NextRequest) {
       orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
     })
 
+    const contasPagar = await prisma.contaPagar.findMany({
+      where: {
+        tenantId: admin.tenantId,
+        vencimento: { gte: start, lt: end },
+      },
+      orderBy: { vencimento: 'asc' },
+    })
+
     const porStatus = {
       FEITO: 0,
       ACEITO: 0,
@@ -114,6 +122,9 @@ export async function GET(request: NextRequest) {
     const cartaoEntregue = entregues.filter((pedido) => pedido.pagamento === 'CARTAO')
     const cartaoPrevisto = pedidosPrevistos.filter((pedido) => pedido.pagamento === 'CARTAO')
     const cartaoRealizado = pedidosRealizados.filter((pedido) => pedido.pagamento === 'CARTAO')
+    const contasPagarPendentes = contasPagar.filter((conta) => conta.status === 'PENDENTE')
+    const contasPagarPagas = contasPagar.filter((conta) => conta.status === 'PAGO')
+    const contasPagarCanceladas = contasPagar.filter((conta) => conta.status === 'CANCELADO')
 
     const receitaTotal = pedidos.reduce((acc, pedido) => acc + pedido.total, 0)
     const receitaEntregue = entregues.reduce((acc, pedido) => acc + pedido.total, 0)
@@ -141,6 +152,13 @@ export async function GET(request: NextRequest) {
     const cartaoDebitoBruto = cartaoEntregue
       .filter((pedido) => normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao) === 'DEBITO')
       .reduce((acc, pedido) => acc + pedido.total, 0)
+    const custosPendentes = contasPagarPendentes.reduce((acc, conta) => acc + conta.valor, 0)
+    const custosPagos = contasPagarPagas.reduce((acc, conta) => acc + conta.valor, 0)
+    const custosCancelados = contasPagarCanceladas.reduce((acc, conta) => acc + conta.valor, 0)
+    const custosTotal = contasPagar
+      .filter((conta) => conta.status !== 'CANCELADO')
+      .reduce((acc, conta) => acc + conta.valor, 0)
+    const resultadoRealizado = recebimentoRealizado - custosPagos
 
     return NextResponse.json({
       from,
@@ -161,6 +179,11 @@ export async function GET(request: NextRequest) {
       taxaCartaoRealizada,
       cartaoCreditoBruto,
       cartaoDebitoBruto,
+      custosTotal,
+      custosPendentes,
+      custosPagos,
+      custosCancelados,
+      resultadoRealizado,
       ticketMedioGeral: pedidos.length ? Math.round(receitaTotal / pedidos.length) : 0,
       ticketMedioEntregue: entregues.length ? Math.round(receitaEntregue / entregues.length) : 0,
       porStatus,

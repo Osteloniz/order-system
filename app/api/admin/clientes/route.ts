@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
+import { buildClienteFidelidade, buildClienteResumoConsumo } from '@/lib/clientes-summary'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
@@ -16,8 +17,62 @@ const clienteSchema = z.object({
   observacoes: z.string().trim().max(1000).optional(),
 }).strict()
 
-function serializeCliente(cliente: Awaited<ReturnType<typeof prisma.cliente.findFirst>>) {
-  return cliente
+function serializeClienteLista(cliente: {
+  id: string
+  tenantId: string
+  nome: string
+  telefone: string | null
+  whatsapp: string | null
+  clienteBloco: string | null
+  clienteApartamento: string | null
+  observacoes: string | null
+  mimosEntregues: number
+  criadoEm: Date
+  atualizadoEm: Date
+  pedidos: { criadoEm: Date }[]
+  _count: { pedidos: number }
+}) {
+  if (!cliente) return cliente
+
+  return {
+    ...cliente,
+    totalPedidos: cliente._count.pedidos,
+    ultimoPedidoEm: cliente.pedidos?.[0]?.criadoEm ?? null,
+  }
+}
+
+function serializeClienteDetalhe(cliente: {
+  id: string
+  tenantId: string
+  nome: string
+  telefone: string | null
+  whatsapp: string | null
+  clienteBloco: string | null
+  clienteApartamento: string | null
+  observacoes: string | null
+  mimosEntregues: number
+  criadoEm: Date
+  atualizadoEm: Date
+  pedidos: {
+    id: string
+    criadoEm: Date
+    itens: {
+      nomeProdutoSnapshot: string
+      quantidade: number
+    }[]
+  }[]
+} | null) {
+  if (!cliente) return cliente
+
+  const resumoConsumo = buildClienteResumoConsumo(cliente.pedidos ?? [])
+
+  return {
+    ...cliente,
+    totalPedidos: cliente.pedidos?.length ?? 0,
+    ultimoPedidoEm: cliente.pedidos?.[0]?.criadoEm ?? null,
+    resumoConsumo,
+    resumoFidelidade: buildClienteFidelidade(resumoConsumo.totalCookies, cliente.mimosEntregues ?? 0),
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -41,7 +96,7 @@ export async function GET(request: NextRequest) {
           },
         },
       })
-      return NextResponse.json(cliente ?? null)
+      return NextResponse.json(serializeClienteDetalhe(cliente) ?? null)
     }
 
     const clientes = await prisma.cliente.findMany({
@@ -59,16 +114,20 @@ export async function GET(request: NextRequest) {
       },
       include: {
         pedidos: {
-          include: { itens: true },
           orderBy: { criadoEm: 'desc' },
-          take: 10,
+          select: { criadoEm: true },
+          take: 1,
+        },
+        _count: {
+          select: { pedidos: true },
         },
       },
       orderBy: { atualizadoEm: 'desc' },
       take,
     })
 
-    return NextResponse.json(clientes.map(serializeCliente))
+    return NextResponse.json(clientes.map(serializeClienteLista))
+
   } catch (error) {
     return handleApiError('api/admin/clientes GET', error, 'Erro ao carregar clientes')
   }
@@ -139,7 +198,7 @@ export async function POST(request: NextRequest) {
           },
         })
 
-    return NextResponse.json(cliente, { status: 201 })
+    return NextResponse.json(serializeClienteDetalhe(cliente), { status: 201 })
   } catch (error) {
     return handleApiError('api/admin/clientes POST', error, 'Erro ao salvar cliente')
   }

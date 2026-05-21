@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { BarChart3, Download, PackageCheck, ReceiptText, RefreshCw, Search, Sparkles, TrendingUp, XCircle } from 'lucide-react'
+import { BarChart3, CheckCircle2, Download, PackageCheck, ReceiptText, RefreshCw, Search, Sparkles, TrendingUp, XCircle } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -74,6 +74,11 @@ type RelatorioData = {
   taxaCartaoRealizada: number
   cartaoCreditoBruto: number
   cartaoDebitoBruto: number
+  custosTotal: number
+  custosPendentes: number
+  custosPagos: number
+  custosCancelados: number
+  resultadoRealizado: number
   ticketMedioGeral: number
   ticketMedioEntregue: number
   porStatus: Record<StatusPedido, number>
@@ -126,6 +131,7 @@ export function RelatoriosPage() {
   const [statusPedidoFiltro, setStatusPedidoFiltro] = useState<'TODOS' | StatusPedido>('TODOS')
   const [statusPagamentoFiltroInput, setStatusPagamentoFiltroInput] = useState<'TODOS' | StatusPagamento>('TODOS')
   const [statusPedidoFiltroInput, setStatusPedidoFiltroInput] = useState<'TODOS' | StatusPedido>('TODOS')
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null)
   const url = useMemo(() => `/api/admin/relatorios?from=${from}&to=${to}`, [from, to])
   const { data, isLoading, mutate } = useSWR<RelatorioData>(url, fetcher)
   const periodoPendente = fromInput !== from || toInput !== to
@@ -316,7 +322,43 @@ export function RelatoriosPage() {
       value: String(data?.pagamentosPendentes ?? 0),
       detail: `Cancelado: ${formatarMoeda(data?.totalCancelado ?? 0)}`,
     },
+    {
+      key: 'custos',
+      className: 'border-[#0E6C77]/25 bg-[#0E6C77]/5',
+      icon: XCircle,
+      iconClass: 'text-[#0E6C77]',
+      title: 'Custos do periodo',
+      value: formatarMoeda(data?.custosTotal ?? 0),
+      detail: `Pago: ${formatarMoeda(data?.custosPagos ?? 0)} • Pendente: ${formatarMoeda(data?.custosPendentes ?? 0)}`,
+    },
+    {
+      key: 'resultado',
+      className: 'border-success/25 bg-success/10',
+      icon: TrendingUp,
+      iconClass: 'text-success',
+      title: 'Resultado realizado',
+      value: formatarMoeda(data?.resultadoRealizado ?? 0),
+      detail: 'Recebido menos custos pagos no periodo',
+    },
   ]
+
+  const confirmarPagamento = async (pedidoId: string) => {
+    setUpdatingPaymentId(pedidoId)
+    try {
+      const response = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statusPagamento: 'APROVADO' }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Erro ao confirmar pagamento')
+      await mutate()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Erro ao confirmar pagamento')
+    } finally {
+      setUpdatingPaymentId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -416,6 +458,10 @@ export function RelatoriosPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Previsto para receber</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoPrevisto ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Ainda nao realizado</p></div>
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Pagamento aprovado ou dinheiro entregue</p></div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Custos pagos</p><p className="text-xl font-bold">{formatarMoeda(data?.custosPagos ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Contas ja baixadas no periodo</p></div>
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Resultado realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.resultadoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Recebido menos custos pagos</p></div>
             </div>
             <p className="text-xs text-muted-foreground">Dica: os valores de cartao ja diferenciam credito e debito, e o fluxo de caixa separa previsto, realizado e cancelado.</p>
           </CardContent>
@@ -537,6 +583,21 @@ export function RelatoriosPage() {
                       {pedido.observacoesPedido && <p>Obs. do pedido: {pedido.observacoesPedido}</p>}
                     </div>
                   )}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => confirmarPagamento(pedido.id)}
+                      disabled={updatingPaymentId === pedido.id}
+                    >
+                      {updatingPaymentId === pedido.id ? (
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      )}
+                      Dar baixa no pagamento
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

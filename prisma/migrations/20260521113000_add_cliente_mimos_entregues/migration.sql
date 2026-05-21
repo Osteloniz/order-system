@@ -1,0 +1,2 @@
+ALTER TABLE "Cliente"
+ADD COLUMN "mimosEntregues" INTEGER NOT NULL DEFAULT 0;

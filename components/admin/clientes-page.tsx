@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { ClipboardList, Home, MessageCircle, Phone, Plus, RefreshCw, Save, Search, UserRound } from 'lucide-react'
+import { ClipboardList, Gift, MessageCircle, Phone, Plus, RefreshCw, Save, Search, UserRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +16,27 @@ import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import { formatDateTimeInSaoPaulo } from '@/lib/sao-paulo'
 import type { Cliente } from '@/lib/types'
 
+type ClienteListItem = Omit<Cliente, 'pedidos'> & {
+  totalPedidos: number
+  ultimoPedidoEm?: string | null
+}
+
+type ClienteDetalhe = Cliente & {
+  totalPedidos: number
+  ultimoPedidoEm?: string | null
+  resumoConsumo: {
+    totalCookies: number
+    sabores: { nome: string; quantidade: number }[]
+  }
+  resumoFidelidade: {
+    totalMimosGerados: number
+    mimosEntregues: number
+    mimosDisponiveis: number
+    progressoAtual: number
+    faltamParaProximo: number
+  }
+}
+
 const fetcher = async (url: string) => {
   const response = await fetch(url)
   const data = await response.json()
@@ -25,17 +46,52 @@ const fetcher = async (url: string) => {
 
 export function ClientesPage() {
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<Cliente | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
-  const [form, setForm] = useState({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' })
+  const [form, setForm] = useState({
+    nome: '',
+    telefone: '',
+    whatsapp: '',
+    clienteBloco: '',
+    clienteApartamento: '',
+    observacoes: '',
+  })
   const [saving, setSaving] = useState(false)
+  const [deliveringMimo, setDeliveringMimo] = useState(false)
   const [message, setMessage] = useState('')
   const url = useMemo(() => `/api/admin/clientes?search=${encodeURIComponent(search)}`, [search])
-  const { data: clientes, isLoading, mutate } = useSWR<Cliente[]>(url, fetcher, { refreshInterval: 15000 })
+  const { data: clientes, isLoading, mutate } = useSWR<ClienteListItem[]>(url, fetcher, { refreshInterval: 15000 })
+  const { data: selected, mutate: mutateSelected } = useSWR<ClienteDetalhe>(
+    selectedId && !isCreating ? `/api/admin/clientes/${selectedId}` : null,
+    fetcher
+  )
 
   const totalClientes = clientes?.length ?? 0
-  const totalPedidosCliente = selected?.pedidos?.length ?? 0
+  const totalPedidosCliente = selected?.totalPedidos ?? 0
   const ultimoPedido = selected?.pedidos?.[0] ?? null
+  const totalCookiesCliente = selected?.resumoConsumo.totalCookies ?? 0
+  const saboresFavoritos = selected?.resumoConsumo.sabores.slice(0, 4) ?? []
+  const fidelidade = selected?.resumoFidelidade
+  const progressoFidelidade = fidelidade?.progressoAtual ?? 0
+  const faltamParaMimo = fidelidade?.faltamParaProximo ?? 10
+
+  const marcarMimoEntregue = async () => {
+    if (!selected) return
+    setDeliveringMimo(true)
+    setMessage('')
+    try {
+      const response = await fetch(`/api/admin/clientes/${selected.id}/mimo`, { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Erro ao registrar mimo entregue')
+      mutateSelected(data, false)
+      await mutate()
+      setMessage('Mimo entregue registrado com sucesso.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao registrar mimo entregue')
+    } finally {
+      setDeliveringMimo(false)
+    }
+  }
 
   useEffect(() => {
     if (!selected) return
@@ -50,14 +106,14 @@ export function ClientesPage() {
   }, [selected])
 
   const startNewCliente = () => {
-    setSelected(null)
+    setSelectedId(null)
     setIsCreating(true)
     setMessage('')
     setForm({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' })
   }
 
-  const selectCliente = (cliente: Cliente) => {
-    setSelected(cliente)
+  const selectCliente = (cliente: ClienteListItem) => {
+    setSelectedId(cliente.id)
     setIsCreating(false)
     setMessage('')
   }
@@ -85,7 +141,8 @@ export function ClientesPage() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Erro ao salvar cliente')
-      setSelected(data)
+      setSelectedId(data.id)
+      mutateSelected(data, false)
       setIsCreating(false)
       setMessage(isCreating ? 'Cliente cadastrado.' : 'Cliente atualizado.')
       await mutate()
@@ -115,8 +172,8 @@ export function ClientesPage() {
               <p className="mt-1 text-2xl font-bold">{totalClientes}</p>
             </div>
             <div className="rounded-2xl border bg-background/80 p-4">
-              <p className="text-xs text-muted-foreground">Pedidos do selecionado</p>
-              <p className="mt-1 text-2xl font-bold">{totalPedidosCliente}</p>
+              <p className="text-xs text-muted-foreground">Cookies do selecionado</p>
+              <p className="mt-1 text-2xl font-bold">{totalCookiesCliente}</p>
             </div>
             <div className="rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Ultimo pedido</p>
@@ -177,8 +234,8 @@ export function ClientesPage() {
                         <p className="truncate font-semibold">{cliente.nome}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                           <span>{formatarTelefone(cliente.telefone)}</span>
-                          <span>•</span>
-                          <span>{cliente.pedidos?.length ?? 0} pedido(s)</span>
+                          <span>-</span>
+                          <span>{cliente.totalPedidos} pedido(s)</span>
                         </div>
                       </div>
                       <Badge variant="outline" className="shrink-0">{cliente.clienteBloco || 'Sem bloco'}</Badge>
@@ -206,29 +263,87 @@ export function ClientesPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {!isCreating && selected ? (
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Phone className="h-3.5 w-3.5" />
-                        Telefone
+                  <>
+                    <div className="grid gap-3 lg:grid-cols-4">
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5" />
+                          Telefone
+                        </div>
+                        <p className="mt-1 font-semibold">{formatarTelefone(selected.telefone)}</p>
                       </div>
-                      <p className="mt-1 font-semibold">{formatarTelefone(selected.telefone)}</p>
-                    </div>
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        WhatsApp
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          WhatsApp
+                        </div>
+                        <p className="mt-1 font-semibold">{formatarTelefone(selected.whatsapp)}</p>
                       </div>
-                      <p className="mt-1 font-semibold">{formatarTelefone(selected.whatsapp)}</p>
-                    </div>
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <ClipboardList className="h-3.5 w-3.5" />
-                        Pedidos
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <ClipboardList className="h-3.5 w-3.5" />
+                          Pedidos
+                        </div>
+                        <p className="mt-1 text-2xl font-bold">{selected.totalPedidos}</p>
                       </div>
-                      <p className="mt-1 text-2xl font-bold">{selected.pedidos?.length ?? 0}</p>
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <ClipboardList className="h-3.5 w-3.5" />
+                          Cookies comprados
+                        </div>
+                        <p className="mt-1 text-2xl font-bold">{selected.resumoConsumo.totalCookies}</p>
+                      </div>
                     </div>
-                  </div>
+
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <p className="text-sm font-medium">Fidelidade em andamento</p>
+                        <p className="mt-1 text-2xl font-bold">{progressoFidelidade}/10</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {fidelidade?.mimosDisponiveis
+                            ? `${fidelidade.mimosDisponiveis} mimo(s) disponivel(is) para entregar agora.`
+                            : `Faltam ${faltamParaMimo} cookie(s) para o proximo mimo.`}
+                        </p>
+                        <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                          <div className="rounded-lg border bg-background/70 p-2">
+                            <span className="block">Mimos gerados</span>
+                            <strong className="text-foreground">{fidelidade?.totalMimosGerados ?? 0}</strong>
+                          </div>
+                          <div className="rounded-lg border bg-background/70 p-2">
+                            <span className="block">Mimos entregues</span>
+                            <strong className="text-foreground">{fidelidade?.mimosEntregues ?? 0}</strong>
+                          </div>
+                          <div className="rounded-lg border bg-background/70 p-2">
+                            <span className="block">Disponiveis</span>
+                            <strong className="text-foreground">{fidelidade?.mimosDisponiveis ?? 0}</strong>
+                          </div>
+                        </div>
+                        <Button
+                          className="mt-3 w-full sm:w-auto"
+                          onClick={marcarMimoEntregue}
+                          disabled={deliveringMimo || !fidelidade?.mimosDisponiveis}
+                          variant={fidelidade?.mimosDisponiveis ? 'default' : 'outline'}
+                        >
+                          {deliveringMimo ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Gift className="mr-2 h-4 w-4" />}
+                          Marcar mimo entregue
+                        </Button>
+                      </div>
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <p className="text-sm font-medium">Sabores mais comprados</p>
+                        {saboresFavoritos.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {saboresFavoritos.map((sabor) => (
+                              <Badge key={sabor.nome} variant="outline">
+                                {sabor.nome} - {sabor.quantidade}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">Ainda nao ha sabores registrados neste cadastro.</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -266,6 +381,7 @@ export function ClientesPage() {
                     <Button
                       variant="outline"
                       onClick={() => {
+                        setSelectedId(null)
                         setIsCreating(false)
                         resetForm()
                       }}
@@ -322,7 +438,7 @@ export function ClientesPage() {
             <CardContent className="flex min-h-[280px] flex-col items-center justify-center p-8 text-center text-sm text-muted-foreground">
               <UserRound className="mb-3 h-10 w-10 text-primary/50" />
               <p className="font-medium text-foreground">Selecione um cliente para ver os dados completos</p>
-              <p className="mt-1 max-w-md">Voce pode buscar na lista lateral ou criar um novo cadastro para comecar a registrar historico e observacoes.</p>
+              <p className="mt-1 max-w-md">Voce pode buscar na lista lateral ou criar um novo cadastro para comecar a registrar historico, sabores e observacoes.</p>
             </CardContent>
           </Card>
         )}

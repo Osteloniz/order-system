@@ -91,6 +91,7 @@ export interface Cliente {
   clienteBloco?: string | null
   clienteApartamento?: string | null
   observacoes?: string | null
+  mimosEntregues?: number
   criadoEm: string
   atualizadoEm: string
   pedidos?: Pedido[]

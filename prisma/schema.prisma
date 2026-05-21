@@ -208,6 +208,7 @@ model Cliente {
   clienteBloco       String?
   clienteApartamento String?
   observacoes        String?
+  mimosEntregues     Int      @default(0)
   criadoEm           DateTime @default(now())
   atualizadoEm       DateTime @updatedAt
 
