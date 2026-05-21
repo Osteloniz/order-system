@@ -256,7 +256,7 @@ export function ConfigPage() {
         </Card>
       )}
 
-      <Card className="max-w-6xl">
+      <Card className="max-w-6xl overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Store className="h-5 w-5" />
@@ -269,7 +269,7 @@ export function ConfigPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-              <div className="space-y-4 rounded-2xl border border-border/70 bg-background/65 p-4">
+              <div className="min-w-0 space-y-4 rounded-2xl border border-border/70 bg-background/65 p-4">
                 <div className="space-y-2">
                   <Label htmlFor="nome">Nome do Estabelecimento</Label>
                   <Input
@@ -297,8 +297,8 @@ export function ConfigPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-2xl border border-border/70 bg-background/65 p-4">
-                <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              <div className="min-w-0 space-y-3 rounded-2xl border border-border/70 bg-background/65 p-4">
+                <div className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <Label htmlFor="aberto">Aberto para pedidos</Label>
                     <p className="text-xs text-muted-foreground">
@@ -316,7 +316,7 @@ export function ConfigPage() {
                 </div>
 
                 <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">Estado atual da loja</p>
                       <p className="mt-1 text-muted-foreground">{isOpen ? 'Checkout liberado para clientes.' : 'Checkout bloqueado ate reabrir a loja.'}</p>
@@ -329,8 +329,8 @@ export function ConfigPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-              <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="overflow-hidden rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-base font-semibold">
                     <MessageCircle className="h-4 w-4 text-primary" />
@@ -342,7 +342,7 @@ export function ConfigPage() {
                 </div>
               </div>
 
-              <div className="mb-4 flex items-center justify-between rounded-lg border border-border bg-background/75 p-3">
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-background/75 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <Label htmlFor="envio-automatico-whatsapp">Envio automatico de mensagens</Label>
                   <p className="text-xs text-muted-foreground">
@@ -361,7 +361,7 @@ export function ConfigPage() {
 
               <div className="mb-4 flex flex-wrap gap-2">
                 {supportedStatusTemplateVariables.map(variable => (
-                  <span key={variable} className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
+                  <span key={variable} className="max-w-full break-all rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
                     {variable}
                   </span>
                 ))}
@@ -383,7 +383,7 @@ export function ConfigPage() {
                   const setValue = setterByField[field.key]
 
                   return (
-                    <div key={field.key} className="space-y-3 rounded-xl border border-border bg-background/80 p-4 shadow-sm">
+                    <div key={field.key} className="min-w-0 space-y-3 rounded-xl border border-border bg-background/80 p-4 shadow-sm">
                       <div>
                         <Label htmlFor={field.key}>{field.title}</Label>
                         <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>
@@ -395,10 +395,10 @@ export function ConfigPage() {
                           setValue(event.target.value)
                           setIsDirty(true)
                         }}
-                        rows={12}
-                        className="min-h-[250px] resize-y"
+                        rows={10}
+                        className="min-h-[220px] resize-y md:min-h-[250px]"
                       />
-                      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                         <span>{value.trim().length} caracteres</span>
                         <Button
                           type="button"
@@ -468,7 +468,7 @@ export function ConfigPage() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input value={publicCatalogUrl} readOnly />
-              <Button type="button" variant="outline" onClick={() => copyToClipboard(publicCatalogUrl, 'Link do catalogo copiado.')}>
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => copyToClipboard(publicCatalogUrl, 'Link do catalogo copiado.')}>
                 <Copy className="h-4 w-4 mr-2" />
                 Copiar
               </Button>
@@ -485,7 +485,7 @@ export function ConfigPage() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input value={adminLoginUrl} readOnly />
-              <Button type="button" variant="outline" onClick={() => copyToClipboard(adminLoginUrl, 'Link do admin copiado.')}>
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => copyToClipboard(adminLoginUrl, 'Link do admin copiado.')}>
                 <Copy className="h-4 w-4 mr-2" />
                 Copiar
               </Button>
@@ -513,6 +513,7 @@ export function ConfigPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className={alertMessage ? `rounded-xl border p-3 ${permissionTone}` : `rounded-xl border p-3 ${permissionTone}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Label htmlFor="alertas">Notificacoes de novos pedidos</Label>
               <p className="text-xs text-muted-foreground">
@@ -525,9 +526,10 @@ export function ConfigPage() {
               onCheckedChange={handleToggleAlerts}
               disabled={notificationPermission === 'unsupported'}
             />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border bg-background/75 p-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-background/75 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Label htmlFor="som-alerta">Som de alerta</Label>
               <p className="text-xs text-muted-foreground">

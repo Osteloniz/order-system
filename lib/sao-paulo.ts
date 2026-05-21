@@ -49,6 +49,30 @@ export function formatDateInSaoPaulo(value: string | Date) {
   })
 }
 
+export function formatLongDateInSaoPaulo(value?: string | Date | null) {
+  if (!value) return '-'
+
+  const normalizedValue = (() => {
+    if (value instanceof Date) return value
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return `${value.slice(0, 10)}T12:00:00-03:00`
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      const [day, month, year] = value.split('/')
+      return `${year}-${month}-${day}T12:00:00-03:00`
+    }
+    return value
+  })()
+
+  const parsed = new Date(normalizedValue)
+  if (Number.isNaN(parsed.getTime())) {
+    return typeof value === 'string' ? value : '-'
+  }
+
+  return parsed.toLocaleDateString('pt-BR', {
+    timeZone: SAO_PAULO_TIME_ZONE,
+    dateStyle: 'full',
+  })
+}
+
 export function getCurrentWeekRangeInSaoPaulo() {
   const now = new Date()
   const { year, month, day, weekday } = getDatePartsInSaoPaulo(now)

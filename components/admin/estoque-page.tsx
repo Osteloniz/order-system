@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, formatLongDateInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 
 type EstoqueItem = {
   produtoId: string
@@ -650,12 +650,7 @@ export function EstoquePage() {
                 <div key={dia.data} className="rounded-[24px] border p-4 shadow-sm">
                   <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-semibold">
-                        {new Date(`${dia.data}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
-                          timeZone: 'America/Sao_Paulo',
-                          dateStyle: 'full',
-                        })}
-                      </p>
+                      <p className="font-semibold">{formatLongDateInSaoPaulo(dia.data)}</p>
                       <p className="text-sm text-muted-foreground">Total produzido: {dia.totalProduzido} unidades</p>
                     </div>
                     <Badge variant="secondary">{dia.itens.length} sabores</Badge>

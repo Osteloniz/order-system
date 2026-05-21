@@ -6,6 +6,14 @@ import { CalendarClock, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lu
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -66,6 +74,7 @@ export function ContasPagarPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<ContaPagar | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
@@ -99,7 +108,22 @@ export function ContasPagarPage() {
   const iniciarNovaConta = () => {
     setSelected(null)
     setIsCreating(true)
+    setFormOpen(true)
     setMessage('')
+    setForm({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+  }
+
+  const abrirEdicao = (conta: ContaPagar) => {
+    setSelected(conta)
+    setIsCreating(false)
+    setFormOpen(true)
+    setMessage('')
+  }
+
+  const resetarFormulario = () => {
+    setSelected(null)
+    setIsCreating(false)
+    setFormOpen(false)
     setForm({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
   }
 
@@ -133,6 +157,7 @@ export function ContasPagarPage() {
       setMessage(isCreating ? 'Conta cadastrada.' : 'Conta atualizada.')
       setSelected(data)
       setIsCreating(false)
+      setFormOpen(false)
       await mutate()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao salvar conta')
@@ -153,6 +178,7 @@ export function ContasPagarPage() {
     if (selected?.id === id) {
       setSelected(null)
       setIsCreating(false)
+      setFormOpen(false)
     }
     setMessage('Conta excluida.')
     await mutate()
@@ -180,38 +206,7 @@ export function ContasPagarPage() {
         <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Total do periodo</p><p className="mt-1 text-3xl font-bold">{formatarMoeda(data?.resumo.total ?? 0)}</p></CardContent></Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader><CardTitle>{isCreating ? 'Nova conta' : selected ? 'Editar conta' : 'Conta a pagar'}</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2"><Label>Descricao</Label><Input value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} placeholder="Ex: Embalagens, fornecedor, motoboy..." /></div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2"><Label>Categoria</Label><Input value={form.categoria} onChange={(event) => setForm((current) => ({ ...current, categoria: event.target.value }))} placeholder="Ex: Insumos" /></div>
-              <div className="space-y-2"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(event) => setForm((current) => ({ ...current, fornecedor: event.target.value }))} placeholder="Ex: Atacado X" /></div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2"><Label>Valor</Label><Input value={form.valor} onChange={(event) => setForm((current) => ({ ...current, valor: formatCurrencyInput(event.target.value) }))} placeholder="R$ 0,00" /></div>
-              <div className="space-y-2"><Label>Vencimento</Label><Input type="date" value={form.vencimento} onChange={(event) => setForm((current) => ({ ...current, vencimento: event.target.value }))} /></div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as StatusContaPagar }))} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="PENDENTE">Pendente</option>
-                  <option value="PAGO">Pago</option>
-                  <option value="CANCELADO">Cancelado</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-2"><Label>Observacoes</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Detalhes internos da conta" /></div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={salvarConta} disabled={saving}>{saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}{isCreating ? 'Cadastrar conta' : 'Salvar alteracoes'}</Button>
-              {(isCreating || selected) && <Button variant="outline" onClick={() => { setSelected(null); setIsCreating(false); setForm({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' }) }}>Limpar</Button>}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
+      <Card>
           <CardHeader className="space-y-4">
             <CardTitle>Lista de contas</CardTitle>
             <div className="grid gap-3 lg:grid-cols-[180px_180px_180px_minmax(0,1fr)_auto]">
@@ -261,7 +256,7 @@ export function ContasPagarPage() {
                     </div>
                     {conta.observacoes && <p className="mt-3 text-sm text-muted-foreground">{conta.observacoes}</p>}
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => { setSelected(conta); setIsCreating(false) }}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
+                      <Button size="sm" variant="outline" onClick={() => abrirEdicao(conta)}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
                       <Button size="sm" variant="destructive" onClick={() => excluirConta(conta.id)}><Trash2 className="mr-2 h-4 w-4" />Excluir</Button>
                     </div>
                   </div>
@@ -271,8 +266,60 @@ export function ContasPagarPage() {
               <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhuma conta encontrada no periodo selecionado.</div>
             )}
           </CardContent>
-        </Card>
-      </div>
+      </Card>
+
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open && !saving) {
+            resetarFormulario()
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto p-3 sm:max-w-2xl sm:p-6">
+          <DialogHeader>
+            <DialogTitle>{isCreating ? 'Nova conta a pagar' : 'Editar conta a pagar'}</DialogTitle>
+            <DialogDescription>
+              Cadastre o custo, vencimento e status sem poluir a tela principal. A lista continua focada em consulta.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Descricao</Label>
+              <Input value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} placeholder="Ex: Embalagens, fornecedor, motoboy..." />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2"><Label>Categoria</Label><Input value={form.categoria} onChange={(event) => setForm((current) => ({ ...current, categoria: event.target.value }))} placeholder="Ex: Insumos" /></div>
+              <div className="space-y-2"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(event) => setForm((current) => ({ ...current, fornecedor: event.target.value }))} placeholder="Ex: Atacado X" /></div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2"><Label>Valor</Label><Input value={form.valor} onChange={(event) => setForm((current) => ({ ...current, valor: formatCurrencyInput(event.target.value) }))} placeholder="R$ 0,00" /></div>
+              <div className="space-y-2"><Label>Vencimento</Label><Input type="date" value={form.vencimento} onChange={(event) => setForm((current) => ({ ...current, vencimento: event.target.value }))} /></div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as StatusContaPagar }))} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="PENDENTE">Pendente</option>
+                  <option value="PAGO">Pago</option>
+                  <option value="CANCELADO">Cancelado</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Observacoes</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Detalhes internos da conta" /></div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={resetarFormulario}>Cancelar</Button>
+            <Button type="button" onClick={salvarConta} disabled={saving}>
+              {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {isCreating ? 'Cadastrar conta' : 'Salvar alteracoes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
