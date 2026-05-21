@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
@@ -79,7 +80,7 @@ export async function PUT(
       }
     })
 
-    console.log(`[v0] Produto atualizado: ${id}`)
+    appLogger.info(`[api/admin/produtos/[id]] Produto atualizado: ${id}`)
 
     return NextResponse.json(produtoAtualizado)
   } catch (error) {
@@ -120,7 +121,7 @@ export async function DELETE(
 
   await prisma.produto.delete({ where: { id } })
 
-  console.log(`[v0] Produto removido: ${id}`)
+  appLogger.info(`[api/admin/produtos/[id]] Produto removido: ${id}`)
 
   return NextResponse.json({ success: true })
 }

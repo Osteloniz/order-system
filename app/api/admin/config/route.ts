@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
@@ -112,7 +113,7 @@ export async function PUT(request: NextRequest) {
       }
     })
 
-    console.log('[v0] Configuracoes atualizadas')
+    appLogger.info('[api/admin/config] Configuracoes atualizadas')
 
     return NextResponse.json(hydrateConfigWithMessageDefaults(configuracaoAtualizada))
   } catch (error) {

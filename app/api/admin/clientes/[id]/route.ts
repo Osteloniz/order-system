@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
@@ -18,34 +19,40 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const admin = await getAdminSession()
   if (!admin) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
 
-  const { id } = await params
-  const parsed = clienteSchema.safeParse(await request.json())
-  if (!parsed.success) return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+  try {
+    const { id } = await params
+    const parsed = clienteSchema.safeParse(await request.json())
+    if (!parsed.success) return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
 
-  const current = await prisma.cliente.findFirst({ where: { id, tenantId: admin.tenantId } })
-  if (!current) return NextResponse.json({ error: 'Cliente nao encontrado' }, { status: 404 })
-  const body = parsed.data
-  const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : current.telefone
-  if (whatsapp && !isValidPhone(whatsapp)) {
-    return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
-  }
-  const cliente = await prisma.cliente.update({
-    where: { id },
-    data: {
-      nome: body.nome.trim(),
-      whatsapp,
-      clienteBloco: body.clienteBloco?.trim() || null,
-      clienteApartamento: body.clienteApartamento?.trim() || null,
-      observacoes: body.observacoes?.trim() || null,
-    },
-    include: {
-      pedidos: {
-        include: { itens: true },
-        orderBy: { criadoEm: 'desc' },
-        take: 20,
+    const current = await prisma.cliente.findFirst({ where: { id, tenantId: admin.tenantId } })
+    if (!current) return NextResponse.json({ error: 'Cliente nao encontrado' }, { status: 404 })
+
+    const body = parsed.data
+    const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : current.telefone
+    if (whatsapp && !isValidPhone(whatsapp)) {
+      return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
+    }
+
+    const cliente = await prisma.cliente.update({
+      where: { id },
+      data: {
+        nome: body.nome.trim(),
+        whatsapp,
+        clienteBloco: body.clienteBloco?.trim() || null,
+        clienteApartamento: body.clienteApartamento?.trim() || null,
+        observacoes: body.observacoes?.trim() || null,
       },
-    },
-  })
+      include: {
+        pedidos: {
+          include: { itens: true },
+          orderBy: { criadoEm: 'desc' },
+          take: 20,
+        },
+      },
+    })
 
-  return NextResponse.json(cliente)
+    return NextResponse.json(cliente)
+  } catch (error) {
+    return handleApiError('api/admin/clientes/[id] PATCH', error, 'Erro ao atualizar cliente')
+  }
 }

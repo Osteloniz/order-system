@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
@@ -31,7 +32,7 @@ export async function PATCH(
       data: { ativo: body.ativo }
     })
 
-    console.log(`[v0] Produto ${id} ativo: ${body.ativo}`)
+    appLogger.info(`[api/admin/produtos/[id]/ativo] Produto ${id} ativo: ${body.ativo}`)
 
     return NextResponse.json(produtoAtualizado)
   } catch (error) {

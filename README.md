@@ -20,7 +20,7 @@ Sistema de pedidos para o condominio Reserva Paulistano com cardápio, carrinho,
 - Tailwind CSS + shadcn/ui
 - SWR para data fetching
 - Prisma 5 + Neon/Postgres
-- NextAuth.js v5 (credentials)
+- NextAuth.js v4 (credentials)
 - TypeScript
 
 ## Como rodar
@@ -78,6 +78,8 @@ Admin: http://localhost:3000/admin
 - `build`: build de producao
 - `start`: inicia o build
 - `lint`: lint do projeto
+- `logs:cleanup`: simula ou executa a limpeza de logs antigos
+- `test:auth-security`: testes das primitivas de autenticacao e convite
 - `prisma db seed`: popula dados iniciais no banco
 - `vercel-build`: prisma generate + next build
 
@@ -179,3 +181,5 @@ Tabelas principais:
 - Integração WhatsApp para acompanhamento de pedidos
 - Números de pedido amigáveis e sincronizados
 - Para mais informações, veja a documentação em `docs/`
+- Autenticacao e convite seguro documentados em `SECURITY_AUTH.md`
+- Politica de logs e retencao documentadas em `docs/logs-retencao.md`

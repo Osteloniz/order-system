@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { getTenantFromCookie } from '@/lib/tenant'
@@ -11,24 +12,26 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const tenant = await getTenantFromCookie()
-  if (!tenant) {
-    return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
-  }
-  const pedido = await prisma.pedido.findUnique({
-    where: { id },
-    include: { itens: true }
-  })
+  try {
+    const { id } = await params
+    const tenant = await getTenantFromCookie()
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
+    }
 
-  if (!pedido || pedido.tenantId !== tenant.id) {
-    return NextResponse.json(
-      { error: 'Pedido nao encontrado' },
-      { status: 404 }
-    )
-  }
+    const pedido = await prisma.pedido.findUnique({
+      where: { id },
+      include: { itens: true }
+    })
 
-  return NextResponse.json(pedido)
+    if (!pedido || pedido.tenantId !== tenant.id) {
+      return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
+    }
+
+    return NextResponse.json(pedido)
+  } catch (error) {
+    return handleApiError('api/pedidos/[id] GET', error, 'Erro ao carregar pedido')
+  }
 }
 
 // PATCH /api/pedidos/:id - Permite ao cliente cancelar enquanto nao foi aceito nem pago.
@@ -36,93 +39,94 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const tenant = await getTenantFromCookie()
-  if (!tenant) {
-    return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
-  }
-
-  const pedido = await prisma.pedido.findFirst({
-    where: { id, tenantId: tenant.id },
-    include: {
-      itens: {
-        select: {
-          id: true,
-          produtoId: true,
-          quantidadePreparada: true,
-        },
-      },
-    },
-  })
-
-  if (!pedido) {
-    return NextResponse.json(
-      { error: 'Pedido nao encontrado' },
-      { status: 404 }
-    )
-  }
-
-  if (pedido.status !== 'FEITO') {
-    return NextResponse.json(
-      { error: 'Pedido ja aceito. Entre em contato com a loja para cancelar.' },
-      { status: 400 }
-    )
-  }
-
-  if (pedido.statusPagamento === 'APROVADO') {
-    return NextResponse.json(
-      { error: 'Pedido pago nao pode ser cancelado pelo cliente.' },
-      { status: 400 }
-    )
-  }
-
-  const pedidoAtualizado = await prisma.$transaction(async (tx) => {
-    if (pedido.tipoEntrega === 'ENCOMENDA') {
-      for (const item of pedido.itens) {
-        if (item.quantidadePreparada > 0) {
-          await releaseReservedToAvailableStock(tx, tenant.id, item.produtoId, item.quantidadePreparada, {
-            tipo: 'LIBERACAO_RESERVA',
-            descricao: `Liberacao da reserva pelo cancelamento do cliente no pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id}.`,
-            actorNome: 'Cliente',
-            pedidoId: pedido.id,
-            pedidoNumero: numeroPedidoCurto(pedido.id),
-          })
-        }
-
-        await tx.itemPedido.update({
-          where: { id: item.id },
-          data: {
-            quantidadePreparada: 0,
-            preparadoEm: null,
-          },
-        })
-      }
+  try {
+    const { id } = await params
+    const tenant = await getTenantFromCookie()
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
 
-    const atualizado = await tx.pedido.update({
-      where: { id },
-      data: {
-        status: 'CANCELADO',
-        motivoCancelamento: 'Cancelado pelo cliente antes do aceite/pagamento',
-      },
-      include: { itens: true },
-    })
-
-    await registrarLogOperacao(tx, {
-      tenantId: tenant.id,
-      tipo: 'PEDIDO_STATUS_ALTERADO',
-      descricao: `Pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} cancelado pelo cliente.`,
-      actorNome: 'Cliente',
-      pedidoId: pedido.id,
-      pedidoNumero: numeroPedidoCurto(pedido.id),
-      metadata: {
-        statusAnterior: pedido.status,
-        statusNovo: 'CANCELADO',
+    const pedido = await prisma.pedido.findFirst({
+      where: { id, tenantId: tenant.id },
+      include: {
+        itens: {
+          select: {
+            id: true,
+            produtoId: true,
+            quantidadePreparada: true,
+          },
+        },
       },
     })
 
-    return atualizado
-  })
+    if (!pedido) {
+      return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
+    }
 
-  return NextResponse.json(pedidoAtualizado)
+    if (pedido.status !== 'FEITO') {
+      return NextResponse.json(
+        { error: 'Pedido ja aceito. Entre em contato com a loja para cancelar.' },
+        { status: 400 }
+      )
+    }
+
+    if (pedido.statusPagamento === 'APROVADO') {
+      return NextResponse.json(
+        { error: 'Pedido pago nao pode ser cancelado pelo cliente.' },
+        { status: 400 }
+      )
+    }
+
+    const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+      if (pedido.tipoEntrega === 'ENCOMENDA') {
+        for (const item of pedido.itens) {
+          if (item.quantidadePreparada > 0) {
+            await releaseReservedToAvailableStock(tx, tenant.id, item.produtoId, item.quantidadePreparada, {
+              tipo: 'LIBERACAO_RESERVA',
+              descricao: `Liberacao da reserva pelo cancelamento do cliente no pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id}.`,
+              actorNome: 'Cliente',
+              pedidoId: pedido.id,
+              pedidoNumero: numeroPedidoCurto(pedido.id),
+            })
+          }
+
+          await tx.itemPedido.update({
+            where: { id: item.id },
+            data: {
+              quantidadePreparada: 0,
+              preparadoEm: null,
+            },
+          })
+        }
+      }
+
+      const atualizado = await tx.pedido.update({
+        where: { id },
+        data: {
+          status: 'CANCELADO',
+          motivoCancelamento: 'Cancelado pelo cliente antes do aceite/pagamento',
+        },
+        include: { itens: true },
+      })
+
+      await registrarLogOperacao(tx, {
+        tenantId: tenant.id,
+        tipo: 'PEDIDO_STATUS_ALTERADO',
+        descricao: `Pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} cancelado pelo cliente.`,
+        actorNome: 'Cliente',
+        pedidoId: pedido.id,
+        pedidoNumero: numeroPedidoCurto(pedido.id),
+        metadata: {
+          statusAnterior: pedido.status,
+          statusNovo: 'CANCELADO',
+        },
+      })
+
+      return atualizado
+    })
+
+    return NextResponse.json(pedidoAtualizado)
+  } catch (error) {
+    return handleApiError('api/pedidos/[id] PATCH', error, 'Erro ao cancelar pedido')
+  }
 }

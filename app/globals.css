@@ -4,82 +4,82 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #fffaf1;
-  --foreground: #2b2118;
+  --background: #f4f7fc;
+  --foreground: #1f2940;
   --card: #ffffff;
-  --card-foreground: #2b2118;
+  --card-foreground: #1f2940;
   --popover: #ffffff;
-  --popover-foreground: #2b2118;
-  --primary: #22c0d4;
-  --primary-foreground: #06272c;
-  --secondary: #f8cf40;
-  --secondary-foreground: #2b2118;
-  --muted: #fff1c2;
-  --muted-foreground: #8a5a22;
-  --accent: #ff6bbb;
-  --accent-foreground: #3b1029;
-  --destructive: #af6e2a;
+  --popover-foreground: #1f2940;
+  --primary: #477de8;
+  --primary-foreground: #f8fbff;
+  --secondary: #eef3fb;
+  --secondary-foreground: #314261;
+  --muted: #eef3fb;
+  --muted-foreground: #6f7f9c;
+  --accent: #edf3ff;
+  --accent-foreground: #26407a;
+  --destructive: #f25b73;
   --destructive-foreground: #ffffff;
-  --border: #f2dfb0;
-  --input: #f2dfb0;
-  --ring: #22c0d4;
-  --chart-1: #22c0d4;
-  --chart-2: #ff6bbb;
-  --chart-3: #f8cf40;
-  --chart-4: #af6e2a;
-  --chart-5: #2b2118;
+  --border: #dfe7f4;
+  --input: #d7e1f1;
+  --ring: #477de8;
+  --chart-1: #477de8;
+  --chart-2: #22c7b7;
+  --chart-3: #8b5cf6;
+  --chart-4: #f4b740;
+  --chart-5: #1f2940;
   --radius: 0.9rem;
-  --sidebar: #2b2118;
-  --sidebar-foreground: #fffaf1;
-  --sidebar-primary: #22c0d4;
-  --sidebar-primary-foreground: #06272c;
-  --sidebar-accent: #af6e2a;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #563719;
-  --sidebar-ring: #f8cf40;
-  --success: #22c0d4;
-  --success-foreground: #06272c;
-  --warning: #f8cf40;
-  --warning-foreground: #2b2118;
+  --sidebar: #fbfdff;
+  --sidebar-foreground: #43526d;
+  --sidebar-primary: #477de8;
+  --sidebar-primary-foreground: #f8fbff;
+  --sidebar-accent: #eef5ff;
+  --sidebar-accent-foreground: #26407a;
+  --sidebar-border: #dbe6f5;
+  --sidebar-ring: #477de8;
+  --success: #22c7b7;
+  --success-foreground: #062e2a;
+  --warning: #f4b740;
+  --warning-foreground: #2d2100;
 }
 
 .dark {
-  --background: #211813;
-  --foreground: #fffaf1;
-  --card: #2b2118;
-  --card-foreground: #fffaf1;
-  --popover: #2b2118;
-  --popover-foreground: #fffaf1;
-  --primary: #22c0d4;
-  --primary-foreground: #06272c;
-  --secondary: #af6e2a;
-  --secondary-foreground: #ffffff;
-  --muted: #4a3119;
-  --muted-foreground: #f8cf40;
-  --accent: #ff6bbb;
-  --accent-foreground: #3b1029;
-  --destructive: #af6e2a;
+  --background: #0a1020;
+  --foreground: #eff4ff;
+  --card: #121a2b;
+  --card-foreground: #eff4ff;
+  --popover: #151f31;
+  --popover-foreground: #eff4ff;
+  --primary: #5b7cff;
+  --primary-foreground: #f8fbff;
+  --secondary: #1b253a;
+  --secondary-foreground: #dce6ff;
+  --muted: #182134;
+  --muted-foreground: #8c9fc8;
+  --accent: #22314d;
+  --accent-foreground: #eff4ff;
+  --destructive: #f25b73;
   --destructive-foreground: #ffffff;
-  --border: #5f3c1c;
-  --input: #5f3c1c;
-  --ring: #f8cf40;
-  --chart-1: #22c0d4;
-  --chart-2: #ff6bbb;
-  --chart-3: #f8cf40;
-  --chart-4: #af6e2a;
-  --chart-5: #fffaf1;
-  --sidebar: #160f0b;
-  --sidebar-foreground: #fffaf1;
-  --sidebar-primary: #22c0d4;
-  --sidebar-primary-foreground: #06272c;
-  --sidebar-accent: #af6e2a;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #5f3c1c;
-  --sidebar-ring: #f8cf40;
-  --success: #22c0d4;
-  --success-foreground: #06272c;
-  --warning: #f8cf40;
-  --warning-foreground: #2b2118;
+  --border: #26324a;
+  --input: #202b43;
+  --ring: #5b7cff;
+  --chart-1: #5b7cff;
+  --chart-2: #22c7b7;
+  --chart-3: #8b5cf6;
+  --chart-4: #f4b740;
+  --chart-5: #eff4ff;
+  --sidebar: #08101d;
+  --sidebar-foreground: #dce6ff;
+  --sidebar-primary: #5b7cff;
+  --sidebar-primary-foreground: #f8fbff;
+  --sidebar-accent: #111d34;
+  --sidebar-accent-foreground: #eff4ff;
+  --sidebar-border: #1d2941;
+  --sidebar-ring: #5b7cff;
+  --success: #22c7b7;
+  --success-foreground: #062e2a;
+  --warning: #f4b740;
+  --warning-foreground: #2d2100;
 }
 
 @theme inline {
@@ -142,6 +142,10 @@
     -webkit-tap-highlight-color: transparent;
     text-size-adjust: 100%;
     overscroll-behavior-x: none;
+    background-image:
+      radial-gradient(circle at top left, rgba(71, 125, 232, 0.12), transparent 26%),
+      radial-gradient(circle at top right, rgba(34, 199, 183, 0.06), transparent 20%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(244, 247, 252, 0.98));
   }
 
   .mobile-app-shell {
@@ -151,4 +155,20 @@
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
   }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.35) sepia(0.15) saturate(0.8) hue-rotate(180deg);
+    cursor: pointer;
+  }
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at top left, rgba(91, 124, 255, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(34, 199, 183, 0.08), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+}
+
+.dark input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.86) sepia(0.2) saturate(0.2) hue-rotate(180deg);
 }

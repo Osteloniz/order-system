@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log(`[v0] Produto criado: ${novoProduto.id}`)
+    appLogger.info(`[api/admin/produtos] Produto criado: ${novoProduto.id}`)
 
     return NextResponse.json(novoProduto, { status: 201 })
   } catch (error) {

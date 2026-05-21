@@ -46,6 +46,7 @@ async function registrarMovimentacaoEstoque(
   options?: StockLogOptions
 ) {
   if (!options) return
+  if (quantidade === 0) return
 
   const produtoNome = await resolveProdutoNome(tx, produtoId, options.nomeProduto)
   await registrarLogOperacao(tx, {

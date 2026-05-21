@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { calcularTotalItem, calcularSubtotal, calcularTotal } from '@/lib/calc'
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
       return pedido
     })
 
-    console.log(`[v0] Novo pedido criado: ${novoPedido.id}`)
+    appLogger.info(`[api/pedidos] Novo pedido criado: ${novoPedido.id}`)
 
     return NextResponse.json(novoPedido, { status: 201 })
   } catch (error) {

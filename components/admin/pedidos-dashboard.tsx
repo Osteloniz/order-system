@@ -3,12 +3,14 @@
 import type { DragEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Archive, Bell, BellRing, Check, ChefHat, Clock, CreditCard, GripVertical, MapPin, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
+import { Archive, Bell, BellRing, Check, ChefHat, Clock, CreditCard, Filter, GripVertical, MapPin, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -77,6 +79,30 @@ function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
   return pedido.status !== targetStatus
 }
 
+function getPedidoPrimaryDateLabel(pedido: Pedido) {
+  if (pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara) {
+    return `Encomenda para ${formatDateTimeInSaoPaulo(pedido.encomendaPara)}`
+  }
+  if (pedido.levadoEm) {
+    return `Levado em ${formatDateTimeInSaoPaulo(pedido.levadoEm)}`
+  }
+  return `Criado em ${formatDateTimeInSaoPaulo(pedido.criadoEm)}`
+}
+
+function getNextStatus(status: StatusPedido) {
+  if (status === 'FEITO') return 'ACEITO' as const
+  if (status === 'ACEITO') return 'PREPARACAO' as const
+  if (status === 'PREPARACAO') return 'ENTREGUE' as const
+  return null
+}
+
+function getPreviousStatus(status: StatusPedido) {
+  if (status === 'ACEITO') return 'FEITO' as const
+  if (status === 'PREPARACAO') return 'ACEITO' as const
+  if (status === 'ENTREGUE') return 'PREPARACAO' as const
+  return null
+}
+
 export function PedidosDashboard() {
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [selectedPedidoIds, setSelectedPedidoIds] = useState<string[]>([])
@@ -85,7 +111,7 @@ export function PedidosDashboard() {
   const [isCancelling, setIsCancelling] = useState(false)
   const [deletingPedidoId, setDeletingPedidoId] = useState<string | null>(null)
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null)
-  const [bulkActionLoading, setBulkActionLoading] = useState<'deliver' | 'payment' | null>(null)
+  const [bulkActionLoading, setBulkActionLoading] = useState<'deliver' | 'payment' | 'advance' | 'return' | null>(null)
   const [alertsEnabled, setAlertsEnabled] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission)
   const [lastAlertMessage, setLastAlertMessage] = useState<string | null>(null)
@@ -119,6 +145,14 @@ export function PedidosDashboard() {
     cancelados: pedidos?.filter(p => p.status === 'CANCELADO').length || 0,
     todos: pedidos?.length || 0
   }
+
+  const resumoCards = [
+    { key: 'novos', label: 'Novos', value: contadores.novos },
+    { key: 'aceitos', label: 'Aceitos', value: contadores.aceitos },
+    { key: 'preparando', label: 'Em preparo', value: contadores.preparando },
+    { key: 'entregues', label: 'Entregues', value: contadores.entregues },
+    { key: 'total', label: 'Total', value: contadores.todos },
+  ]
 
   const pedidosFiltrados = (pedidos || []).filter(pedido => {
     const busca = searchTerm.trim().toLowerCase()
@@ -159,6 +193,16 @@ export function PedidosDashboard() {
     [selectedPedidos]
   )
 
+  const selectedPedidosAvancaveis = useMemo(
+    () => selectedPedidos.filter((pedido) => !!getNextStatus(pedido.status)),
+    [selectedPedidos]
+  )
+
+  const selectedPedidosRetornaveis = useMemo(
+    () => selectedPedidos.filter((pedido) => !!getPreviousStatus(pedido.status)),
+    [selectedPedidos]
+  )
+
   const hasActiveFilters = Boolean(
     searchTerm.trim() ||
     statusFilter !== 'TODOS' ||
@@ -173,6 +217,13 @@ export function PedidosDashboard() {
     if (!busca) return itens
     return itens.filter((item) => `${item.nomeProduto} ${item.categoriaNome}`.toLowerCase().includes(busca))
   }, [estoqueConsulta?.estoque, stockSearch])
+
+  const pedidosPorStatus = useMemo(() => {
+    return kanbanColumns.reduce((acc, column) => {
+      acc[column.status] = pedidosFiltrados.filter((pedido) => pedido.status === column.status)
+      return acc
+    }, {} as Record<StatusPedido, Pedido[]>)
+  }, [pedidosFiltrados])
 
   const clearFilters = () => {
     setSearchTerm('')
@@ -500,6 +551,66 @@ export function PedidosDashboard() {
     }
   }
 
+  const handleBulkAdvanceStatus = async () => {
+    if (selectedPedidosAvancaveis.length === 0) return
+    setBulkActionLoading('advance')
+    const falhas: string[] = []
+    let pedidoAtualizadoSelecionado: Pedido | null = null
+    try {
+      for (const pedido of selectedPedidosAvancaveis) {
+        const nextStatus = getNextStatus(pedido.status)
+        if (!nextStatus) continue
+        const result = await patchPedidoStatus(pedido.id, nextStatus)
+        if (!result.ok) {
+          falhas.push(`#${pedido.id.slice(-8).toUpperCase()}: ${result.error}`)
+          continue
+        }
+        if (selectedPedido?.id === pedido.id) pedidoAtualizadoSelecionado = result.data
+      }
+      await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
+      if (pedidoAtualizadoSelecionado) setSelectedPedido(pedidoAtualizadoSelecionado)
+      setSelectedPedidoIds([])
+      setLastAlertMessage(
+        falhas.length === 0
+          ? `${selectedPedidosAvancaveis.length} pedido(s) avancado(s) de etapa.`
+          : `${selectedPedidosAvancaveis.length - falhas.length} pedido(s) avancado(s), ${falhas.length} com erro.`
+      )
+    } finally {
+      setBulkActionLoading(null)
+    }
+  }
+
+  const handleBulkReturnStatus = async () => {
+    if (selectedPedidosRetornaveis.length === 0) return
+    setBulkActionLoading('return')
+    const falhas: string[] = []
+    let pedidoAtualizadoSelecionado: Pedido | null = null
+    try {
+      for (const pedido of selectedPedidosRetornaveis) {
+        const previousStatus = getPreviousStatus(pedido.status)
+        if (!previousStatus) continue
+        const result = await patchPedidoStatus(pedido.id, previousStatus)
+        if (!result.ok) {
+          falhas.push(`#${pedido.id.slice(-8).toUpperCase()}: ${result.error}`)
+          continue
+        }
+        if (selectedPedido?.id === pedido.id) pedidoAtualizadoSelecionado = result.data
+      }
+      await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
+      if (pedidoAtualizadoSelecionado) setSelectedPedido(pedidoAtualizadoSelecionado)
+      setSelectedPedidoIds([])
+      setLastAlertMessage(
+        falhas.length === 0
+          ? `${selectedPedidosRetornaveis.length} pedido(s) retornado(s) de etapa.`
+          : `${selectedPedidosRetornaveis.length - falhas.length} pedido(s) retornado(s), ${falhas.length} com erro.`
+      )
+    } finally {
+      setBulkActionLoading(null)
+    }
+  }
+
   const handleSendPaymentReminder = (pedido: Pedido) => {
     const url = buildWhatsappUrl(getPedidoWhatsapp(pedido), buildPaymentReminderMessage(pedido))
     if (!url) {
@@ -566,47 +677,72 @@ export function PedidosDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Pedidos</h1>
           <p className="text-sm text-muted-foreground">Arraste os cards livremente entre as colunas. O estoque e as reservas sao ajustados automaticamente.</p>
         </div>
-        <div className="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
-          <Button variant="default" size="sm" className="flex-1 justify-center sm:flex-none" onClick={() => setNewOrderOpen(true)}>
+        <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-auto xl:grid-cols-4">
+          <Button variant="default" size="sm" className="justify-center" onClick={() => setNewOrderOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Novo pedido
           </Button>
-          <Button variant="outline" size="sm" className="flex-1 justify-center sm:flex-none" onClick={() => setStockLookupOpen(true)}>
+          <Button variant="outline" size="sm" className="justify-center" onClick={() => setStockLookupOpen(true)}>
             <Archive className="mr-2 h-4 w-4" />
             Estoque
           </Button>
           {alertsEnabled && !soundUnlocked && (
-            <Button variant="outline" size="sm" className="flex-1 justify-center sm:flex-none" onClick={handleUnlockSound}>
+            <Button variant="outline" size="sm" className="justify-center" onClick={handleUnlockSound}>
               <Volume2 className="mr-2 h-4 w-4" />
               Ativar som
             </Button>
           )}
-          <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" className="flex-1 justify-center sm:flex-none" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
+          <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" className="justify-center" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
             {alertsEnabled ? <BellRing className="mr-2 h-4 w-4" /> : <Bell className="mr-2 h-4 w-4" />}
             {alertsEnabled ? 'Alertas ativos' : 'Ativar alertas'}
           </Button>
-          <Button variant="outline" size="sm" className="flex-1 justify-center sm:flex-none" onClick={handleRefresh}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
+          <Button variant="outline" size="sm" className="justify-center xl:col-span-1" onClick={handleRefresh}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Novos</p><p className="text-2xl font-bold">{contadores.novos}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Aceitos</p><p className="text-2xl font-bold">{contadores.aceitos}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Em preparo</p><p className="text-2xl font-bold">{contadores.preparando}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Entregues</p><p className="text-2xl font-bold">{contadores.entregues}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total</p><p className="text-2xl font-bold">{contadores.todos}</p></CardContent></Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {resumoCards.map((card) => (
+          <Card key={card.key} className="border-border/70 bg-card/95">
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">{card.label}</p>
+              <p className="text-2xl font-bold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card className="border-primary/15 bg-card/90">
         <CardContent className="space-y-4 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-medium">Buscar pedido</label>
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Filter className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="font-semibold">Busca e filtros</p>
+                  <p className="text-sm text-muted-foreground">Encontre rapido por cliente, item, pagamento e data da operacao.</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>Exibindo {pedidosFiltrados.length} de {pedidos?.length || 0} pedidos.</span>
+              {hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
+            <div className="space-y-2">
+              <Label>Buscar pedido</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -617,55 +753,61 @@ export function PedidosDashboard() {
                 />
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusPedido | 'TODOS')} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="TODOS">Todos</option>
-                  <option value="FEITO">Novos</option>
-                  <option value="ACEITO">Aceitos</option>
-                  <option value="PREPARACAO">Em preparo</option>
-                  <option value="ENTREGUE">Entregues</option>
-                  <option value="CANCELADO">Cancelados</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Pagamento</label>
-                <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value as 'TODOS' | Pedido['pagamento'])} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="TODOS">Todos</option>
-                  <option value="PIX">PIX</option>
-                  <option value="CARTAO">Cartao</option>
-                  <option value="DINHEIRO">Dinheiro</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status pag.</label>
-                <select value={paymentStatusFilter} onChange={(event) => setPaymentStatusFilter(event.target.value as 'TODOS' | Pedido['statusPagamento'])} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="TODOS">Todos</option>
-                  <option value="NAO_APLICAVEL">Na entrega</option>
-                  <option value="PENDENTE">Pendente</option>
-                  <option value="APROVADO">Aprovado</option>
-                  <option value="RECUSADO">Recusado</option>
-                  <option value="CANCELADO">Cancelado</option>
-                  <option value="REEMBOLSADO">Reembolsado</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Dia da tela</label>
-                <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
-              </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusPedido | 'TODOS')}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="FEITO">Novos</SelectItem>
+                  <SelectItem value="ACEITO">Aceitos</SelectItem>
+                  <SelectItem value="PREPARACAO">Em preparo</SelectItem>
+                  <SelectItem value="ENTREGUE">Entregues</SelectItem>
+                  <SelectItem value="CANCELADO">Cancelados</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Pagamento</Label>
+              <Select value={paymentFilter} onValueChange={(value) => setPaymentFilter(value as 'TODOS' | Pedido['pagamento'])}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="PIX">PIX</SelectItem>
+                  <SelectItem value="CARTAO">Cartao</SelectItem>
+                  <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status pag.</Label>
+              <Select value={paymentStatusFilter} onValueChange={(value) => setPaymentStatusFilter(value as 'TODOS' | Pedido['statusPagamento'])}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="NAO_APLICAVEL">Na entrega</SelectItem>
+                  <SelectItem value="PENDENTE">Pendente</SelectItem>
+                  <SelectItem value="APROVADO">Aprovado</SelectItem>
+                  <SelectItem value="RECUSADO">Recusado</SelectItem>
+                  <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  <SelectItem value="REEMBOLSADO">Reembolsado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Dia da tela</Label>
+              <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              Exibindo {pedidosFiltrados.length} de {pedidos?.length || 0} pedidos.
-            </span>
-            {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                Limpar filtros
-              </Button>
-            )}
+          <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+            Pedidos em aberto de dias anteriores continuam visiveis nesta tela.
           </div>
         </CardContent>
       </Card>
@@ -680,23 +822,31 @@ export function PedidosDashboard() {
       )}
 
       <Card className={selectedPedidoIds.length > 0 ? 'border-primary/35 bg-primary/5' : 'border-dashed border-border/70'}>
-        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <CardContent className="flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">
               {selectedPedidoIds.length > 0 ? `${selectedPedidoIds.length} pedido(s) selecionado(s)` : 'Selecione pedidos para agir em lote'}
             </p>
             <p className="text-xs text-muted-foreground">
               {selectedPedidoIds.length > 0
-                ? `${selectedPedidosEntregaveis.length} podem virar entregues e ${selectedPedidosPagamentoPendente.length} podem ter pagamento confirmado.`
+                ? `${selectedPedidosAvancaveis.length} podem avancar, ${selectedPedidosRetornaveis.length} podem retornar e ${selectedPedidosPagamentoPendente.length} podem ter pagamento confirmado.`
                 : 'Use o checkbox de cada card ou selecione todos os pedidos filtrados.'}
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
             <Button variant="outline" size="sm" onClick={handleSelectAllFiltered} disabled={pedidosFiltrados.length === 0}>
               Selecionar filtrados
             </Button>
             <Button variant="outline" size="sm" onClick={handleClearSelection} disabled={selectedPedidoIds.length === 0}>
               Limpar selecao
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleBulkReturnStatus} disabled={selectedPedidosRetornaveis.length === 0 || bulkActionLoading !== null}>
+              {bulkActionLoading === 'return' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+              Retornar etapa
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleBulkAdvanceStatus} disabled={selectedPedidosAvancaveis.length === 0 || bulkActionLoading !== null}>
+              {bulkActionLoading === 'advance' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+              Avancar etapa
             </Button>
             <Button size="sm" onClick={handleBulkMarkDelivered} disabled={selectedPedidosEntregaveis.length === 0 || bulkActionLoading !== null}>
               {bulkActionLoading === 'deliver' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}
@@ -712,16 +862,16 @@ export function PedidosDashboard() {
 
       {isLoading ? (
         <div className="overflow-x-auto pb-2">
-          <div className="grid min-w-[1180px] gap-4 xl:grid-cols-5">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-96 w-full" />)}</div>
+          <div className="flex min-w-max gap-4">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-96 w-[280px] sm:w-[320px]" />)}</div>
         </div>
       ) : (
         <div className="overflow-x-auto pb-2">
-          <div className="grid min-w-[1180px] gap-4 xl:grid-cols-5">
+          <div className="flex min-w-max snap-x snap-mandatory gap-4">
           {kanbanColumns.map(column => {
-            const columnPedidos = pedidosFiltrados.filter(pedido => pedido.status === column.status)
+            const columnPedidos = pedidosPorStatus[column.status] ?? []
             const StatusIcon = statusConfig[column.status].icon
             return (
-              <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[360px] rounded-2xl border p-3 ${statusConfig[column.status].columnClass}`}>
+              <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[360px] w-[280px] shrink-0 snap-start rounded-2xl border p-3 sm:w-[320px] xl:w-[calc((100vw-24rem)/5)] xl:min-w-[220px] ${statusConfig[column.status].columnClass}`}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2"><div className={`rounded-full p-2 ${statusConfig[column.status].color}`}><StatusIcon className="h-4 w-4" /></div><div><h2 className="font-semibold">{column.title}</h2><p className="text-xs text-muted-foreground">{column.hint}</p></div></div>
                   <Badge variant="secondary">{columnPedidos.length}</Badge>
@@ -744,9 +894,87 @@ export function PedidosDashboard() {
                 <SheetTitle className="flex flex-col items-start gap-2 pr-6 sm:flex-row sm:items-center sm:justify-between"><span className="break-words">Pedido #{selectedPedido.id.slice(-8).toUpperCase()}</span><Badge className={statusConfig[selectedPedido.status].color}>{statusConfig[selectedPedido.status].label}</Badge></SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-6">
-                {statusConfig[selectedPedido.status].nextStatus && (
-                  <div className="space-y-2"><Button className="w-full" onClick={() => handleUpdateStatus(selectedPedido, statusConfig[selectedPedido.status].nextStatus!)} disabled={updatingStatus === selectedPedido.id}>{updatingStatus === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}{statusConfig[selectedPedido.status].nextLabel}</Button><p className="text-xs text-muted-foreground text-center">Atualiza o status e abre o WhatsApp com a mensagem pronta.</p></div>
-                )}
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="space-y-4 p-4">
+                    <div className="space-y-1">
+                      <p className="text-lg font-semibold">{selectedPedido.clienteNome}</p>
+                      <p className="text-sm text-muted-foreground">{getPedidoPrimaryDateLabel(selectedPedido)}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl border bg-background/80 p-3">
+                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="text-lg font-bold text-primary">{formatarMoeda(selectedPedido.total)}</p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 p-3">
+                        <p className="text-xs text-muted-foreground">Pagamento</p>
+                        <p className="font-medium">{getPagamentoLabel(selectedPedido.pagamento, selectedPedido.tipoCartao)}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{entregaLabels[selectedPedido.tipoEntrega]}</Badge>
+                      <Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>{statusPagamentoLabels[selectedPedido.statusPagamento]}</Badge>
+                      {selectedPedido.tipoEntrega === 'ENCOMENDA' ? <Badge variant="outline">Encomenda</Badge> : null}
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {selectedPedido.clienteTelefone ? (
+                        <Button asChild variant="outline" className="w-full">
+                          <a href={`tel:${selectedPedido.clienteTelefone}`}>
+                            <Phone className="mr-2 h-4 w-4" />
+                            Ligar
+                          </a>
+                        </Button>
+                      ) : null}
+                      <Button variant="outline" className="w-full" onClick={() => handleSendPaymentReminder(selectedPedido)} disabled={!getPedidoWhatsapp(selectedPedido)}>
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        Cobrar no WhatsApp
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/70">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Acoes rapidas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {statusConfig[selectedPedido.status].nextStatus && (
+                      <div className="space-y-2">
+                        <Button className="w-full" onClick={() => handleUpdateStatus(selectedPedido, statusConfig[selectedPedido.status].nextStatus!)} disabled={updatingStatus === selectedPedido.id}>
+                          {updatingStatus === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+                          {statusConfig[selectedPedido.status].nextLabel}
+                        </Button>
+                        <p className="text-xs text-muted-foreground text-center">Atualiza o status e abre o WhatsApp com a mensagem pronta.</p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
+                        <Button variant="outline" className="w-full" onClick={() => setEditingPedido(selectedPedido)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </Button>
+                      )}
+                      {selectedPedido.status !== 'FEITO' && selectedPedido.status !== 'CANCELADO' && (
+                        <Button variant="outline" className="w-full" onClick={() => handleResendCurrentStatusMessage(selectedPedido)}>
+                          <MessageCircle className="h-4 w-4 mr-2" />
+                          Reenviar
+                        </Button>
+                      )}
+                      {selectedPedido.statusPagamento !== 'APROVADO' && selectedPedido.status !== 'CANCELADO' && (
+                        <Button variant="outline" className="w-full" onClick={() => handleConfirmPayment(selectedPedido.id)} disabled={confirmingPaymentId === selectedPedido.id}>
+                          {confirmingPaymentId === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
+                          Confirmar pag.
+                        </Button>
+                      )}
+                      {selectedPedido.statusPagamento !== 'APROVADO' && (
+                        <Button variant="outline" className="w-full" onClick={() => handleSendPaymentReminder(selectedPedido)} disabled={!getPedidoWhatsapp(selectedPedido)}>
+                          <MessageCircle className="h-4 w-4 mr-2" />
+                          Cobrar
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Mover pedido</CardTitle>
@@ -767,44 +995,28 @@ export function PedidosDashboard() {
                       ))}
                   </CardContent>
                 </Card>
-                {selectedPedido.status !== 'ENTREGUE' && selectedPedido.status !== 'CANCELADO' && (
-                  <Button variant="outline" className="w-full" onClick={() => setEditingPedido(selectedPedido)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar pedido
-                  </Button>
-                )}
-                {selectedPedido.status !== 'FEITO' && selectedPedido.status !== 'CANCELADO' && (
-                  <Button variant="outline" className="w-full" onClick={() => handleResendCurrentStatusMessage(selectedPedido)}>
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Reenviar mensagem do status atual
-                  </Button>
-                )}
                 {selectedPedido.status !== 'CANCELADO' && (
                   <Card>
                     <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><CreditCard className="h-4 w-4" />Pagamento</CardTitle></CardHeader>
                     <CardContent className="space-y-3">
-                      {selectedPedido.statusPagamento !== 'APROVADO' && <Button variant="outline" className="w-full" onClick={() => handleConfirmPayment(selectedPedido.id)} disabled={confirmingPaymentId === selectedPedido.id}>{confirmingPaymentId === selectedPedido.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}Confirmar pagamento manualmente</Button>}
-                      {selectedPedido.statusPagamento !== 'APROVADO' && (
-                        <Button variant="outline" className="w-full" onClick={() => handleSendPaymentReminder(selectedPedido)}>
-                          <MessageCircle className="h-4 w-4 mr-2" />
-                          Cobrar pagamento no WhatsApp
-                        </Button>
-                      )}
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Ajustar status do pagamento</p>
-                        <select
+                        <Select
                           value={selectedPedido.statusPagamento}
-                          onChange={(event) => handleUpdatePaymentStatus(selectedPedido.id, event.target.value as Pedido['statusPagamento'])}
-                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          disabled={confirmingPaymentId === selectedPedido.id}
+                          onValueChange={(value) => handleUpdatePaymentStatus(selectedPedido.id, value as Pedido['statusPagamento'])}
                         >
-                          <option value="NAO_APLICAVEL">Na entrega</option>
-                          <option value="PENDENTE">Pendente</option>
-                          <option value="APROVADO">Aprovado</option>
-                          <option value="RECUSADO">Recusado</option>
-                          <option value="CANCELADO">Cancelado</option>
-                          <option value="REEMBOLSADO">Reembolsado</option>
-                        </select>
+                          <SelectTrigger className="w-full bg-background" disabled={confirmingPaymentId === selectedPedido.id}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NAO_APLICAVEL">Na entrega</SelectItem>
+                            <SelectItem value="PENDENTE">Pendente</SelectItem>
+                            <SelectItem value="APROVADO">Aprovado</SelectItem>
+                            <SelectItem value="RECUSADO">Recusado</SelectItem>
+                            <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                            <SelectItem value="REEMBOLSADO">Reembolsado</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </CardContent>
                   </Card>
@@ -836,26 +1048,21 @@ export function PedidosDashboard() {
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><User className="h-4 w-4" />Cliente</CardTitle></CardHeader>
+                  <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><User className="h-4 w-4" />Atendimento</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-start gap-2 text-sm"><User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="break-words">{selectedPedido.clienteNome}</span></div>
                     <div className="flex items-start gap-2 text-sm"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />{selectedPedido.clienteTelefone ? <a href={`tel:${selectedPedido.clienteTelefone}`} className="break-all text-primary hover:underline">{formatarTelefone(selectedPedido.clienteTelefone)}</a> : <span className="text-muted-foreground">Nao informado</span>}</div>
                     <div className="flex items-start gap-2 text-sm"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span>Pedido feito em {formatDateTimeInSaoPaulo(selectedPedido.criadoEm)}</span></div>
                     <div className="flex items-start gap-2 text-sm"><CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span>{getPagamentoLabel(selectedPedido.pagamento, selectedPedido.tipoCartao)}</span></div>
-                    <div className="flex items-center gap-2 text-sm"><Badge className={statusPagamentoColors[selectedPedido.statusPagamento]}>{statusPagamentoLabels[selectedPedido.statusPagamento]}</Badge></div>
                     {selectedPedido.responsavelPedido && <div className="flex items-start gap-2 text-sm"><User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="break-words">Responsavel: {selectedPedido.responsavelPedido}</span></div>}
                     {selectedPedido.destinatariosPedido && <div className="flex items-start gap-2 text-sm"><Package className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="break-words">Separar para: {selectedPedido.destinatariosPedido}</span></div>}
                     {selectedPedido.levadoEm && <div className="flex items-start gap-2 text-sm"><Truck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span>Levado em {formatDateTimeInSaoPaulo(selectedPedido.levadoEm)}</span></div>}
-                    {selectedPedido.observacoesPedido && <div className="rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground break-words">{selectedPedido.observacoesPedido}</div>}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4" />{entregaLabels[selectedPedido.tipoEntrega]}</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
+                    <Separator />
+                    <div className="flex items-start gap-2 text-sm"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="font-medium">{entregaLabels[selectedPedido.tipoEntrega]}</span></div>
                     {selectedPedido.tipoEntrega === 'RESERVA_PAULISTANO' && <><p className="text-sm">Bloco: {selectedPedido.clienteBloco || '-'}</p><p className="text-sm">Apartamento: {selectedPedido.clienteApartamento || '-'}</p></>}
                     {selectedPedido.tipoEntrega === 'RETIRADA' && <p className="break-words text-sm">{selectedPedido.enderecoRetirada}</p>}
                     {selectedPedido.tipoEntrega === 'ENCOMENDA' && <p className="text-sm">Entrega em {selectedPedido.encomendaPara ? formatDateTimeInSaoPaulo(selectedPedido.encomendaPara) : '-'}</p>}
+                    {selectedPedido.observacoesPedido && <div className="rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground break-words">{selectedPedido.observacoesPedido}</div>}
                   </CardContent>
                 </Card>
 

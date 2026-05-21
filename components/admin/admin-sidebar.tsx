@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Archive, BarChart3, ClipboardList, FileClock, Package, Tags, Settings, LogOut, Store, Menu, X, BadgePercent, ChefHat, Users } from 'lucide-react'
+import { Archive, ArrowDownCircle, ArrowUpCircle, BarChart3, ChevronLeft, ClipboardList, FileClock, Landmark, Package, Tags, Settings, LogOut, Store, Menu, X, BadgePercent, ChefHat, Users } from 'lucide-react'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,9 @@ const menuItems = [
   { href: '/admin/estoque', label: 'Estoque', icon: Archive },
   { href: '/admin/logs', label: 'Logs', icon: FileClock },
   { href: '/admin/relatorios', label: 'Relatórios', icon: BarChart3 },
+  { href: '/admin/financeiro/contas-receber', label: 'Contas a receber', icon: ArrowUpCircle },
+  { href: '/admin/financeiro/fluxo-caixa', label: 'Fluxo de caixa', icon: Landmark },
+  { href: '/admin/financeiro/contas-pagar', label: 'Contas a pagar', icon: ArrowDownCircle },
   { href: '/admin/produtos', label: 'Produtos', icon: Package },
   { href: '/admin/categorias', label: 'Categorias', icon: Tags },
   { href: '/admin/cupons', label: 'Cupons', icon: BadgePercent },
@@ -25,7 +28,13 @@ const menuItems = [
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-export function AdminSidebar() {
+export function AdminSidebar({
+  collapsed = false,
+  onToggleCollapsed,
+}: {
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
+}) {
   const pathname = usePathname()
   const { logout } = useAdminAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -91,44 +100,50 @@ export function AdminSidebar() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-border bg-card md:flex">
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-2 text-primary">
+      <aside className={cn("fixed inset-y-0 left-0 z-30 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-border bg-card transition-[width] duration-200 md:flex", collapsed ? 'w-20' : 'w-64')}>
+        <div className="flex items-center justify-between border-b border-border p-4">
+          <div className={cn('flex min-w-0 items-center gap-2 text-primary', collapsed && 'justify-center')}>
             <Store className="h-6 w-6" />
-            <span className="text-xl font-bold">{tenantNome}</span>
+            {!collapsed ? <span className="truncate text-xl font-bold">{tenantNome}</span> : null}
           </div>
+          <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={onToggleCollapsed}>
+            <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
+          </Button>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto p-4 space-y-2">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
           {menuItems.map(item => (
             <Link
               key={item.href}
               href={item.href}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center rounded-lg text-sm font-medium transition-colors',
+                collapsed ? 'justify-center px-3 py-3' : 'gap-3 px-4 py-3',
                 isActive(item.href)
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
               )}
             >
               <item.icon className="h-5 w-5" />
-              {item.label}
+              {!collapsed ? item.label : null}
             </Link>
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-muted-foreground">Tema</span>
+        <div className="shrink-0 border-t border-border p-3">
+          <div className={cn('mb-3 flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
+            {!collapsed ? <span className="text-xs text-muted-foreground">Tema</span> : null}
             <ThemeToggle />
           </div>
           <Button
             variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+            title={collapsed ? 'Sair' : undefined}
+            className={cn('w-full text-muted-foreground hover:text-destructive', collapsed ? 'justify-center px-3' : 'justify-start gap-3')}
             onClick={logout}
           >
             <LogOut className="h-5 w-5" />
-            Sair
+            {!collapsed ? 'Sair' : null}
           </Button>
         </div>
       </aside>

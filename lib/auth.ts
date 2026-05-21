@@ -1,9 +1,10 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
-import { rateLimitByIp, resetRateLimitByIp } from '@/lib/rateLimit'
+import { createAuthAuditLog } from '@/lib/auth-audit'
+import { hashIpAddress, normalizeEmail, normalizeLoginIdentifier, verifyPassword } from '@/lib/auth-security'
+import { rateLimitByIdentifier, rateLimitByIp, resetRateLimitByIdentifier, resetRateLimitByIp } from '@/lib/rateLimit'
 
 function getHeaderValue(headers: unknown, name: string) {
   if (!headers) return undefined
@@ -30,7 +31,11 @@ function getCookieValue(headers: unknown, name: string) {
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    maxAge: 60 * 60 * 12,
+    updateAge: 60 * 60,
+  },
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -50,15 +55,23 @@ export const authOptions: NextAuthOptions = {
         const realIp = getHeaderValue(req?.headers, 'x-real-ip')
         const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
 
-        const rate = rateLimitByIp(ip)
-        if (!rate.allowed) {
+        const identifier = normalizeLoginIdentifier(credentials?.username?.toString() || '')
+        const password = credentials?.password?.toString()
+        const rateByIp = rateLimitByIp(ip)
+        const rateByIdentifier = identifier ? rateLimitByIdentifier(ip, identifier) : { allowed: true }
+
+        if (!rateByIp.allowed || !rateByIdentifier.allowed) {
+          await createAuthAuditLog({
+            action: 'LOGIN_FAILURE',
+            identifier: identifier || null,
+            ipHash: hashIpAddress(ip),
+            userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
+            metadata: { reason: 'rate_limited' },
+          })
           throw new Error('Muitas tentativas. Tente novamente mais tarde.')
         }
 
-        const username = credentials?.username?.toString().trim()
-        const password = credentials?.password?.toString()
-
-        if (!username || !password) {
+        if (!identifier || !password) {
           return null
         }
 
@@ -70,22 +83,56 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.adminUser.findFirst({
-          where: { tenantId: tenant.id, username }
+          where: {
+            tenantId: tenant.id,
+            OR: [
+              { username: identifier },
+              { emailNormalizado: normalizeEmail(identifier) },
+            ],
+          }
         })
         if (!user) {
+          await createAuthAuditLog({
+            tenantId: tenant.id,
+            action: 'LOGIN_FAILURE',
+            identifier,
+            ipHash: hashIpAddress(ip),
+            userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
+            metadata: { reason: 'user_not_found' },
+          })
           return null
         }
 
-        const ok = await compare(password, user.passwordHash)
+        const ok = await verifyPassword(password, user.passwordHash)
         if (!ok) {
+          await createAuthAuditLog({
+            tenantId: tenant.id,
+            adminUserId: user.id,
+            action: 'LOGIN_FAILURE',
+            identifier,
+            ipHash: hashIpAddress(ip),
+            userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
+            metadata: { reason: 'invalid_password' },
+          })
           return null
         }
 
         resetRateLimitByIp(ip)
+        resetRateLimitByIdentifier(ip, identifier)
+
+        await createAuthAuditLog({
+          tenantId: tenant.id,
+          adminUserId: user.id,
+          action: 'LOGIN_SUCCESS',
+          identifier,
+          ipHash: hashIpAddress(ip),
+          userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
+        })
 
         return {
           id: user.id,
           name: user.nome,
+          email: user.email ?? undefined,
           tenantId: tenant.id,
           tenantSlug: tenant.slug
         } as any
@@ -95,6 +142,8 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.id = (user as any).id
+        token.email = (user as any).email
         token.tenantId = (user as any).tenantId
         token.tenantSlug = (user as any).tenantSlug
       }
@@ -102,6 +151,10 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
+        ;(session.user as any).id = token.id
+        if (token.email) {
+          session.user.email = String(token.email)
+        }
         ;(session.user as any).tenantId = token.tenantId
         ;(session.user as any).tenantSlug = token.tenantSlug
       }

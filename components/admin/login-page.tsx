@@ -4,7 +4,7 @@ import React from "react"
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, Loader2, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,11 +15,19 @@ import { ThemeToggle } from '@/components/theme-toggle'
 
 export function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth()
   const [username, setUsername] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    const identifier = searchParams.get('identifier')?.trim()
+    if (identifier) {
+      setUsername(identifier)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -37,7 +45,7 @@ export function LoginPage() {
     if (result.success) {
       router.push('/admin')
     } else {
-      setError(result.error || 'Senha incorreta')
+      setError(result.error || 'Usuario ou senha invalidos.')
     }
 
     setIsSubmitting(false)
@@ -69,13 +77,14 @@ export function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Usuário</Label>
+              <Label htmlFor="username">Usuario ou e-mail</Label>
               <Input
                 id="username"
-                placeholder="Digite seu usuário"
+                placeholder="Digite seu usuario ou e-mail"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 autoFocus
+                autoComplete="username"
               />
             </div>
 
@@ -90,6 +99,7 @@ export function LoginPage() {
                   value={senha}
                   onChange={e => setSenha(e.target.value)}
                   className="pl-9"
+                  autoComplete="current-password"
                 />
               </div>
             </div>

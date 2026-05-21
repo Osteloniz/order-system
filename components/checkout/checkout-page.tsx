@@ -38,6 +38,8 @@ export function CheckoutPage() {
   const [whatsapp, setWhatsapp] = useState('')
   const [bloco, setBloco] = useState('')
   const [apartamento, setApartamento] = useState('')
+  const [encomendaData, setEncomendaData] = useState('')
+  const [encomendaHora, setEncomendaHora] = useState('')
   const [pagamento, setPagamento] = useState<TipoPagamento>('PIX')
   const [tipoCartao, setTipoCartao] = useState<TipoCartao>('CREDITO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
@@ -129,6 +131,11 @@ export function CheckoutPage() {
       return
     }
 
+    if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) {
+      setError('Informe a data e a hora da encomenda')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -149,6 +156,7 @@ export function CheckoutPage() {
         pagamento,
         tipoCartao: pagamento === 'CARTAO' ? tipoCartao : undefined,
         tipoEntrega,
+        encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
         cupomCodigo: cupomCodigo.trim() ? cupomCodigo.trim().toUpperCase() : undefined,
         itens: itens.map(item => ({
           produtoId: item.produto.id,
@@ -313,6 +321,24 @@ export function CheckoutPage() {
                   </p>
                 </div>
               </label>
+
+              <label
+                htmlFor="encomenda"
+                className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                  tipoEntrega === 'ENCOMENDA'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:bg-secondary/50'
+                }`}
+              >
+                <RadioGroupItem value="ENCOMENDA" id="encomenda" />
+                <Truck className="h-5 w-5 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="font-medium">Encomenda</p>
+                  <p className="text-sm text-muted-foreground">
+                    Agende a data e a hora para preparar seu pedido.
+                  </p>
+                </div>
+              </label>
             </RadioGroup>
 
             {tipoEntrega === 'RESERVA_PAULISTANO' && (
@@ -349,6 +375,31 @@ export function CheckoutPage() {
                       required
                     />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {tipoEntrega === 'ENCOMENDA' && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="encomenda-data">Data da encomenda</Label>
+                  <Input
+                    id="encomenda-data"
+                    type="date"
+                    value={encomendaData}
+                    onChange={e => setEncomendaData(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="encomenda-hora">Hora da encomenda</Label>
+                  <Input
+                    id="encomenda-hora"
+                    type="time"
+                    value={encomendaHora}
+                    onChange={e => setEncomendaHora(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
             )}
@@ -411,7 +462,6 @@ export function CheckoutPage() {
                     <RadioGroupItem value="CREDITO" id="cartao-credito" />
                     <div className="flex-1">
                       <p className="font-medium">Crédito</p>
-                      <p className="text-sm text-muted-foreground">Taxa prevista de 3,09% no fluxo de caixa.</p>
                     </div>
                   </label>
 
@@ -424,7 +474,6 @@ export function CheckoutPage() {
                     <RadioGroupItem value="DEBITO" id="cartao-debito" />
                     <div className="flex-1">
                       <p className="font-medium">Débito</p>
-                      <p className="text-sm text-muted-foreground">Taxa prevista de 0,89% no fluxo de caixa.</p>
                     </div>
                   </label>
                   </RadioGroup>

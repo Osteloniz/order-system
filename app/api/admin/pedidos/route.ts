@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
           encomendaPara: { gte: start, lt: end },
         },
         ...(carryoverNovos ? [{
-          status: 'FEITO',
+          status: { in: ['FEITO', 'ACEITO', 'PREPARACAO'] },
           criadoEm: { lt: start },
         }] : []),
       ],

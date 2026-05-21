@@ -6,6 +6,7 @@ export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 export type TipoCartao = 'CREDITO' | 'DEBITO'
 export type TipoEntrega = 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOMENDA'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
+export type StatusContaPagar = 'PENDENTE' | 'PAGO' | 'CANCELADO'
 
 export interface Categoria {
   id: string
@@ -144,6 +145,20 @@ export interface Cupom {
   expiraEm: string
   maxUsos: number
   usos: number
+  criadoEm: string
+  atualizadoEm: string
+}
+
+export interface ContaPagar {
+  id: string
+  descricao: string
+  categoria?: string | null
+  fornecedor?: string | null
+  observacoes?: string | null
+  valor: number
+  vencimento: string
+  pagoEm?: string | null
+  status: StatusContaPagar
   criadoEm: string
   atualizadoEm: string
 }

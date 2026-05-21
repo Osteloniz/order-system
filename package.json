@@ -9,7 +9,9 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "vercel-build": "prisma generate && next build",
-    "db:reset-prod-data": "node scripts/reset-prod-data.js"
+    "db:reset-prod-data": "node scripts/reset-prod-data.js",
+    "logs:cleanup": "node scripts/cleanup-logs.js",
+    "test:auth-security": "node --test --experimental-strip-types tests/auth-security.test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

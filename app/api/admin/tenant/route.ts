@@ -11,16 +11,24 @@ export async function GET() {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: admin.tenantId },
-    select: { id: true, nome: true, slug: true, isOpen: true }
-  })
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: admin.tenantId },
+      select: { id: true, nome: true, slug: true, isOpen: true }
+    })
 
-  if (!tenant) {
-    return NextResponse.json({ error: 'Tenant nao encontrado' }, { status: 404 })
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant nao encontrado' }, { status: 404 })
+    }
+
+    return NextResponse.json(tenant)
+  } catch (error) {
+    console.error('[admin/tenant][GET] Erro ao carregar tenant:', error)
+    return NextResponse.json(
+      { error: 'Erro ao carregar dados da empresa. Se houve troca de banco ou deploy recente, confira a conexao e as migrations.' },
+      { status: 500 }
+    )
   }
-
-  return NextResponse.json(tenant)
 }
 
 // PUT /api/admin/tenant - atualiza status aberto/fechado
@@ -30,13 +38,21 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const isOpen = Boolean(body.isOpen)
+  try {
+    const body = await request.json()
+    const isOpen = Boolean(body.isOpen)
 
-  const tenant = await prisma.tenant.update({
-    where: { id: admin.tenantId },
-    data: { isOpen }
-  })
+    const tenant = await prisma.tenant.update({
+      where: { id: admin.tenantId },
+      data: { isOpen }
+    })
 
-  return NextResponse.json(tenant)
+    return NextResponse.json(tenant)
+  } catch (error) {
+    console.error('[admin/tenant][PUT] Erro ao atualizar tenant:', error)
+    return NextResponse.json(
+      { error: 'Erro ao atualizar dados da empresa.' },
+      { status: 500 }
+    )
+  }
 }

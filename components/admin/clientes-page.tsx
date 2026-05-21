@@ -1,15 +1,16 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { Plus, RefreshCw, Save, Search, UserRound } from 'lucide-react'
+import { ClipboardList, Home, MessageCircle, Phone, Plus, RefreshCw, Save, Search, UserRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import { formatDateTimeInSaoPaulo } from '@/lib/sao-paulo'
@@ -31,6 +32,10 @@ export function ClientesPage() {
   const [message, setMessage] = useState('')
   const url = useMemo(() => `/api/admin/clientes?search=${encodeURIComponent(search)}`, [search])
   const { data: clientes, isLoading, mutate } = useSWR<Cliente[]>(url, fetcher, { refreshInterval: 15000 })
+
+  const totalClientes = clientes?.length ?? 0
+  const totalPedidosCliente = selected?.pedidos?.length ?? 0
+  const ultimoPedido = selected?.pedidos?.[0] ?? null
 
   useEffect(() => {
     if (!selected) return
@@ -55,6 +60,10 @@ export function ClientesPage() {
     setSelected(cliente)
     setIsCreating(false)
     setMessage('')
+  }
+
+  const resetForm = () => {
+    setForm({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' })
   }
 
   const saveCliente = async () => {
@@ -89,83 +98,233 @@ export function ClientesPage() {
 
   return (
     <div className="space-y-6">
+      <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(71,125,232,0.12),rgba(34,199,183,0.08)_45%,rgba(244,183,64,0.12))] p-5 shadow-sm md:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
+              <UserRound className="h-7 w-7 text-primary" />
+              Clientes
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground md:text-base">
+              Centralize WhatsApp, endereco no Paulistano, observacoes importantes e historico de compra para atendimento mais rapido.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Clientes na busca</p>
+              <p className="mt-1 text-2xl font-bold">{totalClientes}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Pedidos do selecionado</p>
+              <p className="mt-1 text-2xl font-bold">{totalPedidosCliente}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Ultimo pedido</p>
+              <p className="mt-1 text-sm font-semibold">{ultimoPedido ? formatDateTimeInSaoPaulo(ultimoPedido.criadoEm) : 'Sem historico'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold"><UserRound className="h-6 w-6 text-primary" />Clientes</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Cadastro por WhatsApp, endereço no Paulistano, observações e histórico de pedidos.</p>
+        <div className="text-sm text-muted-foreground">
+          Busque, selecione e atualize os dados sem sair da tela.
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button className="w-full sm:w-auto" onClick={startNewCliente}><Plus className="mr-2 h-4 w-4" />Novo cliente</Button>
-          <Button className="w-full sm:w-auto" variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
+          <Button className="w-full sm:w-auto" onClick={startNewCliente}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo cliente
+          </Button>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={() => mutate()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Atualizar
+          </Button>
         </div>
       </div>
 
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader><CardTitle>Buscar cliente</CardTitle></CardHeader>
+        <Card className="border-border/70 bg-card/95">
+          <CardHeader className="pb-3">
+            <CardTitle>Buscar cliente</CardTitle>
+            <CardDescription>Encontre por nome, telefone ou WhatsApp.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome ou telefone" className="pl-9" />
             </div>
-            <div className="space-y-2">
-              {isLoading ? <><Skeleton className="h-16" /><Skeleton className="h-16" /></> : clientes?.length ? clientes.map((cliente) => (
-                <button key={cliente.id} type="button" onClick={() => selectCliente(cliente)} className={`w-full rounded-xl border p-3 text-left transition hover:border-primary/40 ${selected?.id === cliente.id ? 'border-primary bg-primary/10' : 'bg-card'}`}>
-                  <p className="font-semibold">{cliente.nome}</p>
-                  <p className="text-sm text-muted-foreground">{formatarTelefone(cliente.telefone)} · {cliente.pedidos?.length ?? 0} pedido(s)</p>
-                </button>
-              )) : <p className="text-sm text-muted-foreground">Nenhum cliente encontrado.</p>}
+            <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+              {totalClientes} cliente(s) carregado(s)
+            </div>
+            <div className="max-h-[65vh] space-y-2 overflow-y-auto pr-1">
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-20" />
+                  <Skeleton className="h-20" />
+                </>
+              ) : clientes?.length ? (
+                clientes.map((cliente) => (
+                  <button
+                    key={cliente.id}
+                    type="button"
+                    onClick={() => selectCliente(cliente)}
+                    className={`w-full rounded-2xl border p-4 text-left transition hover:border-primary/40 hover:bg-primary/5 ${selected?.id === cliente.id ? 'border-primary bg-primary/10 shadow-sm' : 'bg-card/90'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{cliente.nome}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                          <span>{formatarTelefone(cliente.telefone)}</span>
+                          <span>•</span>
+                          <span>{cliente.pedidos?.length ?? 0} pedido(s)</span>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="shrink-0">{cliente.clienteBloco || 'Sem bloco'}</Badge>
+                    </div>
+                    {cliente.observacoes ? <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{cliente.observacoes}</p> : null}
+                  </button>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum cliente encontrado.</p>
+              )}
             </div>
           </CardContent>
         </Card>
 
         {selected || isCreating ? (
           <div className="space-y-4">
-            <Card>
-              <CardHeader><CardTitle>{isCreating ? 'Cadastrar cliente' : 'Editar cliente'}</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2"><Label>Nome</Label><Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} /></div>
-                <div className="space-y-2"><Label>Telefone</Label><Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} disabled={!isCreating} placeholder="(47) 99999-9999 ou +47..." /></div>
-                <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))} placeholder="(47) 99999-9999 ou +47..." /></div>
-                <div className="space-y-2"><Label>Bloco</Label><Input value={form.clienteBloco} onChange={(event) => setForm((current) => ({ ...current, clienteBloco: event.target.value }))} placeholder="Ex: A" /></div>
-                <div className="space-y-2"><Label>Apartamento</Label><Input value={form.clienteApartamento} onChange={(event) => setForm((current) => ({ ...current, clienteApartamento: event.target.value }))} placeholder="Ex: 101" /></div>
-                <div className="space-y-2 md:col-span-2"><Label>Observações</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferências, restrições, observações de entrega..." /></div>
-                <div className="flex flex-wrap gap-2 md:col-span-2">
-                  <Button onClick={saveCliente} disabled={saving}>{saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}{isCreating ? 'Cadastrar cliente' : 'Salvar edição'}</Button>
-                  {isCreating && <Button variant="outline" onClick={() => { setIsCreating(false); setForm({ nome: '', telefone: '', whatsapp: '', clienteBloco: '', clienteApartamento: '', observacoes: '' }) }}>Cancelar</Button>}
+            <Card className="border-border/70 bg-card/95">
+              <CardHeader className="pb-3">
+                <CardTitle>{isCreating ? 'Cadastrar cliente' : 'Editar cliente'}</CardTitle>
+                <CardDescription>
+                  {isCreating
+                    ? 'Preencha os dados para criar um novo cadastro.'
+                    : 'Atualize nome, contato, localizacao no Paulistano e anotacoes de atendimento.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!isCreating && selected ? (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Phone className="h-3.5 w-3.5" />
+                        Telefone
+                      </div>
+                      <p className="mt-1 font-semibold">{formatarTelefone(selected.telefone)}</p>
+                    </div>
+                    <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        WhatsApp
+                      </div>
+                      <p className="mt-1 font-semibold">{formatarTelefone(selected.whatsapp)}</p>
+                    </div>
+                    <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <ClipboardList className="h-3.5 w-3.5" />
+                        Pedidos
+                      </div>
+                      <p className="mt-1 text-2xl font-bold">{selected.pedidos?.length ?? 0}</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Nome</Label>
+                    <Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Telefone</Label>
+                    <Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} disabled={!isCreating} placeholder="(47) 99999-9999 ou +47..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>WhatsApp</Label>
+                    <Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))} placeholder="(47) 99999-9999 ou +47..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Bloco</Label>
+                    <Input value={form.clienteBloco} onChange={(event) => setForm((current) => ({ ...current, clienteBloco: event.target.value }))} placeholder="Ex: A" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Apartamento</Label>
+                    <Input value={form.clienteApartamento} onChange={(event) => setForm((current) => ({ ...current, clienteApartamento: event.target.value }))} placeholder="Ex: 101" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Observacoes</Label>
+                    <Textarea value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferencias, restricoes, forma de entrega, recados importantes..." rows={5} />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={saveCliente} disabled={saving || !form.nome.trim()}>
+                    {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {isCreating ? 'Cadastrar cliente' : 'Salvar edicao'}
+                  </Button>
+                  {isCreating ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsCreating(false)
+                        resetForm()
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
 
-            {!isCreating && selected && <Card>
-              <CardHeader><CardTitle>Histórico de pedidos</CardTitle></CardHeader>
-              <CardContent>
-                {selected.pedidos?.length ? (
-                  <div className="space-y-3">
-                    {selected.pedidos.map((pedido) => (
-                      <div key={pedido.id} className="rounded-xl border p-4">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p>
-                            <p className="text-sm text-muted-foreground">{formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
+            {!isCreating && selected ? (
+              <Card className="border-border/70 bg-card/95">
+                <CardHeader className="pb-3">
+                  <CardTitle>Historico de pedidos</CardTitle>
+                  <CardDescription>Ultimos pedidos vinculados a este cliente para consulta rapida.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {selected.pedidos?.length ? (
+                    <div className="space-y-3">
+                      {selected.pedidos.map((pedido) => (
+                        <div key={pedido.id} className="rounded-2xl border bg-background/80 p-4 transition-colors hover:border-primary/35">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p>
+                              <p className="text-sm text-muted-foreground">{formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline">{pedido.status}</Badge>
+                              <Badge>{formatarMoeda(pedido.total)}</Badge>
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-2"><Badge variant="outline">{pedido.status}</Badge><Badge>{formatarMoeda(pedido.total)}</Badge></div>
+                          <Separator className="my-3" />
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            {pedido.itens.map((item) => (
+                              <div key={item.id} className="flex justify-between gap-3">
+                                <span>{item.quantidade}x {item.nomeProdutoSnapshot}</span>
+                                <span>{formatarMoeda(item.totalItem)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <Separator className="my-3" />
-                        <div className="space-y-1 text-sm text-muted-foreground">
-                          {pedido.itens.map((item) => <div key={item.id} className="flex justify-between gap-3"><span>{item.quantidade}x {item.nomeProdutoSnapshot}</span><span>{formatarMoeda(item.totalItem)}</span></div>)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="text-sm text-muted-foreground">Este cliente ainda nao possui pedidos vinculados.</p>}
-              </CardContent>
-            </Card>}
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Este cliente ainda nao possui pedidos vinculados.</p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
         ) : (
-          <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Selecione um cliente para ver dados e histórico.</CardContent></Card>
+          <Card className="border-dashed border-border/70 bg-card/95">
+            <CardContent className="flex min-h-[280px] flex-col items-center justify-center p-8 text-center text-sm text-muted-foreground">
+              <UserRound className="mb-3 h-10 w-10 text-primary/50" />
+              <p className="font-medium text-foreground">Selecione um cliente para ver os dados completos</p>
+              <p className="mt-1 max-w-md">Voce pode buscar na lista lateral ou criar um novo cadastro para comecar a registrar historico e observacoes.</p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

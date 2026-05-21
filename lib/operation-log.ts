@@ -23,6 +23,10 @@ export function numeroPedidoCurto(pedidoId?: string | null) {
 }
 
 export async function registrarLogOperacao(tx: Tx, params: RegistrarLogOperacaoParams) {
+  if (process.env.ENABLE_OPERATION_LOGS === 'false') {
+    return null
+  }
+
   return tx.logOperacao.create({
     data: {
       tenantId: params.tenantId,

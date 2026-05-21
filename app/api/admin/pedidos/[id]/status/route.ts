@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
@@ -410,7 +411,7 @@ export async function PATCH(
         return atualizado
       })
 
-      console.log(`[v0] Pedido ${id} atualizado para status: ${status}`)
+      appLogger.info(`[api/admin/pedidos/[id]/status] Pedido ${id} atualizado para status: ${status}`)
 
       return NextResponse.json(pedidoAtualizado)
     } catch (error) {

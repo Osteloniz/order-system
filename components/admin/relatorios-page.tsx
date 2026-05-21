@@ -10,11 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
 import { entregaLabels, getPagamentoLabel, statusPagamentoLabels, statusPedidoReportLabels, statusPedidoReportStyles } from '@/lib/order-display'
 import { isPedidoRealizadoFinanceiramente } from '@/lib/order-finance'
-import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateTimeInSaoPaulo, getCurrentWeekRangeInSaoPaulo } from '@/lib/sao-paulo'
 import type { StatusPagamento, StatusPedido, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 type RelatorioProduto = {
@@ -110,19 +111,30 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 }
 
 export function RelatoriosPage() {
-  const today = todayInSaoPaulo()
-  const [fromInput, setFromInput] = useState(today)
-  const [toInput, setToInput] = useState(today)
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
-  const [listFrom, setListFrom] = useState(today)
-  const [listTo, setListTo] = useState(today)
+  const defaultWeek = getCurrentWeekRangeInSaoPaulo()
+  const [fromInput, setFromInput] = useState(defaultWeek.from)
+  const [toInput, setToInput] = useState(defaultWeek.to)
+  const [from, setFrom] = useState(defaultWeek.from)
+  const [to, setTo] = useState(defaultWeek.to)
+  const [listFrom, setListFrom] = useState(defaultWeek.from)
+  const [listTo, setListTo] = useState(defaultWeek.to)
+  const [listFromInput, setListFromInput] = useState(defaultWeek.from)
+  const [listToInput, setListToInput] = useState(defaultWeek.to)
   const [searchPedido, setSearchPedido] = useState('')
+  const [searchPedidoInput, setSearchPedidoInput] = useState('')
   const [statusPagamentoFiltro, setStatusPagamentoFiltro] = useState<'TODOS' | StatusPagamento>('TODOS')
   const [statusPedidoFiltro, setStatusPedidoFiltro] = useState<'TODOS' | StatusPedido>('TODOS')
+  const [statusPagamentoFiltroInput, setStatusPagamentoFiltroInput] = useState<'TODOS' | StatusPagamento>('TODOS')
+  const [statusPedidoFiltroInput, setStatusPedidoFiltroInput] = useState<'TODOS' | StatusPedido>('TODOS')
   const url = useMemo(() => `/api/admin/relatorios?from=${from}&to=${to}`, [from, to])
   const { data, isLoading, mutate } = useSWR<RelatorioData>(url, fetcher)
   const periodoPendente = fromInput !== from || toInput !== to
+  const filtrosPedidosPendentes =
+    listFromInput !== listFrom ||
+    listToInput !== listTo ||
+    searchPedidoInput !== searchPedido ||
+    statusPagamentoFiltroInput !== statusPagamentoFiltro ||
+    statusPedidoFiltroInput !== statusPedidoFiltro
 
   const totalUnidades = useMemo(() => data?.produtos.reduce((acc, produto) => acc + produto.quantidade, 0) ?? 0, [data])
   const topProduto = data?.produtos[0]
@@ -210,11 +222,101 @@ export function RelatoriosPage() {
   }
 
   const handleLimparPeriodo = () => {
-    setFromInput(today)
-    setToInput(today)
-    setFrom(today)
-    setTo(today)
+    const week = getCurrentWeekRangeInSaoPaulo()
+    setFromInput(week.from)
+    setToInput(week.to)
+    setFrom(week.from)
+    setTo(week.to)
+    setListFrom(week.from)
+    setListTo(week.to)
+    setListFromInput(week.from)
+    setListToInput(week.to)
+    setSearchPedido('')
+    setSearchPedidoInput('')
+    setStatusPagamentoFiltro('TODOS')
+    setStatusPedidoFiltro('TODOS')
+    setStatusPagamentoFiltroInput('TODOS')
+    setStatusPedidoFiltroInput('TODOS')
   }
+
+  const handleAplicarFiltrosPedidos = () => {
+    setListFrom(listFromInput)
+    setListTo(listToInput)
+    setSearchPedido(searchPedidoInput)
+    setStatusPagamentoFiltro(statusPagamentoFiltroInput)
+    setStatusPedidoFiltro(statusPedidoFiltroInput)
+  }
+
+  const handleLimparFiltrosPedidos = () => {
+    const week = getCurrentWeekRangeInSaoPaulo()
+    setListFromInput(week.from)
+    setListToInput(week.to)
+    setListFrom(week.from)
+    setListTo(week.to)
+    setSearchPedidoInput('')
+    setSearchPedido('')
+    setStatusPagamentoFiltroInput('TODOS')
+    setStatusPagamentoFiltro('TODOS')
+    setStatusPedidoFiltroInput('TODOS')
+    setStatusPedidoFiltro('TODOS')
+  }
+
+  const cardsVisaoGeral = [
+    {
+      key: 'pedidos',
+      className: 'border-[#22C0D4]/35 bg-[#22C0D4]/10',
+      icon: ReceiptText,
+      iconClass: 'text-[#22C0D4]',
+      title: 'Pedidos no periodo',
+      value: String(data?.totalPedidos ?? 0),
+      detail: `${entregues} entregues`,
+    },
+    {
+      key: 'receita',
+      className: 'border-[#AF6E2A]/35 bg-[#AF6E2A]/10',
+      icon: PackageCheck,
+      iconClass: 'text-[#AF6E2A]',
+      title: 'Receita entregue',
+      value: formatarMoeda(data?.receitaEntregue ?? 0),
+      detail: 'Base para resultado real',
+    },
+    {
+      key: 'ticket',
+      className: 'border-[#F8CF40]/45 bg-[#F8CF40]/15',
+      icon: TrendingUp,
+      iconClass: 'text-[#AF6E2A]',
+      title: 'Ticket medio',
+      value: formatarMoeda(data?.ticketMedioEntregue ?? 0),
+      detail: 'Sobre pedidos entregues',
+    },
+    {
+      key: 'unidades',
+      className: 'border-[#FF6BBB]/35 bg-[#FF6BBB]/10',
+      icon: BarChart3,
+      iconClass: 'text-[#FF6BBB]',
+      title: 'Unidades vendidas',
+      value: String(totalUnidades),
+      detail: 'Somando todos os sabores',
+    },
+    {
+      key: 'cartao',
+      className: 'border-[#0e6c77]/25 bg-[#22C0D4]/5',
+      icon: PackageCheck,
+      iconClass: 'text-[#0e6c77]',
+      title: 'Cartao bruto / liquido',
+      value: formatarMoeda(data?.receitaCartaoBruta ?? 0),
+      detail: `Liquido: ${formatarMoeda(data?.receitaCartaoLiquida ?? 0)} • Taxas: ${formatarMoeda(data?.taxaCartao ?? 0)}`,
+    },
+    {
+      key: 'pendencias',
+      className: 'border-warning/35 bg-warning/10',
+      icon: ReceiptText,
+      iconClass: 'text-warning-foreground',
+      title: 'Pendencias / cancelado',
+      value: String(data?.pagamentosPendentes ?? 0),
+      detail: `Cancelado: ${formatarMoeda(data?.totalCancelado ?? 0)}`,
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -230,6 +332,9 @@ export function RelatoriosPage() {
             </h1>
             <p className="mt-2 text-sm text-muted-foreground md:text-base">
               Acompanhe faturamento, ticket medio, sabores mais vendidos e exporte os dados para planilha.
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Periodo padrao da tela: semana atual, de domingo a sabado.
             </p>
           </div>
           <div className="grid gap-2 lg:grid-cols-[180px_180px_auto_auto_auto] lg:items-end">
@@ -265,14 +370,19 @@ export function RelatoriosPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Card className="border-[#22C0D4]/35 bg-[#22C0D4]/10"><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-[#22C0D4]" /><p className="text-sm text-muted-foreground">Pedidos no periodo</p><p className="text-3xl font-bold">{data?.totalPedidos ?? 0}</p><p className="mt-2 text-xs text-muted-foreground">{entregues} entregues</p></CardContent></Card>
-          <Card className="border-[#AF6E2A]/35 bg-[#AF6E2A]/10"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Receita entregue</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Base para resultado real</p></CardContent></Card>
-          <Card className="border-[#F8CF40]/45 bg-[#F8CF40]/15"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#AF6E2A]" /><p className="text-sm text-muted-foreground">Ticket medio</p><p className="text-3xl font-bold">{formatarMoeda(data?.ticketMedioEntregue ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Sobre pedidos entregues</p></CardContent></Card>
-          <Card className="border-[#FF6BBB]/35 bg-[#FF6BBB]/10"><CardContent className="p-5"><BarChart3 className="mb-3 h-5 w-5 text-[#FF6BBB]" /><p className="text-sm text-muted-foreground">Unidades vendidas</p><p className="text-3xl font-bold">{totalUnidades}</p><p className="mt-2 text-xs text-muted-foreground">Somando todos os sabores</p></CardContent></Card>
-          <Card className="border-[#0e6c77]/25 bg-[#22C0D4]/5"><CardContent className="p-5"><PackageCheck className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao bruto</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoBruta ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Credito: {formatarMoeda(data?.cartaoCreditoBruto ?? 0)} • Debito: {formatarMoeda(data?.cartaoDebitoBruto ?? 0)}</p></CardContent></Card>
-          <Card className="border-[#0e6c77]/25 bg-[#0e6c77]/10"><CardContent className="p-5"><TrendingUp className="mb-3 h-5 w-5 text-[#0e6c77]" /><p className="text-sm text-muted-foreground">Cartao liquido</p><p className="text-3xl font-bold">{formatarMoeda(data?.receitaCartaoLiquida ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Taxas realizadas de credito/debito: {formatarMoeda(data?.taxaCartao ?? 0)}</p></CardContent></Card>
-          <Card className="border-warning/35 bg-warning/10"><CardContent className="p-5"><ReceiptText className="mb-3 h-5 w-5 text-warning-foreground" /><p className="text-sm text-muted-foreground">Pagamentos pendentes</p><p className="text-3xl font-bold">{data?.pagamentosPendentes ?? 0}</p><p className="mt-2 text-xs text-muted-foreground">Use a tela de pedidos para cobrar ou ajustar</p></CardContent></Card>
-          <Card className="border-destructive/25 bg-destructive/10"><CardContent className="p-5"><XCircle className="mb-3 h-5 w-5 text-destructive" /><p className="text-sm text-muted-foreground">Valor cancelado</p><p className="text-3xl font-bold">{formatarMoeda(data?.totalCancelado ?? 0)}</p><p className="mt-2 text-xs text-muted-foreground">Pedidos cancelados</p></CardContent></Card>
+          {cardsVisaoGeral.map((card) => {
+            const Icon = card.icon
+            return (
+              <Card key={card.key} className={card.className}>
+                <CardContent className="p-5">
+                  <Icon className={`mb-3 h-5 w-5 ${card.iconClass}`} />
+                  <p className="text-sm text-muted-foreground">{card.title}</p>
+                  <p className="text-3xl font-bold">{card.value}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{card.detail}</p>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 
@@ -378,6 +488,15 @@ export function RelatoriosPage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="border-t bg-muted/25 font-semibold">
+                  <tr>
+                    <td className="py-3 pl-4 pr-4">Total do periodo</td>
+                    <td className="py-3 pr-4">{totalUnidades}</td>
+                    <td className="py-3 pr-4">-</td>
+                    <td className="py-3 pr-4 text-[#AF6E2A]">{formatarMoeda(data.produtos.reduce((acc, produto) => acc + produto.total, 0))}</td>
+                    <td className="py-3 pr-4">{data.produtos.reduce((acc, produto) => acc + produto.pedidos, 0)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           ) : (
@@ -433,45 +552,67 @@ export function RelatoriosPage() {
           <Badge variant="outline">{pedidosFiltrados.length} pedido(s)</Badge>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+            A listagem abre por padrao na semana atual, de domingo a sabado. Voce pode ajustar o periodo quando precisar.
+          </div>
           <div className="mb-4 grid gap-3 lg:grid-cols-5">
             <div className="space-y-2">
               <Label>Periodo da listagem: de</Label>
-              <Input type="date" value={listFrom} onChange={(event) => setListFrom(event.target.value)} />
+              <Input type="date" value={listFromInput} onChange={(event) => setListFromInput(event.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Periodo da listagem: ate</Label>
-              <Input type="date" value={listTo} onChange={(event) => setListTo(event.target.value)} />
+              <Input type="date" value={listToInput} onChange={(event) => setListToInput(event.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Buscar no historico</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={searchPedido} onChange={(event) => setSearchPedido(event.target.value)} placeholder="Numero, cliente, telefone, responsavel ou item" className="pl-9" />
+                <Input value={searchPedidoInput} onChange={(event) => setSearchPedidoInput(event.target.value)} placeholder="Numero, cliente, telefone, responsavel ou item" className="pl-9" />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Status do pagamento</Label>
-              <select value={statusPagamentoFiltro} onChange={(event) => setStatusPagamentoFiltro(event.target.value as 'TODOS' | StatusPagamento)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="TODOS">Todos</option>
-                <option value="NAO_APLICAVEL">Na entrega</option>
-                <option value="PENDENTE">Pendente</option>
-                <option value="APROVADO">Aprovado</option>
-                <option value="RECUSADO">Recusado</option>
-                <option value="CANCELADO">Cancelado</option>
-                <option value="REEMBOLSADO">Reembolsado</option>
-              </select>
+              <Select value={statusPagamentoFiltroInput} onValueChange={(value) => setStatusPagamentoFiltroInput(value as 'TODOS' | StatusPagamento)}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="NAO_APLICAVEL">Na entrega</SelectItem>
+                  <SelectItem value="PENDENTE">Pendente</SelectItem>
+                  <SelectItem value="APROVADO">Aprovado</SelectItem>
+                  <SelectItem value="RECUSADO">Recusado</SelectItem>
+                  <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  <SelectItem value="REEMBOLSADO">Reembolsado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Status do pedido</Label>
-              <select value={statusPedidoFiltro} onChange={(event) => setStatusPedidoFiltro(event.target.value as 'TODOS' | StatusPedido)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="TODOS">Todos</option>
-                <option value="FEITO">Novos</option>
-                <option value="ACEITO">Aceitos</option>
-                <option value="PREPARACAO">Em preparo</option>
-                <option value="ENTREGUE">Entregues</option>
-                <option value="CANCELADO">Cancelados</option>
-              </select>
+              <Select value={statusPedidoFiltroInput} onValueChange={(value) => setStatusPedidoFiltroInput(value as 'TODOS' | StatusPedido)}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="FEITO">Novos</SelectItem>
+                  <SelectItem value="ACEITO">Aceitos</SelectItem>
+                  <SelectItem value="PREPARACAO">Em preparo</SelectItem>
+                  <SelectItem value="ENTREGUE">Entregues</SelectItem>
+                  <SelectItem value="CANCELADO">Cancelados</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          <div className="mb-5 flex flex-wrap gap-2">
+            <Button type="button" onClick={handleAplicarFiltrosPedidos} disabled={!filtrosPedidosPendentes}>
+              <Search className="mr-2 h-4 w-4" /> Buscar pedidos
+            </Button>
+            <Button type="button" variant="outline" onClick={filtrosPedidosPendentes ? handleLimparFiltrosPedidos : () => mutate()}>
+              <RefreshCw className="mr-2 h-4 w-4" /> {filtrosPedidosPendentes ? 'Limpar filtros' : 'Atualizar dados'}
+            </Button>
           </div>
 
           {!isLoading && (

@@ -28,7 +28,10 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       })
 
       if (res?.error) {
-        return { success: false, error: res.error }
+        const genericError = res.error.includes('Muitas tentativas')
+          ? 'Muitas tentativas. Tente novamente mais tarde.'
+          : 'Usuario ou senha invalidos.'
+        return { success: false, error: genericError }
       }
 
       return { success: true }
@@ -39,6 +42,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
       await signOut({ redirect: false })
     } finally {
       router.push('/admin/login')

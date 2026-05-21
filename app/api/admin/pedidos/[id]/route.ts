@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { z } from 'zod'
@@ -247,7 +248,7 @@ export async function DELETE(
     await tx.pedido.delete({ where: { id } })
   })
 
-  console.log(`[v0] Pedido ${id} excluido`)
+  appLogger.info(`[api/admin/pedidos/[id]] Pedido ${id} excluido`)
 
   return NextResponse.json({ success: true })
 }

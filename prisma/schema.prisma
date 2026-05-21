@@ -52,6 +52,28 @@ enum StatusPagamento {
   REEMBOLSADO
 }
 
+enum StatusContaPagar {
+  PENDENTE
+  PAGO
+  CANCELADO
+}
+
+enum InviteStatus {
+  PENDING
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum AuthAuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  INVITE_CREATED
+  INVITE_USED
+  USER_CREATED
+}
+
 enum LogOperacaoTipo {
   AJUSTE_ESTOQUE
   REGISTRO_PRODUCAO
@@ -289,6 +311,26 @@ model Cupom {
   @@unique([tenantId, codigo])
 }
 
+model ContaPagar {
+  id          String            @id @default(uuid())
+  tenantId    String
+  descricao   String
+  categoria   String?
+  fornecedor  String?
+  observacoes String?
+  valor       Int
+  vencimento  DateTime
+  pagoEm      DateTime?
+  status      StatusContaPagar  @default(PENDENTE)
+  criadoEm    DateTime          @default(now())
+  atualizadoEm DateTime         @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, vencimento])
+  @@index([tenantId, status, vencimento])
+}
+
 model Tenant {
   id          String   @id @default(uuid())
   nome        String
@@ -307,6 +349,9 @@ model Tenant {
   estoqueProdutos ProdutoEstoque[]
   producaoRegistros ProducaoRegistro[]
   logsOperacao LogOperacao[]
+  contasPagar ContaPagar[]
+  userInvites UserInvite[]
+  authAuditLogs AuthAuditLog[]
 }
 
 model AdminUser {
@@ -314,6 +359,8 @@ model AdminUser {
   tenantId   String
   nome       String
   username   String
+  email      String?
+  emailNormalizado String?
   passwordHash String
   criadoEm   DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -321,4 +368,44 @@ model AdminUser {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, username])
+  @@unique([tenantId, emailNormalizado])
+  @@index([tenantId, emailNormalizado])
+}
+
+model UserInvite {
+  id               String       @id @default(uuid())
+  tenantId         String
+  email            String
+  emailNormalizado String
+  tokenHash        String       @unique
+  expiresAt        DateTime
+  usedAt           DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime     @default(now())
+  createdBy        String?
+  status           InviteStatus @default(PENDING)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, emailNormalizado, status])
+  @@index([tenantId, expiresAt])
+}
+
+model AuthAuditLog {
+  id          String          @id @default(uuid())
+  tenantId    String?
+  adminUserId String?
+  inviteId    String?
+  action      AuthAuditAction
+  identifier  String?
+  ipHash      String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, action, createdAt])
+  @@index([adminUserId, createdAt])
+  @@index([inviteId])
 }

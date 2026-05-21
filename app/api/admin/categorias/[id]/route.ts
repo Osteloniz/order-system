@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 
@@ -45,7 +46,7 @@ export async function PUT(
       }
     })
 
-    console.log(`[v0] Categoria atualizada: ${id}`)
+    appLogger.info(`[api/admin/categorias/[id]] Categoria atualizada: ${id}`)
 
     return NextResponse.json(categoriaAtualizada)
   } catch (error) {
@@ -86,7 +87,7 @@ export async function DELETE(
 
   await prisma.categoria.delete({ where: { id } })
 
-  console.log(`[v0] Categoria removida: ${id}`)
+  appLogger.info(`[api/admin/categorias/[id]] Categoria removida: ${id}`)
 
   return NextResponse.json({ success: true })
 }

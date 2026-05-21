@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
 import { calcularTaxaCartao, isPedidoRealizadoFinanceiramente, normalizeTipoCartao } from '@/lib/order-finance'
@@ -25,168 +26,177 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   }
 
-  const today = todayInSaoPaulo()
-  const parsed = querySchema.safeParse({
-    from: request.nextUrl.searchParams.get('from') || today,
-    to: request.nextUrl.searchParams.get('to') || today,
-  })
+  try {
+    const today = todayInSaoPaulo()
+    const parsed = querySchema.safeParse({
+      from: request.nextUrl.searchParams.get('from') || today,
+      to: request.nextUrl.searchParams.get('to') || today,
+    })
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
-  }
-
-  const { from, to } = parsed.data
-  const { start, end } = getPeriodRange(from, to)
-  if (start > end) {
-    return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
-  }
-
-  const pedidos = await prisma.pedido.findMany({
-    where: {
-      tenantId: admin.tenantId,
-      OR: [
-        {
-          tipoEntrega: { not: 'ENCOMENDA' },
-          criadoEm: { gte: start, lt: end },
-        },
-        {
-          tipoEntrega: 'ENCOMENDA',
-          encomendaPara: { gte: start, lt: end },
-        },
-      ],
-    },
-    include: { itens: true },
-    orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
-  })
-
-  const porStatus = {
-    FEITO: 0,
-    ACEITO: 0,
-    PREPARACAO: 0,
-    ENTREGUE: 0,
-    CANCELADO: 0,
-  }
-
-  const produtos = new Map<string, {
-    chave: string
-    produtoId: string
-    nomeProduto: string
-    precoUnitario: number
-    quantidade: number
-    total: number
-    pedidos: number
-  }>()
-
-  for (const pedido of pedidos) {
-    porStatus[pedido.status] += 1
-
-    for (const item of pedido.itens) {
-      const chave = `${item.produtoId}:${item.precoUnitarioSnapshot}`
-      const current = produtos.get(chave) ?? {
-        chave,
-        produtoId: item.produtoId,
-        nomeProduto: item.nomeProdutoSnapshot,
-        precoUnitario: item.precoUnitarioSnapshot,
-        quantidade: 0,
-        total: 0,
-        pedidos: 0,
-      }
-
-      current.quantidade += item.quantidade
-      current.total += item.totalItem
-      current.pedidos += 1
-      produtos.set(chave, current)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
     }
-  }
 
-  const entregues = pedidos.filter((pedido) => pedido.status === 'ENTREGUE')
-  const cancelados = pedidos.filter((pedido) => pedido.status === 'CANCELADO')
-  const pagamentosPendentes = pedidos.filter((pedido) => pedido.statusPagamento === 'PENDENTE')
-  const pedidosRealizados = pedidos.filter((pedido) => isPedidoRealizadoFinanceiramente(pedido))
-  const pedidosPrevistos = pedidos.filter((pedido) => pedido.status !== 'CANCELADO' && !isPedidoRealizadoFinanceiramente(pedido))
-  const cartaoEntregue = entregues.filter((pedido) => pedido.pagamento === 'CARTAO')
-  const cartaoPrevisto = pedidosPrevistos.filter((pedido) => pedido.pagamento === 'CARTAO')
-  const cartaoRealizado = pedidosRealizados.filter((pedido) => pedido.pagamento === 'CARTAO')
+    const { from, to } = parsed.data
+    const { start, end } = getPeriodRange(from, to)
+    if (start > end) {
+      return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
+    }
 
-  const receitaTotal = pedidos.reduce((acc, pedido) => acc + pedido.total, 0)
-  const receitaEntregue = entregues.reduce((acc, pedido) => acc + pedido.total, 0)
-  const totalCancelado = cancelados.reduce((acc, pedido) => acc + pedido.total, 0)
-  const receitaCartaoBruta = cartaoEntregue.reduce((acc, pedido) => acc + pedido.total, 0)
-  const taxaCartao = cartaoEntregue.reduce(
-    (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
-    0
-  )
-  const receitaCartaoLiquida = Math.max(0, receitaCartaoBruta - taxaCartao)
-  const recebimentoPrevisto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
-  const recebimentoRealizado = pedidosRealizados.reduce((acc, pedido) => acc + pedido.total, 0)
-  const recebimentoEmAberto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
-  const taxaCartaoPrevista = cartaoPrevisto.reduce(
-    (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
-    0
-  )
-  const taxaCartaoRealizada = cartaoRealizado.reduce(
-    (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
-    0
-  )
-  const cartaoCreditoBruto = cartaoEntregue
-    .filter((pedido) => normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao) === 'CREDITO')
-    .reduce((acc, pedido) => acc + pedido.total, 0)
-  const cartaoDebitoBruto = cartaoEntregue
-    .filter((pedido) => normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao) === 'DEBITO')
-    .reduce((acc, pedido) => acc + pedido.total, 0)
+    const pedidos = await prisma.pedido.findMany({
+      where: {
+        tenantId: admin.tenantId,
+        OR: [
+          {
+            tipoEntrega: { not: 'ENCOMENDA' },
+            criadoEm: { gte: start, lt: end },
+          },
+          {
+            tipoEntrega: 'ENCOMENDA',
+            encomendaPara: { gte: start, lt: end },
+          },
+        ],
+      },
+      include: { itens: true },
+      orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
+    })
 
-  return NextResponse.json({
-    from,
-    to,
-    totalPedidos: pedidos.length,
-    receitaTotal,
-    receitaEntregue,
-    totalCancelado,
-    valorCancelado: totalCancelado,
-    pagamentosPendentes: pagamentosPendentes.length,
-    receitaCartaoBruta,
-    taxaCartao,
-    receitaCartaoLiquida,
-    recebimentoPrevisto,
-    recebimentoRealizado,
-    recebimentoEmAberto,
-    taxaCartaoPrevista,
-    taxaCartaoRealizada,
-    cartaoCreditoBruto,
-    cartaoDebitoBruto,
-    ticketMedioGeral: pedidos.length ? Math.round(receitaTotal / pedidos.length) : 0,
-    ticketMedioEntregue: entregues.length ? Math.round(receitaEntregue / entregues.length) : 0,
-    porStatus,
-    produtos: Array.from(produtos.values()).sort((a, b) => {
-      if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade
-      return a.nomeProduto.localeCompare(b.nomeProduto)
-    }),
-    pedidos: pedidos.map((pedido) => ({
-      id: pedido.id,
-      numero: pedido.id.slice(-8).toUpperCase(),
-      status: pedido.status,
-      statusPagamento: pedido.statusPagamento,
-      clienteNome: pedido.clienteNome,
-      clienteTelefone: pedido.clienteTelefone,
-      clienteWhatsapp: pedido.clienteWhatsapp,
-      pagamento: pedido.pagamento,
-      tipoCartao: pedido.tipoCartao,
-      responsavelPedido: pedido.responsavelPedido,
-      destinatariosPedido: pedido.destinatariosPedido,
-      separacaoResponsavel: pedido.separacaoResponsavel,
-      observacoesPedido: pedido.observacoesPedido,
-      levadoEm: pedido.levadoEm,
-      tipoEntrega: pedido.tipoEntrega,
-      encomendaPara: pedido.encomendaPara,
-      criadoEm: pedido.criadoEm,
-      total: pedido.total,
-      itens: pedido.itens.map((item) => ({
-        id: item.id,
-        nomeProduto: item.nomeProdutoSnapshot,
-        precoUnitario: item.precoUnitarioSnapshot,
-        quantidade: item.quantidade,
-        totalItem: item.totalItem,
+    const porStatus = {
+      FEITO: 0,
+      ACEITO: 0,
+      PREPARACAO: 0,
+      ENTREGUE: 0,
+      CANCELADO: 0,
+    }
+
+    const produtos = new Map<
+      string,
+      {
+        chave: string
+        produtoId: string
+        nomeProduto: string
+        precoUnitario: number
+        quantidade: number
+        total: number
+        pedidos: number
+      }
+    >()
+
+    for (const pedido of pedidos) {
+      porStatus[pedido.status] += 1
+
+      for (const item of pedido.itens) {
+        const chave = `${item.produtoId}:${item.precoUnitarioSnapshot}`
+        const current = produtos.get(chave) ?? {
+          chave,
+          produtoId: item.produtoId,
+          nomeProduto: item.nomeProdutoSnapshot,
+          precoUnitario: item.precoUnitarioSnapshot,
+          quantidade: 0,
+          total: 0,
+          pedidos: 0,
+        }
+
+        current.quantidade += item.quantidade
+        current.total += item.totalItem
+        current.pedidos += 1
+        produtos.set(chave, current)
+      }
+    }
+
+    const entregues = pedidos.filter((pedido) => pedido.status === 'ENTREGUE')
+    const cancelados = pedidos.filter((pedido) => pedido.status === 'CANCELADO')
+    const pagamentosPendentes = pedidos.filter((pedido) => pedido.statusPagamento === 'PENDENTE')
+    const pedidosRealizados = pedidos.filter((pedido) => isPedidoRealizadoFinanceiramente(pedido))
+    const pedidosPrevistos = pedidos.filter(
+      (pedido) => pedido.status !== 'CANCELADO' && !isPedidoRealizadoFinanceiramente(pedido)
+    )
+    const cartaoEntregue = entregues.filter((pedido) => pedido.pagamento === 'CARTAO')
+    const cartaoPrevisto = pedidosPrevistos.filter((pedido) => pedido.pagamento === 'CARTAO')
+    const cartaoRealizado = pedidosRealizados.filter((pedido) => pedido.pagamento === 'CARTAO')
+
+    const receitaTotal = pedidos.reduce((acc, pedido) => acc + pedido.total, 0)
+    const receitaEntregue = entregues.reduce((acc, pedido) => acc + pedido.total, 0)
+    const totalCancelado = cancelados.reduce((acc, pedido) => acc + pedido.total, 0)
+    const receitaCartaoBruta = cartaoEntregue.reduce((acc, pedido) => acc + pedido.total, 0)
+    const taxaCartao = cartaoEntregue.reduce(
+      (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
+      0
+    )
+    const receitaCartaoLiquida = Math.max(0, receitaCartaoBruta - taxaCartao)
+    const recebimentoPrevisto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
+    const recebimentoRealizado = pedidosRealizados.reduce((acc, pedido) => acc + pedido.total, 0)
+    const recebimentoEmAberto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
+    const taxaCartaoPrevista = cartaoPrevisto.reduce(
+      (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
+      0
+    )
+    const taxaCartaoRealizada = cartaoRealizado.reduce(
+      (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
+      0
+    )
+    const cartaoCreditoBruto = cartaoEntregue
+      .filter((pedido) => normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao) === 'CREDITO')
+      .reduce((acc, pedido) => acc + pedido.total, 0)
+    const cartaoDebitoBruto = cartaoEntregue
+      .filter((pedido) => normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao) === 'DEBITO')
+      .reduce((acc, pedido) => acc + pedido.total, 0)
+
+    return NextResponse.json({
+      from,
+      to,
+      totalPedidos: pedidos.length,
+      receitaTotal,
+      receitaEntregue,
+      totalCancelado,
+      valorCancelado: totalCancelado,
+      pagamentosPendentes: pagamentosPendentes.length,
+      receitaCartaoBruta,
+      taxaCartao,
+      receitaCartaoLiquida,
+      recebimentoPrevisto,
+      recebimentoRealizado,
+      recebimentoEmAberto,
+      taxaCartaoPrevista,
+      taxaCartaoRealizada,
+      cartaoCreditoBruto,
+      cartaoDebitoBruto,
+      ticketMedioGeral: pedidos.length ? Math.round(receitaTotal / pedidos.length) : 0,
+      ticketMedioEntregue: entregues.length ? Math.round(receitaEntregue / entregues.length) : 0,
+      porStatus,
+      produtos: Array.from(produtos.values()).sort((a, b) => {
+        if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade
+        return a.nomeProduto.localeCompare(b.nomeProduto)
+      }),
+      pedidos: pedidos.map((pedido) => ({
+        id: pedido.id,
+        numero: pedido.id.slice(-8).toUpperCase(),
+        status: pedido.status,
+        statusPagamento: pedido.statusPagamento,
+        clienteNome: pedido.clienteNome,
+        clienteTelefone: pedido.clienteTelefone,
+        clienteWhatsapp: pedido.clienteWhatsapp,
+        pagamento: pedido.pagamento,
+        tipoCartao: pedido.tipoCartao,
+        responsavelPedido: pedido.responsavelPedido,
+        destinatariosPedido: pedido.destinatariosPedido,
+        separacaoResponsavel: pedido.separacaoResponsavel,
+        observacoesPedido: pedido.observacoesPedido,
+        levadoEm: pedido.levadoEm,
+        tipoEntrega: pedido.tipoEntrega,
+        encomendaPara: pedido.encomendaPara,
+        criadoEm: pedido.criadoEm,
+        total: pedido.total,
+        itens: pedido.itens.map((item) => ({
+          id: item.id,
+          nomeProduto: item.nomeProdutoSnapshot,
+          precoUnitario: item.precoUnitarioSnapshot,
+          quantidade: item.quantidade,
+          totalItem: item.totalItem,
+        })),
       })),
-    })),
-  })
+    })
+  } catch (error) {
+    return handleApiError('api/admin/relatorios GET', error, 'Erro ao carregar relatorios')
+  }
 }

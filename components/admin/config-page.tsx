@@ -4,10 +4,11 @@ import React from "react"
 
 import { useState, useEffect, useRef } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, Copy, Link2, MessageCircle, RotateCcw, Save, Loader2, Settings, Shield, Volume2 } from 'lucide-react'
+import { Bell, Copy, Link2, MessageCircle, RotateCcw, Save, Loader2, Settings, Shield, Sparkles, Store, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
@@ -69,6 +70,8 @@ export function ConfigPage() {
   const tenantHydratedRef = useRef(false)
   const publicCatalogUrl = baseUrl ? `${baseUrl}/menu` : '/menu'
   const adminLoginUrl = baseUrl ? `${baseUrl}/admin/login` : '/admin/login'
+  const permissionLabel = notificationPermission === 'granted' ? 'permitida' : notificationPermission === 'denied' ? 'bloqueada' : notificationPermission === 'default' ? 'pendente' : 'nao suportada'
+  const permissionTone = notificationPermission === 'granted' ? 'border-success/25 bg-success/10 text-success' : notificationPermission === 'denied' ? 'border-destructive/25 bg-destructive/10 text-destructive' : 'border-warning/25 bg-warning/10 text-warning-foreground'
 
   const copyToClipboard = async (value: string, successMessage: string) => {
     try {
@@ -211,7 +214,39 @@ export function ConfigPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Configurações</h1>
+      <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(71,125,232,0.12),rgba(34,199,183,0.08)_45%,rgba(244,183,64,0.12))] p-5 shadow-sm md:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <Badge className="mb-3 bg-primary/90 text-primary-foreground hover:bg-primary/90">
+              <Sparkles className="mr-1 h-3 w-3" /> Ajustes do painel
+            </Badge>
+            <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
+              <Settings className="h-7 w-7 text-primary" />
+              Configuracoes
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground md:text-base">
+              Centralize os dados do estabelecimento, textos do WhatsApp, links de operacao e alertas deste navegador.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Loja</p>
+              <p className="mt-1 font-semibold">{nomeEstabelecimento || 'Nao configurado'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{isOpen ? 'Aberta para pedidos' : 'Fechada no checkout'}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Alertas</p>
+              <p className="mt-1 font-semibold">{alertsEnabled ? 'Ativos' : 'Desativados'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Permissao {permissionLabel}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Mensagens</p>
+              <p className="mt-1 font-semibold">{envioAutomaticoWhatsappStatus ? 'Envio automatico ligado' : 'Envio manual'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Fluxo de status do pedido</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {(configError || tenantError) && (
         <Card className="max-w-4xl border-destructive/40 bg-destructive/5">
@@ -221,62 +256,76 @@ export function ConfigPage() {
         </Card>
       )}
 
-      <Card className="max-w-4xl">
+      <Card className="max-w-6xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+            <Store className="h-5 w-5" />
             Dados do Estabelecimento
           </CardTitle>
           <CardDescription>
-            Configure as informações básicas do seu negócio
+            Ajuste o nome exibido, o endereço de retirada e o comportamento geral da loja.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="nome">Nome do Estabelecimento</Label>
-                <Input
-                  id="nome"
-                  value={nomeEstabelecimento}
-                  onChange={e => {
-                    setNomeEstabelecimento(e.target.value)
-                    setIsDirty(true)
-                  }}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="endereco">Endereço para Retirada</Label>
-                <Input
-                  id="endereco"
-                  value={enderecoRetirada}
-                  onChange={e => {
-                    setEnderecoRetirada(e.target.value)
-                    setIsDirty(true)
-                  }}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <Label htmlFor="aberto">Aberto para pedidos</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Quando fechado, o cliente não consegue finalizar pedidos.
-                  </p>
+            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-4 rounded-2xl border border-border/70 bg-background/65 p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome do Estabelecimento</Label>
+                  <Input
+                    id="nome"
+                    value={nomeEstabelecimento}
+                    onChange={e => {
+                      setNomeEstabelecimento(e.target.value)
+                      setIsDirty(true)
+                    }}
+                    required
+                  />
                 </div>
-                <Switch
-                  id="aberto"
-                  checked={isOpen}
-                  onCheckedChange={(value) => {
-                    setIsOpen(value)
-                    setIsDirty(true)
-                  }}
-                />
+
+                <div className="space-y-2">
+                  <Label htmlFor="endereco">Endereco para Retirada</Label>
+                  <Input
+                    id="endereco"
+                    value={enderecoRetirada}
+                    onChange={e => {
+                      setEnderecoRetirada(e.target.value)
+                      setIsDirty(true)
+                    }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-2xl border border-border/70 bg-background/65 p-4">
+                <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                  <div>
+                    <Label htmlFor="aberto">Aberto para pedidos</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Quando fechado, o cliente nao consegue finalizar pedidos.
+                    </p>
+                  </div>
+                  <Switch
+                    id="aberto"
+                    checked={isOpen}
+                    onCheckedChange={(value) => {
+                      setIsOpen(value)
+                      setIsDirty(true)
+                    }}
+                  />
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Estado atual da loja</p>
+                      <p className="mt-1 text-muted-foreground">{isOpen ? 'Checkout liberado para clientes.' : 'Checkout bloqueado ate reabrir a loja.'}</p>
+                    </div>
+                    <Badge variant="outline" className={isOpen ? 'border-success/25 bg-success/10 text-success' : 'border-warning/25 bg-warning/10 text-warning-foreground'}>
+                      {isOpen ? 'Aberta' : 'Fechada'}
+                    </Badge>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -293,7 +342,7 @@ export function ConfigPage() {
                 </div>
               </div>
 
-              <div className="mb-4 flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="mb-4 flex items-center justify-between rounded-lg border border-border bg-background/75 p-3">
                 <div>
                   <Label htmlFor="envio-automatico-whatsapp">Envio automatico de mensagens</Label>
                   <p className="text-xs text-muted-foreground">
@@ -370,21 +419,26 @@ export function ConfigPage() {
               </div>
             </div>
 
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
-                  <span className="hidden md:inline">Salvando...</span>
-                </>
-              ) : saved ? (
-                <span className="hidden md:inline">Salvo!</span>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-0 md:mr-2" />
-                  Salvar Configurações
-                </>
-              )}
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
+                    <span className="hidden md:inline">Salvando...</span>
+                  </>
+                ) : saved ? (
+                  <span className="hidden md:inline">Salvo!</span>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-0 md:mr-2" />
+                    Salvar configuracoes
+                  </>
+                )}
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {isDirty ? 'Existem alteracoes pendentes nesta tela.' : 'Nenhuma alteracao pendente no momento.'}
+              </span>
+            </div>
 
             {submitError && (
               <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -395,7 +449,8 @@ export function ConfigPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-4xl">
+      <div className="grid max-w-6xl gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5" />
@@ -446,7 +501,7 @@ export function ConfigPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-xl">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
@@ -457,11 +512,11 @@ export function ConfigPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+          <div className={alertMessage ? `rounded-xl border p-3 ${permissionTone}` : `rounded-xl border p-3 ${permissionTone}`}>
             <div>
-              <Label htmlFor="alertas">Notificações de novos pedidos</Label>
+              <Label htmlFor="alertas">Notificacoes de novos pedidos</Label>
               <p className="text-xs text-muted-foreground">
-                Permissão atual: {notificationPermission === 'granted' ? 'permitida' : notificationPermission === 'denied' ? 'bloqueada' : notificationPermission === 'default' ? 'pendente' : 'não suportada'}.
+                Permissao atual: {permissionLabel}.
               </p>
             </div>
             <Switch
@@ -472,7 +527,7 @@ export function ConfigPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-background/75 p-3">
             <div>
               <Label htmlFor="som-alerta">Som de alerta</Label>
               <p className="text-xs text-muted-foreground">
@@ -509,6 +564,7 @@ export function ConfigPage() {
           </p>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
