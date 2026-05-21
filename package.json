@@ -10,6 +10,8 @@
     "postinstall": "prisma generate",
     "vercel-build": "prisma generate && next build",
     "db:reset-prod-data": "node scripts/reset-prod-data.js",
+    "db:migrate:prod": "powershell -ExecutionPolicy Bypass -File .\\scripts\\migrate-prod.ps1 -EnvFile .env.prod",
+    "db:migrate:prod:status": "powershell -ExecutionPolicy Bypass -File .\\scripts\\check-migrate-prod.ps1 -EnvFile .env.prod",
     "logs:cleanup": "node scripts/cleanup-logs.js",
     "test:auth-security": "node --test --experimental-strip-types tests/auth-security.test.mjs"
   },

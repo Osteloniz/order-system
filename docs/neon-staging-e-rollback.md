@@ -7,6 +7,8 @@ Contexto atual deste projeto:
 - Aplicacao em producao na `Vercel`
 - ORM e migrations com `Prisma`
 - Sistema em uso real, com pedidos e clientes ativos
+- arquivo `.env` usado hoje para `homologacao`
+- arquivo `.env.prod` reservado para `producao`
 
 Objetivo:
 - testar alteracoes em uma copia segura do banco
@@ -83,7 +85,12 @@ Observacao:
 
 ## Como Apontar O Localhost Para O Banco De Staging
 
-No arquivo `.env` ou preferencialmente no `.env.local`, use as URLs da branch `staging`.
+Hoje, o padrao operacional do projeto esta assim:
+
+- `.env` = `HML / staging`
+- `.env.prod` = `PRD`
+
+Entao, para trabalhar localmente em homologacao, mantenha o `.env` apontando para a branch `staging`.
 
 Exemplo:
 
@@ -96,6 +103,7 @@ NEXTAUTH_URL="http://localhost:3000"
 Depois rode:
 
 ```bash
+npx prisma migrate status
 npx prisma generate
 npx prisma migrate deploy
 npm run dev
@@ -105,12 +113,14 @@ npm run dev
 
 Antes de abrir a aplicacao local:
 
-1. confirmar que `DATABASE_URL` aponta para a branch `staging`
-2. confirmar que `DIRECT_URL` aponta para a branch `staging`
-3. rodar `npx prisma generate`
-4. rodar `npx prisma migrate deploy`
-5. subir a aplicacao com `npm run dev`
-6. limpar sessao local se o admin estiver com dados antigos em cache
+1. confirmar que o `.env` aponta para a branch `staging`
+2. confirmar que `DATABASE_URL` aponta para a branch `staging`
+3. confirmar que `DIRECT_URL` aponta para a branch `staging`
+4. rodar `npx prisma migrate status`
+5. rodar `npx prisma generate`
+6. rodar `npx prisma migrate deploy`
+7. subir a aplicacao com `npm run dev`
+8. limpar sessao local se o admin estiver com dados antigos em cache
 
 ## Exemplo Real Baseado No Projeto Atual
 
@@ -134,10 +144,11 @@ Ou seja, **nao e uma alteracao segura para testar direto em producao**.
 Fluxo recomendado para esse caso:
 
 1. criar a branch `staging` no Neon
-2. apontar o `.env.local` para a branch `staging`
+2. apontar o `.env` para a branch `staging`
 3. rodar:
 
 ```bash
+npx prisma migrate status
 npx prisma generate
 npx prisma migrate deploy
 npm run dev
@@ -214,6 +225,13 @@ git status
 git add .
 git commit -m "feat: descricao da alteracao"
 git push origin main
+```
+
+Depois, para producao:
+
+```bash
+npm run db:migrate:prod:status
+npm run db:migrate:prod
 ```
 
 ## Rollback: O Que E Possivel Fazer

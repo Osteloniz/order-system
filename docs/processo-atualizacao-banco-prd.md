@@ -6,7 +6,8 @@ Contexto atual:
 - banco em `Neon`
 - aplicacao em `Vercel`
 - migrations com `Prisma`
-- ambiente local usado para testes com branch de `homologacao`
+- arquivo `.env` apontando para `homologacao`
+- arquivo `.env.prod` apontando para `producao`
 
 Objetivo:
 - evitar subir codigo novo sem atualizar o banco corretamente
@@ -39,7 +40,7 @@ O fluxo ideal e este:
 
 Checklist minimo:
 
-1. confirmar que o ambiente local esta usando o banco de `homologacao`
+1. confirmar que o arquivo `.env` esta apontando para o banco de `homologacao`
 2. rodar:
 
 ```bash
@@ -103,13 +104,11 @@ Para atualizar producao, use as credenciais da branch de `producao` do Neon.
 
 Nao use:
 - a branch `homologacao`
-- o `.env.local` de testes
+- o arquivo `.env` local de testes
 
-O ideal e ter um arquivo local temporario para essa operacao, por exemplo:
-
-- `.env.prd.manual`
-
-ou exportar as variaveis apenas na sessao atual do terminal.
+Neste projeto, o padrao atual e:
+- `.env` para `HML`
+- `.env.prod` para `PRD`
 
 ## Modelo Recomendado De Variaveis Em PRD
 
@@ -126,16 +125,17 @@ Regra:
 
 ## 2. Rodar A Migration Em PRD
 
-Com as variaveis de producao carregadas no terminal:
+Com o `.env.prod` configurado corretamente, use:
 
 ```bash
-npx prisma generate
-npx prisma migrate deploy
+npm run db:migrate:prod:status
+npm run db:migrate:prod
 ```
 
-Esse e o comando oficial e seguro para aplicar migrations em producao.
-
-Ele aplica apenas as migrations pendentes.
+Esses comandos:
+- carregam o `.env.prod`
+- priorizam `DIRECT_URL`
+- consultam/aplicam apenas o que estiver pendente
 
 ## 3. So Depois Disso Fazer O Deploy
 
@@ -174,6 +174,59 @@ npx prisma migrate status
 O esperado e:
 - nenhuma migration pendente
 
+## Fluxo Automatico Recomendado
+
+Para reduzir erro operacional neste projeto, use um arquivo local `.env.prod` com as credenciais da branch de `producao` do Neon.
+
+Exemplo:
+
+```env
+DATABASE_URL="postgresql://USUARIO:SENHA@HOST-POOLER/neondb?sslmode=require&channel_binding=require"
+DIRECT_URL="postgresql://USUARIO:SENHA@HOST-DIRECT/neondb?sslmode=require&channel_binding=require"
+```
+
+Com isso, o fluxo diario fica em apenas dois comandos:
+
+### Consultar status das migrations em PRD
+
+```bash
+npm run db:migrate:prod:status
+```
+
+### Aplicar migrations em PRD
+
+```bash
+npm run db:migrate:prod
+```
+
+Esses comandos usam:
+- `scripts/check-migrate-prod.ps1`
+- `scripts/migrate-prod.ps1`
+
+Ambos usam `.env.prod` por padrao e priorizam `DIRECT_URL` para falar com o banco de producao de forma segura.
+
+## Fluxo Atual De HML
+
+Hoje, o arquivo `.env` do projeto esta sendo usado para `homologacao`.
+
+Para consultar se ha migration pendente em HML:
+
+```bash
+npx prisma migrate status
+```
+
+Para aplicar migrations em HML:
+
+```bash
+npx prisma migrate deploy
+```
+
+Se quiser regenerar o client depois:
+
+```bash
+npx prisma generate
+```
+
 Depois valide na aplicacao:
 - login admin
 - rota principal `/admin`
@@ -194,8 +247,9 @@ Fluxo recomendado:
 ### Em homologacao
 
 ```bash
-npx prisma generate
+npx prisma migrate status
 npx prisma migrate deploy
+npx prisma generate
 npm run dev
 ```
 
@@ -208,11 +262,9 @@ Testar:
 
 ### Em producao
 
-Com env de producao:
-
 ```bash
-npx prisma generate
-npx prisma migrate deploy
+npm run db:migrate:prod:status
+npm run db:migrate:prod
 ```
 
 Depois:
@@ -264,14 +316,14 @@ Sempre que houver mudanca de banco, siga esta lista:
 4. rodou:
 
 ```bash
-npx prisma generate
-npx prisma migrate deploy
+npm run db:migrate:prod:status
+npm run db:migrate:prod
 ```
 
 5. confirmou com:
 
 ```bash
-npx prisma migrate status
+npm run db:migrate:prod:status
 ```
 
 6. fez deploy na Vercel
@@ -284,16 +336,17 @@ Se quiser o resumo em poucas linhas:
 ### Homologacao
 
 ```bash
-npx prisma generate
+npx prisma migrate status
 npx prisma migrate deploy
+npx prisma generate
 npm run dev
 ```
 
 ### Producao
 
 ```bash
-npx prisma generate
-npx prisma migrate deploy
+npm run db:migrate:prod:status
+npm run db:migrate:prod
 ```
 
 Depois:
