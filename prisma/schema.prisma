@@ -58,6 +58,12 @@ enum StatusContaPagar {
   CANCELADO
 }
 
+enum EscopoCategoriaFinanceira {
+  PAGAR
+  RECEBER
+  AMBOS
+}
+
 enum InviteStatus {
   PENDING
   USED
@@ -317,6 +323,7 @@ model ContaPagar {
   tenantId    String
   descricao   String
   categoria   String?
+  categoriaFinanceiraId String?
   fornecedor  String?
   observacoes String?
   valor       Int
@@ -327,9 +334,27 @@ model ContaPagar {
   atualizadoEm DateTime         @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  categoriaFinanceira CategoriaFinanceira? @relation(fields: [categoriaFinanceiraId], references: [id])
 
   @@index([tenantId, vencimento])
   @@index([tenantId, status, vencimento])
+  @@index([categoriaFinanceiraId])
+}
+
+model CategoriaFinanceira {
+  id          String   @id @default(uuid())
+  tenantId    String
+  nome        String
+  escopo      EscopoCategoriaFinanceira @default(PAGAR)
+  ordem       Int
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  contasPagar ContaPagar[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, escopo, ordem])
 }
 
 model Tenant {
@@ -351,6 +376,7 @@ model Tenant {
   producaoRegistros ProducaoRegistro[]
   logsOperacao LogOperacao[]
   contasPagar ContaPagar[]
+  categoriasFinanceiras CategoriaFinanceira[]
   userInvites UserInvite[]
   authAuditLogs AuthAuditLog[]
 }

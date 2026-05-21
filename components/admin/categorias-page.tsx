@@ -105,10 +105,10 @@ export function CategoriasPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Categorias</h1>
+        <h1 className="text-2xl font-bold">Categorias de produtos</h1>
         <Button onClick={openNewDialog}>
           <Plus className="h-4 w-4 mr-0 md:mr-2" />
-          <span className="hidden md:inline">Nova Categoria</span>
+          <span className="hidden md:inline">Nova categoria</span>
         </Button>
       </div>
 

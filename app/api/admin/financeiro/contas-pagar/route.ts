@@ -16,6 +16,7 @@ const querySchema = z.object({
 const contaPagarSchema = z.object({
   descricao: z.string().trim().min(2).max(120),
   categoria: z.string().trim().max(60).optional(),
+  categoriaFinanceiraId: z.string().uuid().optional(),
   fornecedor: z.string().trim().max(80).optional(),
   observacoes: z.string().trim().max(1000).optional(),
   valor: z.number().int().positive(),
@@ -93,12 +94,30 @@ export async function POST(request: NextRequest) {
     const body = parsed.data
     const status = body.status ?? 'PENDENTE'
     const pagoEm = status === 'PAGO' ? new Date(body.pagoEm ?? body.vencimento) : null
+    let categoriaFinanceiraNome: string | null = body.categoria?.trim() || null
+
+    if (body.categoriaFinanceiraId) {
+      const categoriaFinanceira = await prisma.categoriaFinanceira.findFirst({
+        where: {
+          id: body.categoriaFinanceiraId,
+          tenantId: admin.tenantId,
+          OR: [{ escopo: 'PAGAR' }, { escopo: 'AMBOS' }],
+        },
+      })
+
+      if (!categoriaFinanceira) {
+        return NextResponse.json({ error: 'Categoria financeira invalida' }, { status: 400 })
+      }
+
+      categoriaFinanceiraNome = categoriaFinanceira.nome
+    }
 
     const conta = await prisma.contaPagar.create({
       data: {
         tenantId: admin.tenantId,
         descricao: body.descricao.trim(),
-        categoria: body.categoria?.trim() || null,
+        categoria: categoriaFinanceiraNome,
+        categoriaFinanceiraId: body.categoriaFinanceiraId || null,
         fornecedor: body.fornecedor?.trim() || null,
         observacoes: body.observacoes?.trim() || null,
         valor: body.valor,

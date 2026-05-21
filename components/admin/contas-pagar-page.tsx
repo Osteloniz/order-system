@@ -16,11 +16,12 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda } from '@/lib/calc'
 import { statusContaPagarLabels, statusContaPagarStyles } from '@/lib/finance'
 import { formatDateInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
-import type { ContaPagar, StatusContaPagar } from '@/lib/types'
+import type { CategoriaFinanceira, ContaPagar, StatusContaPagar } from '@/lib/types'
 
 type ContasPagarData = {
   from: string
@@ -55,7 +56,7 @@ function formatCurrencyInput(value: string) {
 
 type FormState = {
   descricao: string
-  categoria: string
+  categoriaFinanceiraId: string
   fornecedor: string
   observacoes: string
   valor: string
@@ -77,17 +78,18 @@ export function ContasPagarPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<FormState>({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+  const [form, setForm] = useState<FormState>({ descricao: '', categoriaFinanceiraId: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
 
   const periodoPendente = from !== fromInput || to !== toInput || status !== statusInput
   const url = useMemo(() => `/api/admin/financeiro/contas-pagar?from=${from}&to=${to}&status=${status}`, [from, to, status])
   const { data, isLoading, mutate } = useSWR<ContasPagarData>(url, fetcher)
+  const { data: categoriasFinanceiras } = useSWR<CategoriaFinanceira[]>('/api/admin/categorias-financeiras?escopo=PAGAR', fetcher)
 
   useEffect(() => {
     if (!selected) return
     setForm({
       descricao: selected.descricao,
-      categoria: selected.categoria || '',
+      categoriaFinanceiraId: selected.categoriaFinanceiraId || '',
       fornecedor: selected.fornecedor || '',
       observacoes: selected.observacoes || '',
       valor: formatCurrencyInput(String(selected.valor)),
@@ -110,7 +112,7 @@ export function ContasPagarPage() {
     setIsCreating(true)
     setFormOpen(true)
     setMessage('')
-    setForm({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+    setForm({ descricao: '', categoriaFinanceiraId: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
   }
 
   const abrirEdicao = (conta: ContaPagar) => {
@@ -124,7 +126,7 @@ export function ContasPagarPage() {
     setSelected(null)
     setIsCreating(false)
     setFormOpen(false)
-    setForm({ descricao: '', categoria: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+    setForm({ descricao: '', categoriaFinanceiraId: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
   }
 
   const aplicarFiltros = () => {
@@ -139,7 +141,7 @@ export function ContasPagarPage() {
     try {
       const body = {
         descricao: form.descricao,
-        categoria: form.categoria || undefined,
+        categoriaFinanceiraId: form.categoriaFinanceiraId || undefined,
         fornecedor: form.fornecedor || undefined,
         observacoes: form.observacoes || undefined,
         valor: parseCurrencyToCents(form.valor),
@@ -214,12 +216,17 @@ export function ContasPagarPage() {
               <div className="space-y-2"><Label>Ate</Label><Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} /></div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <select value={statusInput} onChange={(event) => setStatusInput(event.target.value as 'TODOS' | StatusContaPagar)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="TODOS">Todos</option>
-                  <option value="PENDENTE">Pendente</option>
-                  <option value="PAGO">Pago</option>
-                  <option value="CANCELADO">Cancelado</option>
-                </select>
+                <Select value={statusInput} onValueChange={(value) => setStatusInput(value as 'TODOS' | StatusContaPagar)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos</SelectItem>
+                    <SelectItem value="PENDENTE">Pendente</SelectItem>
+                    <SelectItem value="PAGO">Pago</SelectItem>
+                    <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Buscar</Label>
@@ -291,7 +298,25 @@ export function ContasPagarPage() {
               <Input value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} placeholder="Ex: Embalagens, fornecedor, motoboy..." />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2"><Label>Categoria</Label><Input value={form.categoria} onChange={(event) => setForm((current) => ({ ...current, categoria: event.target.value }))} placeholder="Ex: Insumos" /></div>
+              <div className="space-y-2">
+                <Label>Categoria financeira</Label>
+                <Select value={form.categoriaFinanceiraId || '__NONE__'} onValueChange={(value) => setForm((current) => ({ ...current, categoriaFinanceiraId: value === '__NONE__' ? '' : value }))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">Sem categoria</SelectItem>
+                    {categoriasFinanceiras?.map((categoria) => (
+                      <SelectItem key={categoria.id} value={categoria.id}>
+                        {categoria.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!form.categoriaFinanceiraId && selected?.categoria ? (
+                  <p className="text-xs text-muted-foreground">Lancamento antigo: categoria salva como &quot;{selected.categoria}&quot;.</p>
+                ) : null}
+              </div>
               <div className="space-y-2"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(event) => setForm((current) => ({ ...current, fornecedor: event.target.value }))} placeholder="Ex: Atacado X" /></div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -301,11 +326,16 @@ export function ContasPagarPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status</Label>
-                <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as StatusContaPagar }))} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="PENDENTE">Pendente</option>
-                  <option value="PAGO">Pago</option>
-                  <option value="CANCELADO">Cancelado</option>
-                </select>
+                <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as StatusContaPagar }))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDENTE">Pendente</SelectItem>
+                    <SelectItem value="PAGO">Pago</SelectItem>
+                    <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2"><Label>Observacoes</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Detalhes internos da conta" /></div>
