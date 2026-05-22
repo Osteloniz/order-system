@@ -154,7 +154,7 @@ export function ClientesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(71,125,232,0.12),rgba(34,199,183,0.08)_45%,rgba(244,183,64,0.12))] p-5 shadow-sm md:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
@@ -166,18 +166,18 @@ export function ClientesPage() {
               Centralize WhatsApp, endereco no Paulistano, observacoes importantes e historico de compra para atendimento mais rapido.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-background/80 p-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0 rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Clientes na busca</p>
               <p className="mt-1 text-2xl font-bold">{totalClientes}</p>
             </div>
-            <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="min-w-0 rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Cookies do selecionado</p>
               <p className="mt-1 text-2xl font-bold">{totalCookiesCliente}</p>
             </div>
-            <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="min-w-0 rounded-2xl border bg-background/80 p-4 sm:col-span-2 xl:col-span-1">
               <p className="text-xs text-muted-foreground">Ultimo pedido</p>
-              <p className="mt-1 text-sm font-semibold">{ultimoPedido ? formatDateTimeInSaoPaulo(ultimoPedido.criadoEm) : 'Sem historico'}</p>
+              <p className="mt-1 break-words text-sm font-semibold">{ultimoPedido ? formatDateTimeInSaoPaulo(ultimoPedido.criadoEm) : 'Sem historico'}</p>
             </div>
           </div>
         </div>
@@ -201,8 +201,8 @@ export function ClientesPage() {
 
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <Card className="border-border/70 bg-card/95">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+        <Card className="min-w-0 border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <CardTitle>Buscar cliente</CardTitle>
             <CardDescription>Encontre por nome, telefone ou WhatsApp.</CardDescription>
@@ -229,16 +229,16 @@ export function ClientesPage() {
                     onClick={() => selectCliente(cliente)}
                     className={`w-full rounded-2xl border p-4 text-left transition hover:border-primary/40 hover:bg-primary/5 ${selected?.id === cliente.id ? 'border-primary bg-primary/10 shadow-sm' : 'bg-card/90'}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">{cliente.nome}</p>
+                        <p className="break-words font-semibold">{cliente.nome}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                           <span>{formatarTelefone(cliente.telefone)}</span>
                           <span>-</span>
                           <span>{cliente.totalPedidos} pedido(s)</span>
                         </div>
                       </div>
-                      <Badge variant="outline" className="shrink-0">{cliente.clienteBloco || 'Sem bloco'}</Badge>
+                      <Badge variant="outline" className="w-fit shrink-0">{cliente.clienteBloco || 'Sem bloco'}</Badge>
                     </div>
                     {cliente.observacoes ? <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{cliente.observacoes}</p> : null}
                   </button>
@@ -251,8 +251,8 @@ export function ClientesPage() {
         </Card>
 
         {selected || isCreating ? (
-          <div className="space-y-4">
-            <Card className="border-border/70 bg-card/95">
+          <div className="min-w-0 space-y-4">
+            <Card className="min-w-0 border-border/70 bg-card/95">
               <CardHeader className="pb-3">
                 <CardTitle>{isCreating ? 'Cadastrar cliente' : 'Editar cliente'}</CardTitle>
                 <CardDescription>
@@ -264,29 +264,29 @@ export function ClientesPage() {
               <CardContent className="space-y-4">
                 {!isCreating && selected ? (
                   <>
-                    <div className="grid gap-3 lg:grid-cols-4">
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Phone className="h-3.5 w-3.5" />
                           Telefone
                         </div>
-                        <p className="mt-1 font-semibold">{formatarTelefone(selected.telefone)}</p>
+                        <p className="mt-1 break-words font-semibold">{formatarTelefone(selected.telefone)}</p>
                       </div>
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <MessageCircle className="h-3.5 w-3.5" />
                           WhatsApp
                         </div>
-                        <p className="mt-1 font-semibold">{formatarTelefone(selected.whatsapp)}</p>
+                        <p className="mt-1 break-words font-semibold">{formatarTelefone(selected.whatsapp)}</p>
                       </div>
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <ClipboardList className="h-3.5 w-3.5" />
                           Pedidos
                         </div>
                         <p className="mt-1 text-2xl font-bold">{selected.totalPedidos}</p>
                       </div>
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <ClipboardList className="h-3.5 w-3.5" />
                           Cookies comprados
@@ -295,8 +295,8 @@ export function ClientesPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 lg:grid-cols-2">
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <p className="text-sm font-medium">Fidelidade em andamento</p>
                         <p className="mt-1 text-2xl font-bold">{progressoFidelidade}/10</p>
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -328,12 +328,12 @@ export function ClientesPage() {
                           Marcar mimo entregue
                         </Button>
                       </div>
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <p className="text-sm font-medium">Sabores mais comprados</p>
                         {saboresFavoritos.length ? (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {saboresFavoritos.map((sabor) => (
-                              <Badge key={sabor.nome} variant="outline">
+                              <Badge key={sabor.nome} variant="outline" className="max-w-full whitespace-normal break-words text-left">
                                 {sabor.nome} - {sabor.quantidade}
                               </Badge>
                             ))}
@@ -394,7 +394,7 @@ export function ClientesPage() {
             </Card>
 
             {!isCreating && selected ? (
-              <Card className="border-border/70 bg-card/95">
+            <Card className="min-w-0 border-border/70 bg-card/95">
                 <CardHeader className="pb-3">
                   <CardTitle>Historico de pedidos</CardTitle>
                   <CardDescription>Ultimos pedidos vinculados a este cliente para consulta rapida.</CardDescription>
@@ -403,9 +403,9 @@ export function ClientesPage() {
                   {selected.pedidos?.length ? (
                     <div className="space-y-3">
                       {selected.pedidos.map((pedido) => (
-                        <div key={pedido.id} className="rounded-2xl border bg-background/80 p-4 transition-colors hover:border-primary/35">
+                        <div key={pedido.id} className="min-w-0 rounded-2xl border bg-background/80 p-4 transition-colors hover:border-primary/35">
                           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                            <div>
+                            <div className="min-w-0">
                               <p className="font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p>
                               <p className="text-sm text-muted-foreground">{formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
                             </div>
@@ -415,11 +415,11 @@ export function ClientesPage() {
                             </div>
                           </div>
                           <Separator className="my-3" />
-                          <div className="space-y-1 text-sm text-muted-foreground">
+                          <div className="space-y-2 text-sm text-muted-foreground">
                             {pedido.itens.map((item) => (
-                              <div key={item.id} className="flex justify-between gap-3">
-                                <span>{item.quantidade}x {item.nomeProdutoSnapshot}</span>
-                                <span>{formatarMoeda(item.totalItem)}</span>
+                              <div key={item.id} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                                <span className="min-w-0 break-words">{item.quantidade}x {item.nomeProdutoSnapshot}</span>
+                                <span className="shrink-0 sm:text-right">{formatarMoeda(item.totalItem)}</span>
                               </div>
                             ))}
                           </div>
