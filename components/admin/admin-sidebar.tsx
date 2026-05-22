@@ -50,7 +50,7 @@ export function AdminSidebar({
 
   const isActive = (href: string) => {
     if (href === '/admin') return pathname === '/admin'
-    return pathname.startsWith(href)
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   const cadastrosActive = cadastroMenuItems.some((item) => isActive(item.href))
