@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateTimeInSaoPaulo, getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
 
 type LogItem = {
   id: string
@@ -65,9 +65,9 @@ const tipoOptions = [
 ]
 
 export function LogsPage() {
-  const today = todayInSaoPaulo()
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
+  const defaultRange = getCurrentMonthRangeInSaoPaulo()
+  const [from, setFrom] = useState(defaultRange.from)
+  const [to, setTo] = useState(defaultRange.to)
   const [tipo, setTipo] = useState('TODOS')
   const [busca, setBusca] = useState('')
 

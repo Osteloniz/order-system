@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
-import { todayInSaoPaulo } from '@/lib/sao-paulo'
+import { getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
 
 export const runtime = 'nodejs'
 
@@ -13,6 +13,8 @@ const querySchema = z.object({
   status: z.enum(['TODOS', 'PENDENTE', 'PAGO', 'CANCELADO']).optional(),
 }).strict()
 
+const isoDateTimeSchema = z.string().datetime({ offset: true })
+
 const contaPagarSchema = z.object({
   descricao: z.string().trim().min(2).max(120),
   categoria: z.string().trim().max(60).optional(),
@@ -20,9 +22,9 @@ const contaPagarSchema = z.object({
   fornecedor: z.string().trim().max(80).optional(),
   observacoes: z.string().trim().max(1000).optional(),
   valor: z.number().int().positive(),
-  vencimento: z.string().datetime(),
+  vencimento: isoDateTimeSchema,
   status: z.enum(['PENDENTE', 'PAGO', 'CANCELADO']).optional(),
-  pagoEm: z.string().datetime().optional(),
+  pagoEm: isoDateTimeSchema.optional(),
 }).strict()
 
 function getPeriodRange(from: string, to: string) {
@@ -37,10 +39,10 @@ export async function GET(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
 
   try {
-    const today = todayInSaoPaulo()
+    const defaultRange = getCurrentMonthRangeInSaoPaulo()
     const parsed = querySchema.safeParse({
-      from: request.nextUrl.searchParams.get('from') || today,
-      to: request.nextUrl.searchParams.get('to') || today,
+      from: request.nextUrl.searchParams.get('from') || defaultRange.from,
+      to: request.nextUrl.searchParams.get('to') || defaultRange.to,
       status: request.nextUrl.searchParams.get('status') || 'TODOS',
     })
     if (!parsed.success) return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })

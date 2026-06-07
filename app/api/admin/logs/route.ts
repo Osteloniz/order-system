@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { todayInSaoPaulo } from '@/lib/sao-paulo'
+import { getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
 
 export const runtime = 'nodejs'
 
@@ -29,10 +29,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const today = todayInSaoPaulo()
+    const defaultRange = getCurrentMonthRangeInSaoPaulo()
     const parsed = querySchema.safeParse({
-      from: request.nextUrl.searchParams.get('from') || today,
-      to: request.nextUrl.searchParams.get('to') || today,
+      from: request.nextUrl.searchParams.get('from') || defaultRange.from,
+      to: request.nextUrl.searchParams.get('to') || defaultRange.to,
       tipo: request.nextUrl.searchParams.get('tipo') || undefined,
       busca: request.nextUrl.searchParams.get('busca') || undefined,
     })

@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
 import { contaReceberStatusLabels } from '@/lib/finance'
 import { getPagamentoLabel, statusPagamentoLabels, statusPedidoReportLabels } from '@/lib/order-display'
-import { formatDateInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateInSaoPaulo, getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
 import type { StatusPagamento, StatusPedido, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 type ContaReceberItem = {
@@ -59,12 +59,12 @@ const fetcher = async (url: string) => {
 }
 
 export function ContasReceberPage() {
-  const today = todayInSaoPaulo()
-  const [fromInput, setFromInput] = useState(today)
-  const [toInput, setToInput] = useState(today)
+  const defaultRange = getCurrentMonthRangeInSaoPaulo()
+  const [fromInput, setFromInput] = useState(defaultRange.from)
+  const [toInput, setToInput] = useState(defaultRange.to)
   const [statusInput, setStatusInput] = useState<'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO'>('TODOS')
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
+  const [from, setFrom] = useState(defaultRange.from)
+  const [to, setTo] = useState(defaultRange.to)
   const [status, setStatus] = useState<'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO'>('TODOS')
   const [search, setSearch] = useState('')
 
@@ -134,11 +134,11 @@ export function ContasReceberPage() {
 
   const resetarOuAtualizar = () => {
     if (periodoPendente) {
-      setFromInput(today)
-      setToInput(today)
+      setFromInput(defaultRange.from)
+      setToInput(defaultRange.to)
       setStatusInput('TODOS')
-      setFrom(today)
-      setTo(today)
+      setFrom(defaultRange.from)
+      setTo(defaultRange.to)
       setStatus('TODOS')
       return
     }
