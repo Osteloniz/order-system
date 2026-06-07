@@ -28,6 +28,16 @@ export function todayInSaoPaulo() {
   }).format(new Date())
 }
 
+export function getCurrentMonthRangeInSaoPaulo() {
+  const now = new Date()
+  const { year, month, day } = getDatePartsInSaoPaulo(now)
+
+  return {
+    from: `${year}-${String(month).padStart(2, '0')}-01`,
+    to: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+  }
+}
+
 export function formatDateTimeInSaoPaulo(value?: string | Date | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString('pt-BR', {

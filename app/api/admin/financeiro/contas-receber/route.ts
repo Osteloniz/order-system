@@ -4,7 +4,7 @@ import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
 import { calcularLiquidoPedido, getPedidoFinanceiroStatus } from '@/lib/finance'
-import { todayInSaoPaulo } from '@/lib/sao-paulo'
+import { getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
 
 export const runtime = 'nodejs'
 
@@ -26,10 +26,10 @@ export async function GET(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
 
   try {
-    const today = todayInSaoPaulo()
+    const defaultRange = getCurrentMonthRangeInSaoPaulo()
     const parsed = querySchema.safeParse({
-      from: request.nextUrl.searchParams.get('from') || today,
-      to: request.nextUrl.searchParams.get('to') || today,
+      from: request.nextUrl.searchParams.get('from') || defaultRange.from,
+      to: request.nextUrl.searchParams.get('to') || defaultRange.to,
       status: request.nextUrl.searchParams.get('status') || 'TODOS',
     })
 

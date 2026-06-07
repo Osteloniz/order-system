@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, formatLongDateInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, formatLongDateInSaoPaulo, getCurrentMonthRangeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 
 type EstoqueItem = {
   produtoId: string
@@ -84,8 +84,9 @@ const fetcher = async (url: string) => {
 
 export function EstoquePage() {
   const today = todayInSaoPaulo()
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
+  const defaultRange = getCurrentMonthRangeInSaoPaulo()
+  const [from, setFrom] = useState(defaultRange.from)
+  const [to, setTo] = useState(defaultRange.to)
   const [productionDate, setProductionDate] = useState(today)
   const [productionDrafts, setProductionDrafts] = useState<Record<string, string>>({})
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({})

@@ -24,6 +24,12 @@ Sempre que houver alteracao em qualquer um destes itens:
 
 voce deve tratar a subida como uma mudanca de banco, nao apenas uma mudanca de codigo.
 
+Se **nenhum** destes itens mudou:
+- `prisma/schema.prisma`
+- `prisma/migrations`
+
+entao a entrega deve ser tratada como **mudanca de codigo/documentacao**, e nao como atualizacao obrigatoria de banco.
+
 ## Fluxo Recomendado
 
 O fluxo ideal e este:
@@ -328,6 +334,16 @@ npm run db:migrate:prod:status
 
 6. fez deploy na Vercel
 7. validou a aplicacao em producao
+
+## Checklist Rapido Quando Nao Ha Mudanca De Banco
+
+Se a entrega nao altera schema, migration, enum, coluna ou tabela:
+
+1. validar em HML/local
+2. atualizar documentacao e contexto do projeto
+3. fazer push do codigo
+4. deployar
+5. validar PRD
 
 ## Processo Enxuto Para O Dia A Dia
 

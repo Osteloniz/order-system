@@ -6,6 +6,8 @@ import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
+const isoDateTimeSchema = z.string().datetime({ offset: true })
+
 const contaPagarSchema = z.object({
   descricao: z.string().trim().min(2).max(120),
   categoria: z.string().trim().max(60).optional(),
@@ -13,9 +15,9 @@ const contaPagarSchema = z.object({
   fornecedor: z.string().trim().max(80).optional(),
   observacoes: z.string().trim().max(1000).optional(),
   valor: z.number().int().positive(),
-  vencimento: z.string().datetime(),
+  vencimento: isoDateTimeSchema,
   status: z.enum(['PENDENTE', 'PAGO', 'CANCELADO']),
-  pagoEm: z.string().datetime().optional(),
+  pagoEm: isoDateTimeSchema.optional(),
 }).strict()
 
 type RouteContext = {

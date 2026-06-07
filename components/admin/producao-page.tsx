@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { formatarMoeda, formatarHora } from '@/lib/calc'
 import { statusPagamentoLabels } from '@/lib/order-display'
-import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, getCurrentMonthRangeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 import type { StatusPagamento, StatusPedido, TipoEntrega } from '@/lib/types'
 
 type ProducaoResumoItem = {
@@ -92,8 +92,9 @@ const fetcher = async (url: string) => {
 
 export function ProducaoPage() {
   const today = todayInSaoPaulo()
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
+  const defaultRange = getCurrentMonthRangeInSaoPaulo()
+  const [from, setFrom] = useState(defaultRange.from)
+  const [to, setTo] = useState(defaultRange.to)
   const [productionDate, setProductionDate] = useState(today)
   const [productionDrafts, setProductionDrafts] = useState<Record<string, string>>({})
   const [savingProductionId, setSavingProductionId] = useState<string | null>(null)

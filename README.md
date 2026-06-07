@@ -23,6 +23,11 @@ Sistema de pedidos para o condominio Reserva Paulistano com cardápio, carrinho,
 - NextAuth.js v4 (credentials)
 - TypeScript
 
+## Runtime local recomendado
+- Use Node.js `22.22.3` para desenvolvimento local neste projeto.
+- Motivo: no Windows, a instalacao atual com Node `24.13.1` pode disparar um erro fatal do runtime ao executar CLIs como `npm`, `pnpm`, `next` e `prisma`.
+- Isso e uma orientacao de ambiente local. Nao altera o comportamento da aplicacao em producao.
+
 ## Como rodar
 1) Instale as dependências:
 
@@ -31,6 +36,8 @@ npm install
 # ou
 pnpm install
 ```
+
+Antes disso, confirme que o terminal esta usando Node `22.22.3`.
 
 2) Configure o `.env`:
 
