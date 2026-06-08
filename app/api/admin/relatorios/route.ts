@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
+import { hasFornecedorFinanceiroSchema } from '@/lib/fornecedores-financeiros'
 import { calcularTaxaCartao, isPedidoRealizadoFinanceiramente, normalizeTipoCartao } from '@/lib/order-finance'
 import { todayInSaoPaulo } from '@/lib/sao-paulo'
 
@@ -18,6 +19,10 @@ function getPeriodRange(from: string, to: string) {
     start: new Date(`${from}T00:00:00-03:00`),
     end: new Date(`${to}T24:00:00-03:00`),
   }
+}
+
+function getContaPagarFornecedorNome(conta: { fornecedor?: string | null } & { fornecedorFinanceiro?: { nome: string } | null }) {
+  return conta.fornecedorFinanceiro?.nome ?? conta.fornecedor?.trim() ?? ''
 }
 
 export async function GET(request: NextRequest) {
@@ -61,13 +66,29 @@ export async function GET(request: NextRequest) {
       orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
     })
 
-    const contasPagar = await prisma.contaPagar.findMany({
-      where: {
-        tenantId: admin.tenantId,
-        vencimento: { gte: start, lt: end },
-      },
-      orderBy: { vencimento: 'asc' },
-    })
+    const hasStructuredSchema = await hasFornecedorFinanceiroSchema()
+    const contasPagar = hasStructuredSchema
+      ? await prisma.contaPagar.findMany({
+          where: {
+            tenantId: admin.tenantId,
+            vencimento: { gte: start, lt: end },
+          },
+          include: {
+            fornecedorFinanceiro: {
+              select: {
+                nome: true,
+              },
+            },
+          },
+          orderBy: { vencimento: 'asc' },
+        })
+      : await prisma.contaPagar.findMany({
+          where: {
+            tenantId: admin.tenantId,
+            vencimento: { gte: start, lt: end },
+          },
+          orderBy: { vencimento: 'asc' },
+        })
 
     const porStatus = {
       FEITO: 0,
@@ -159,6 +180,33 @@ export async function GET(request: NextRequest) {
       .filter((conta) => conta.status !== 'CANCELADO')
       .reduce((acc, conta) => acc + conta.valor, 0)
     const resultadoRealizado = recebimentoRealizado - custosPagos
+    const fornecedores = Array.from(
+      contasPagar.reduce((acc, conta) => {
+        if (conta.status === 'CANCELADO') return acc
+
+        const nome = getContaPagarFornecedorNome(conta)
+        if (!nome) return acc
+
+        const atual = acc.get(nome) ?? {
+          nome,
+          quantidade: 0,
+          total: 0,
+          pago: 0,
+          pendente: 0,
+        }
+
+        atual.quantidade += 1
+        atual.total += conta.valor
+        if (conta.status === 'PAGO') atual.pago += conta.valor
+        if (conta.status === 'PENDENTE') atual.pendente += conta.valor
+        acc.set(nome, atual)
+        return acc
+      }, new Map<string, { nome: string; quantidade: number; total: number; pago: number; pendente: number }>())
+        .values()
+    ).sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total
+      return a.nome.localeCompare(b.nome)
+    })
 
     return NextResponse.json({
       from,
@@ -184,6 +232,7 @@ export async function GET(request: NextRequest) {
       custosPagos,
       custosCancelados,
       resultadoRealizado,
+      fornecedores,
       ticketMedioGeral: pedidos.length ? Math.round(receitaTotal / pedidos.length) : 0,
       ticketMedioEntregue: entregues.length ? Math.round(receitaEntregue / entregues.length) : 0,
       porStatus,

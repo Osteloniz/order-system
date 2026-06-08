@@ -80,6 +80,7 @@ Voce deve considerar que ha alteracao de banco quando:
 Exemplo real deste projeto:
 - adicao de `tipoCartao`
 - adicao de `ContaPagar`
+- adicao de `FornecedorFinanceiro` com backfill dos fornecedores antigos de `ContaPagar`
 
 Ambos exigem atualizacao do banco.
 

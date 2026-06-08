@@ -78,3 +78,24 @@ Cupons:
   - Body: `{ codigo?, tipo?, valor?, maxUsos?, expiraEm?, ativo? }`
 - DELETE `/api/admin/cupons/:id`
   - Observacao: falha se o cupom tiver usos > 0.
+
+Financeiro:
+- GET `/api/admin/financeiro/contas-pagar?from=YYYY-MM-DD&to=YYYY-MM-DD&status=TODOS|PENDENTE|PAGO|CANCELADO`
+- POST `/api/admin/financeiro/contas-pagar`
+  - Body: `{ descricao, valor, vencimento, status?, categoriaFinanceiraId?, fornecedorFinanceiroId?, observacoes? }`
+  - Observacao: `vencimento` e `pagoEm` aceitam ISO datetime com offset.
+  - Observacao: o backend preserva `fornecedor` como texto legado e vincula `fornecedorFinanceiroId` quando houver cadastro.
+- PATCH `/api/admin/financeiro/contas-pagar/:id`
+  - Body: igual ao POST.
+- DELETE `/api/admin/financeiro/contas-pagar/:id`
+- GET `/api/admin/categorias-financeiras?escopo=PAGAR|RECEBER|AMBOS|TODOS`
+- POST `/api/admin/categorias-financeiras`
+  - Body: `{ nome, escopo }`
+- GET `/api/admin/fornecedores-financeiros`
+- POST `/api/admin/fornecedores-financeiros`
+  - Body: `{ nome }`
+  - Observacao: se o fornecedor ja existir para o tenant, retorna o cadastro existente.
+
+Relatorios:
+- GET `/api/admin/relatorios?from=YYYY-MM-DD&to=YYYY-MM-DD`
+  - Observacao: agora inclui agregacao de custos por fornecedor no periodo.
