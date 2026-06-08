@@ -55,6 +55,14 @@ type RelatorioPedido = {
   }[]
 }
 
+type RelatorioFornecedor = {
+  nome: string
+  quantidade: number
+  total: number
+  pago: number
+  pendente: number
+}
+
 type RelatorioData = {
   from: string
   to: string
@@ -79,6 +87,7 @@ type RelatorioData = {
   custosPagos: number
   custosCancelados: number
   resultadoRealizado: number
+  fornecedores: RelatorioFornecedor[]
   ticketMedioGeral: number
   ticketMedioEntregue: number
   porStatus: Record<StatusPedido, number>
@@ -443,7 +452,7 @@ export function RelatoriosPage() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border-[#F8CF40]/40 bg-[linear-gradient(145deg,rgba(248,207,64,0.18),rgba(34,192,212,0.08))]">
+      <Card className="overflow-hidden border-[#F8CF40]/40 bg-[linear-gradient(145deg,rgba(248,207,64,0.18),rgba(34,192,212,0.08))]">
           <CardHeader><CardTitle>Leitura rapida</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-2xl bg-background/75 p-4">
@@ -464,9 +473,49 @@ export function RelatoriosPage() {
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Resultado realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.resultadoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Recebido menos custos pagos</p></div>
             </div>
             <p className="text-xs text-muted-foreground">Dica: os valores de cartao ja diferenciam credito e debito, e o fluxo de caixa separa previsto, realizado e cancelado.</p>
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle>Custos por fornecedor</CardTitle>
+          <Badge variant="outline">{data?.fornecedores.length ?? 0} fornecedor(es)</Badge>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
+          ) : data?.fornecedores.length ? (
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-muted/25 text-left text-muted-foreground">
+                  <tr>
+                    <th className="py-3 pl-4 pr-4 font-medium">Fornecedor</th>
+                    <th className="py-3 pr-4 font-medium">Lancamentos</th>
+                    <th className="py-3 pr-4 font-medium">Total</th>
+                    <th className="py-3 pr-4 font-medium">Pago</th>
+                    <th className="py-3 pr-4 font-medium">Pendente</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.fornecedores.slice(0, 12).map((fornecedor) => (
+                    <tr key={fornecedor.nome} className="border-t odd:bg-background even:bg-muted/20">
+                      <td className="py-3 pl-4 pr-4 font-medium">{fornecedor.nome}</td>
+                      <td className="py-3 pr-4">{fornecedor.quantidade}</td>
+                      <td className="py-3 pr-4 font-semibold">{formatarMoeda(fornecedor.total)}</td>
+                      <td className="py-3 pr-4">{formatarMoeda(fornecedor.pago)}</td>
+                      <td className="py-3 pr-4">{formatarMoeda(fornecedor.pendente)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhum fornecedor com contas no periodo selecionado.</p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">Os nomes agora ficam padronizados a partir do cadastro de fornecedores do contas a pagar.</p>
+        </CardContent>
+      </Card>
 
       <Card className="overflow-hidden">
         <CardHeader>

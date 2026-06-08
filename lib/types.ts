@@ -156,6 +156,8 @@ export interface ContaPagar {
   descricao: string
   categoria?: string | null
   categoriaFinanceiraId?: string | null
+  fornecedorFinanceiroId?: string | null
+  fornecedorFinanceiroNome?: string | null
   fornecedor?: string | null
   observacoes?: string | null
   valor: number
@@ -171,6 +173,13 @@ export interface CategoriaFinanceira {
   nome: string
   escopo: EscopoCategoriaFinanceira
   ordem: number
+  criadoEm: string
+  atualizadoEm: string
+}
+
+export interface FornecedorFinanceiro {
+  id: string
+  nome: string
   criadoEm: string
   atualizadoEm: string
 }

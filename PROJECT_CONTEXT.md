@@ -15,7 +15,7 @@
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.
 - Stock and production: reservation, release, stock adjustments, and production logs.
-- Finance: cash flow, accounts receivable, accounts payable, and financial categories.
+- Finance: cash flow, accounts receivable, accounts payable, financial categories, and structured financial suppliers for payable accounts.
 - Customers: customer history, gift tracking (`mimosEntregues`), phone, and WhatsApp data.
 - Coupons and configuration: discount validation, store settings, and WhatsApp message templates.
 
@@ -32,6 +32,7 @@
 - `Tenant` still exists in the schema, even though some flows operate like a single-brand system.
 - Delivery types include `ENTREGA`, `RETIRADA`, `RESERVA_PAULISTANO`, and `ENCOMENDA`.
 - Legacy admin session routes are documented as deactivated; current auth is NextAuth-based.
+- `ContaPagar` keeps a legacy `fornecedor` text field for compatibility, but new work should prefer the structured `FornecedorFinanceiro` registry and relation.
 
 ## Production Bug Triage Checklist
 1. Reproduce the issue locally or identify the failing route or component.

@@ -22,6 +22,7 @@
 - Always validate in HML before PRD.
 - If Prisma schema or migrations changed, update HML database first, validate, then update PRD database before or alongside deploy.
 - If only frontend, API behavior, docs, or local tooling changed, do not force a PRD database update.
+- If `ContaPagar` persistence changes, check whether a migration also requires backfilling legacy supplier text into structured financial suppliers.
 
 ## Quick Checks
 - `rtk npm run build`

@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda } from '@/lib/calc'
 import { statusContaPagarLabels, statusContaPagarStyles } from '@/lib/finance'
 import { formatDateInSaoPaulo, getCurrentMonthRangeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
-import type { CategoriaFinanceira, ContaPagar, StatusContaPagar } from '@/lib/types'
+import type { CategoriaFinanceira, ContaPagar, FornecedorFinanceiro, StatusContaPagar } from '@/lib/types'
 
 type ContasPagarData = {
   from: string
@@ -58,6 +58,10 @@ function normalizeDate(value: string) {
   return value.slice(0, 10)
 }
 
+function getFornecedorLabel(conta: Pick<ContaPagar, 'fornecedorFinanceiroNome' | 'fornecedor'>) {
+  return conta.fornecedorFinanceiroNome || conta.fornecedor || ''
+}
+
 function getDueState(vencimento: string, status: StatusContaPagar, today: string) {
   if (status !== 'PENDENTE') {
     return {
@@ -91,7 +95,7 @@ function getDueState(vencimento: string, status: StatusContaPagar, today: string
 type FormState = {
   descricao: string
   categoriaFinanceiraId: string
-  fornecedor: string
+  fornecedorFinanceiroId: string
   observacoes: string
   valor: string
   vencimento: string
@@ -111,21 +115,25 @@ export function ContasPagarPage() {
   const [selected, setSelected] = useState<ContaPagar | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [fornecedorModalOpen, setFornecedorModalOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<FormState>({ descricao: '', categoriaFinanceiraId: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+  const [creatingFornecedor, setCreatingFornecedor] = useState(false)
+  const [novoFornecedorNome, setNovoFornecedorNome] = useState('')
+  const [form, setForm] = useState<FormState>({ descricao: '', categoriaFinanceiraId: '', fornecedorFinanceiroId: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
 
   const periodoPendente = from !== fromInput || to !== toInput || status !== statusInput
   const url = useMemo(() => `/api/admin/financeiro/contas-pagar?from=${from}&to=${to}&status=${status}`, [from, to, status])
   const { data, isLoading, mutate } = useSWR<ContasPagarData>(url, fetcher)
   const { data: categoriasFinanceiras } = useSWR<CategoriaFinanceira[]>('/api/admin/categorias-financeiras?escopo=PAGAR', fetcher)
+  const { data: fornecedoresFinanceiros, mutate: mutateFornecedores } = useSWR<FornecedorFinanceiro[]>('/api/admin/fornecedores-financeiros', fetcher)
 
   useEffect(() => {
     if (!selected) return
     setForm({
       descricao: selected.descricao,
       categoriaFinanceiraId: selected.categoriaFinanceiraId || '',
-      fornecedor: selected.fornecedor || '',
+      fornecedorFinanceiroId: selected.fornecedorFinanceiroId || '',
       observacoes: selected.observacoes || '',
       valor: formatCurrencyInput(String(selected.valor)),
       vencimento: normalizeDate(selected.vencimento),
@@ -137,7 +145,7 @@ export function ContasPagarPage() {
     const busca = search.trim().toLowerCase()
     return (data?.contas ?? []).filter((conta) => {
       if (!busca) return true
-      const texto = [conta.descricao, conta.categoria, conta.fornecedor, conta.observacoes].filter(Boolean).join(' ').toLowerCase()
+      const texto = [conta.descricao, conta.categoria, getFornecedorLabel(conta), conta.observacoes].filter(Boolean).join(' ').toLowerCase()
       return texto.includes(busca)
     })
   }, [data?.contas, search])
@@ -195,14 +203,18 @@ export function ContasPagarPage() {
     setSelected(null)
     setIsCreating(true)
     setFormOpen(true)
+    setFornecedorModalOpen(false)
     setMessage('')
-    setForm({ descricao: '', categoriaFinanceiraId: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+    setNovoFornecedorNome('')
+    setForm({ descricao: '', categoriaFinanceiraId: '', fornecedorFinanceiroId: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
   }
 
   const abrirEdicao = (conta: ContaPagar) => {
     setSelected(conta)
     setIsCreating(false)
     setFormOpen(true)
+    setFornecedorModalOpen(false)
+    setNovoFornecedorNome('')
     setMessage('')
   }
 
@@ -210,7 +222,39 @@ export function ContasPagarPage() {
     setSelected(null)
     setIsCreating(false)
     setFormOpen(false)
-    setForm({ descricao: '', categoriaFinanceiraId: '', fornecedor: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+    setFornecedorModalOpen(false)
+    setCreatingFornecedor(false)
+    setNovoFornecedorNome('')
+    setForm({ descricao: '', categoriaFinanceiraId: '', fornecedorFinanceiroId: '', observacoes: '', valor: '', vencimento: today, status: 'PENDENTE' })
+  }
+
+  const cadastrarFornecedorRapido = async () => {
+    const nome = novoFornecedorNome.trim()
+    if (!nome) {
+      setMessage('Informe o nome do fornecedor para cadastrar.')
+      return
+    }
+
+    setCreatingFornecedor(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/admin/fornecedores-financeiros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome }),
+      })
+      const fornecedor = await response.json()
+      if (!response.ok) throw new Error(fornecedor.error || 'Erro ao cadastrar fornecedor')
+      await mutateFornecedores()
+      setForm((current) => ({ ...current, fornecedorFinanceiroId: fornecedor.id }))
+      setNovoFornecedorNome('')
+      setFornecedorModalOpen(false)
+      setMessage('Fornecedor cadastrado e selecionado.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao cadastrar fornecedor')
+    } finally {
+      setCreatingFornecedor(false)
+    }
   }
 
   const aplicarFiltros = () => {
@@ -226,7 +270,7 @@ export function ContasPagarPage() {
       const body = {
         descricao: form.descricao,
         categoriaFinanceiraId: form.categoriaFinanceiraId || undefined,
-        fornecedor: form.fornecedor || undefined,
+        fornecedorFinanceiroId: form.fornecedorFinanceiroId || undefined,
         observacoes: form.observacoes || undefined,
         valor: parseCurrencyToCents(form.valor),
         vencimento: `${form.vencimento}T12:00:00-03:00`,
@@ -432,7 +476,7 @@ export function ContasPagarPage() {
                             </div>
                           </td>
                           <td className="py-3 pr-4">{conta.categoria || 'Sem categoria'}</td>
-                          <td className="py-3 pr-4">{conta.fornecedor || '-'}</td>
+                          <td className="py-3 pr-4">{getFornecedorLabel(conta) || '-'}</td>
                           <td className="py-3 pr-4 whitespace-nowrap">{formatDateInSaoPaulo(conta.vencimento)}</td>
                           <td className={`py-3 pr-4 font-medium ${dueState.tone}`}>{dueState.label}</td>
                           <td className="py-3 pr-4">
@@ -466,7 +510,7 @@ export function ContasPagarPage() {
                               <Tag className="h-3.5 w-3.5" />
                               {conta.categoria || 'Sem categoria'}
                             </span>
-                            {conta.fornecedor ? <span>{conta.fornecedor}</span> : null}
+                            {getFornecedorLabel(conta) ? <span>{getFornecedorLabel(conta)}</span> : null}
                           </div>
                         </div>
                         <Badge className={statusContaPagarStyles[conta.status]} variant="outline">{statusContaPagarLabels[conta.status]}</Badge>
@@ -513,7 +557,7 @@ export function ContasPagarPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto p-3 sm:max-w-2xl sm:p-6">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto p-3 sm:max-w-3xl sm:p-6">
           <DialogHeader>
             <DialogTitle>{isCreating ? 'Nova conta a pagar' : 'Editar conta a pagar'}</DialogTitle>
             <DialogDescription>
@@ -521,12 +565,13 @@ export function ContasPagarPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="space-y-2">
               <Label>Descricao</Label>
               <Input value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} placeholder="Ex: Embalagens, fornecedor, motoboy..." />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+
+            <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Categoria financeira</Label>
                 <Select value={form.categoriaFinanceiraId || '__NONE__'} onValueChange={(value) => setForm((current) => ({ ...current, categoriaFinanceiraId: value === '__NONE__' ? '' : value }))}>
@@ -546,13 +591,47 @@ export function ContasPagarPage() {
                   <p className="text-xs text-muted-foreground">Lancamento antigo: categoria salva como &quot;{selected.categoria}&quot;.</p>
                 ) : null}
               </div>
-              <div className="space-y-2"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(event) => setForm((current) => ({ ...current, fornecedor: event.target.value }))} placeholder="Ex: Atacado X" /></div>
+
+              <div className="space-y-2">
+                <Label>Fornecedor</Label>
+                <Select value={form.fornecedorFinanceiroId || '__NONE__'} onValueChange={(value) => setForm((current) => ({ ...current, fornecedorFinanceiroId: value === '__NONE__' ? '' : value }))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione um fornecedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">Sem fornecedor</SelectItem>
+                    {fornecedoresFinanceiros?.map((fornecedor) => (
+                      <SelectItem key={fornecedor.id} value={fornecedor.id}>
+                        {fornecedor.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!form.fornecedorFinanceiroId && selected?.fornecedor && (
+                  <p className="text-xs text-muted-foreground">Lancamento antigo: fornecedor salvo como &quot;{selected.fornecedor}&quot;.</p>
+                )}
+              </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+
+            <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Cadastro de fornecedor</p>
+                  <p className="text-xs text-muted-foreground">Cadastre uma vez e reutilize o fornecedor nos proximos lancamentos e relatorios.</p>
+                </div>
+                <Button type="button" variant="outline" onClick={() => setFornecedorModalOpen(true)} className="w-full sm:w-auto">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo fornecedor
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2"><Label>Valor</Label><Input value={form.valor} onChange={(event) => setForm((current) => ({ ...current, valor: formatCurrencyInput(event.target.value) }))} placeholder="R$ 0,00" /></div>
               <div className="space-y-2"><Label>Vencimento</Label><Input type="date" value={form.vencimento} onChange={(event) => setForm((current) => ({ ...current, vencimento: event.target.value }))} /></div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+
+            <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as StatusContaPagar }))}>
@@ -566,6 +645,7 @@ export function ContasPagarPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="hidden lg:block" />
             </div>
             <div className="space-y-2"><Label>Observacoes</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Detalhes internos da conta" /></div>
           </div>
@@ -575,6 +655,45 @@ export function ContasPagarPage() {
             <Button type="button" onClick={salvarConta} disabled={saving}>
               {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               {isCreating ? 'Cadastrar conta' : 'Salvar alteracoes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={fornecedorModalOpen}
+        onOpenChange={(open) => {
+          setFornecedorModalOpen(open)
+          if (!open && !creatingFornecedor) {
+            setNovoFornecedorNome('')
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] p-3 sm:max-w-md sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Novo fornecedor</DialogTitle>
+            <DialogDescription>
+              Cadastre apenas o nome. Fornecedores duplicados nao sao permitidos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label>Nome do fornecedor</Label>
+            <Input
+              value={novoFornecedorNome}
+              onChange={(event) => setNovoFornecedorNome(event.target.value)}
+              placeholder="Ex: Atacado X"
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setFornecedorModalOpen(false)} disabled={creatingFornecedor}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={cadastrarFornecedorRapido} disabled={creatingFornecedor}>
+              {creatingFornecedor ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Salvar fornecedor
             </Button>
           </DialogFooter>
         </DialogContent>

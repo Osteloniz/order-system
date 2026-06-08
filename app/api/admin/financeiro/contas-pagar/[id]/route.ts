@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
+import { resolveFornecedorFinanceiro } from '@/lib/fornecedores-financeiros'
 
 export const runtime = 'nodejs'
 
@@ -12,6 +13,7 @@ const contaPagarSchema = z.object({
   descricao: z.string().trim().min(2).max(120),
   categoria: z.string().trim().max(60).optional(),
   categoriaFinanceiraId: z.string().uuid().optional(),
+  fornecedorFinanceiroId: z.string().trim().min(1).max(120).optional(),
   fornecedor: z.string().trim().max(80).optional(),
   observacoes: z.string().trim().max(1000).optional(),
   valor: z.number().int().positive(),
@@ -22,6 +24,16 @@ const contaPagarSchema = z.object({
 
 type RouteContext = {
   params: Promise<{ id: string }>
+}
+
+function mapContaPagarResponse<T extends { fornecedor?: string | null; fornecedorFinanceiroId?: string | null }>(
+  conta: T & { fornecedorFinanceiro?: { nome: string } | null }
+) {
+  return {
+    ...conta,
+    fornecedorFinanceiroId: conta.fornecedorFinanceiroId ?? null,
+    fornecedorFinanceiroNome: conta.fornecedorFinanceiro?.nome ?? conta.fornecedor ?? null,
+  }
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -61,22 +73,56 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       categoriaFinanceiraNome = categoriaFinanceira.nome
     }
 
-    const updated = await prisma.contaPagar.update({
-      where: { id: conta.id },
-      data: {
-        descricao: body.descricao.trim(),
-        categoria: categoriaFinanceiraNome,
-        categoriaFinanceiraId: body.categoriaFinanceiraId || null,
-        fornecedor: body.fornecedor?.trim() || null,
-        observacoes: body.observacoes?.trim() || null,
-        valor: body.valor,
-        vencimento: new Date(body.vencimento),
-        status,
-        pagoEm,
-      },
+    const fornecedorResolvido = await resolveFornecedorFinanceiro({
+      tenantId: admin.tenantId,
+      fornecedorFinanceiroId: body.fornecedorFinanceiroId ?? null,
+      fornecedor: body.fornecedor ?? null,
     })
 
-    return NextResponse.json(updated)
+    if ('error' in fornecedorResolvido) {
+      return NextResponse.json({ error: fornecedorResolvido.error }, { status: 400 })
+    }
+
+    const updated = fornecedorResolvido.hasStructuredSchema
+      ? await prisma.contaPagar.update({
+          where: { id: conta.id },
+          data: {
+            descricao: body.descricao.trim(),
+            categoria: categoriaFinanceiraNome,
+            categoriaFinanceiraId: body.categoriaFinanceiraId || null,
+            fornecedorFinanceiroId: fornecedorResolvido.fornecedorFinanceiroId,
+            fornecedor: fornecedorResolvido.fornecedor,
+            observacoes: body.observacoes?.trim() || null,
+            valor: body.valor,
+            vencimento: new Date(body.vencimento),
+            status,
+            pagoEm,
+          },
+          include: {
+            fornecedorFinanceiro: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        })
+      : await prisma.contaPagar.update({
+          where: { id: conta.id },
+          data: {
+            descricao: body.descricao.trim(),
+            categoria: categoriaFinanceiraNome,
+            categoriaFinanceiraId: body.categoriaFinanceiraId || null,
+            fornecedor: fornecedorResolvido.fornecedor,
+            observacoes: body.observacoes?.trim() || null,
+            valor: body.valor,
+            vencimento: new Date(body.vencimento),
+            status,
+            pagoEm,
+          },
+        })
+
+    return NextResponse.json(mapContaPagarResponse(updated))
   } catch (error) {
     return handleApiError('api/admin/financeiro/contas-pagar/[id] PATCH', error, 'Erro ao atualizar conta a pagar')
   }
