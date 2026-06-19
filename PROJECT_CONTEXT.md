@@ -17,6 +17,7 @@
 - Stock and production: reservation, release, stock adjustments, and production logs.
 - Finance: cash flow, accounts receivable, accounts payable, financial categories, and structured financial suppliers for payable accounts.
 - Customers: customer history, gift tracking (`mimosEntregues`), phone, and WhatsApp data.
+- Loyalty rule: every 14 cookies purchased generates 1 `mimo`, and each delivered `mimo` should be accounted for as stock output without creating receivables.
 - Coupons and configuration: discount validation, store settings, and WhatsApp message templates.
 
 ## Key Technical Files

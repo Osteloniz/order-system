@@ -1,3 +1,5 @@
+import { MIMO_COOKIE_THRESHOLD } from './mimos.ts'
+
 type PedidoResumoItem = {
   nomeProdutoSnapshot: string
   quantidade: number
@@ -30,11 +32,11 @@ export function buildClienteResumoConsumo(pedidos: PedidoResumo[]) {
 }
 
 export function buildClienteFidelidade(totalCookies: number, mimosEntregues: number) {
-  const totalMimosGerados = Math.floor(totalCookies / 10)
+  const totalMimosGerados = Math.floor(totalCookies / MIMO_COOKIE_THRESHOLD)
   const mimosDisponiveis = Math.max(totalMimosGerados - mimosEntregues, 0)
-  const cookiesDesdeUltimoMimoEntregue = Math.max(totalCookies - mimosEntregues * 10, 0)
-  const progressoAtual = cookiesDesdeUltimoMimoEntregue % 10
-  const faltamParaProximo = progressoAtual === 0 ? 10 : 10 - progressoAtual
+  const cookiesDesdeUltimoMimoEntregue = Math.max(totalCookies - mimosEntregues * MIMO_COOKIE_THRESHOLD, 0)
+  const progressoAtual = cookiesDesdeUltimoMimoEntregue % MIMO_COOKIE_THRESHOLD
+  const faltamParaProximo = progressoAtual === 0 ? MIMO_COOKIE_THRESHOLD : MIMO_COOKIE_THRESHOLD - progressoAtual
 
   return {
     totalMimosGerados,

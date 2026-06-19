@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
+import { MIMO_COOKIE_THRESHOLD } from '@/lib/mimos'
 import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import { formatDateTimeInSaoPaulo } from '@/lib/sao-paulo'
 import type { Cliente } from '@/lib/types'
@@ -73,7 +74,7 @@ export function ClientesPage() {
   const saboresFavoritos = selected?.resumoConsumo.sabores.slice(0, 4) ?? []
   const fidelidade = selected?.resumoFidelidade
   const progressoFidelidade = fidelidade?.progressoAtual ?? 0
-  const faltamParaMimo = fidelidade?.faltamParaProximo ?? 10
+  const faltamParaMimo = fidelidade?.faltamParaProximo ?? MIMO_COOKIE_THRESHOLD
 
   const marcarMimoEntregue = async () => {
     if (!selected) return
@@ -298,7 +299,7 @@ export function ClientesPage() {
                     <div className="grid gap-3 xl:grid-cols-2">
                       <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
                         <p className="text-sm font-medium">Fidelidade em andamento</p>
-                        <p className="mt-1 text-2xl font-bold">{progressoFidelidade}/10</p>
+                        <p className="mt-1 text-2xl font-bold">{progressoFidelidade}/{MIMO_COOKIE_THRESHOLD}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {fidelidade?.mimosDisponiveis
                             ? `${fidelidade.mimosDisponiveis} mimo(s) disponivel(is) para entregar agora.`

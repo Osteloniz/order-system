@@ -79,6 +79,17 @@ Cupons:
 - DELETE `/api/admin/cupons/:id`
   - Observacao: falha se o cupom tiver usos > 0.
 
+Clientes:
+- GET `/api/admin/clientes?search=...`
+- GET `/api/admin/clientes/:id`
+- POST `/api/admin/clientes`
+- PATCH `/api/admin/clientes/:id`
+- POST `/api/admin/clientes/:id/mimo`
+  - Marca 1 mimo entregue no fidelidade.
+  - Observacao: cada mimo exige 14 cookies comprados.
+  - Observacao: a entrega faz baixa de 1 unidade do produto `Cookie Tradicional` no estoque.
+  - Observacao: nao cria contas a receber; o valor fica apenas como referencia operacional/relatorio.
+
 Financeiro:
 - GET `/api/admin/financeiro/contas-pagar?from=YYYY-MM-DD&to=YYYY-MM-DD&status=TODOS|PENDENTE|PAGO|CANCELADO`
 - POST `/api/admin/financeiro/contas-pagar`

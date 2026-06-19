@@ -74,6 +74,8 @@ type RelatorioData = {
   receitaCartaoBruta: number
   taxaCartao: number
   receitaCartaoLiquida: number
+  mimosConcedidos: number
+  valorMimosConcedidos: number
   recebimentoPrevisto: number
   recebimentoRealizado: number
   recebimentoEmAberto: number
@@ -219,6 +221,8 @@ export function RelatoriosPage() {
       ['Periodo', `${from} ate ${to}`],
       ['Ticket medio entregue', moneyForCsv(data.ticketMedioEntregue)],
       ['Receita entregue', moneyForCsv(data.receitaEntregue)],
+      ['Mimos concedidos', data.mimosConcedidos],
+      ['Valor referencial dos mimos', moneyForCsv(data.valorMimosConcedidos)],
       [],
       ['Sabor', 'Quantidade', 'Valor unitario', 'Total', 'Pedidos'],
       ...data.produtos.map((produto) => [
@@ -312,6 +316,15 @@ export function RelatoriosPage() {
       title: 'Unidades vendidas',
       value: String(totalUnidades),
       detail: 'Somando todos os sabores',
+    },
+    {
+      key: 'mimos',
+      className: 'border-[#F4A261]/35 bg-[#F4A261]/10',
+      icon: Sparkles,
+      iconClass: 'text-[#AF6E2A]',
+      title: 'Mimos concedidos',
+      value: String(data?.mimosConcedidos ?? 0),
+      detail: `Valor referencial: ${formatarMoeda(data?.valorMimosConcedidos ?? 0)}`,
     },
     {
       key: 'cartao',
@@ -467,6 +480,10 @@ export function RelatoriosPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Previsto para receber</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoPrevisto ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Ainda nao realizado</p></div>
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Pagamento aprovado ou dinheiro entregue</p></div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Mimos no periodo</p><p className="text-xl font-bold">{data?.mimosConcedidos ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">Baixados no estoque sem entrar no contas a receber</p></div>
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Valor referencial dos mimos</p><p className="text-xl font-bold">{formatarMoeda(data?.valorMimosConcedidos ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Ajuda a medir o beneficio concedido</p></div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Custos pagos</p><p className="text-xl font-bold">{formatarMoeda(data?.custosPagos ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Contas ja baixadas no periodo</p></div>

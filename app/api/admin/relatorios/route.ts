@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
 import { hasFornecedorFinanceiroSchema } from '@/lib/fornecedores-financeiros'
+import { getMimoLogMetadata } from '@/lib/mimos'
 import { calcularTaxaCartao, isPedidoRealizadoFinanceiramente, normalizeTipoCartao } from '@/lib/order-finance'
 import { todayInSaoPaulo } from '@/lib/sao-paulo'
 
@@ -48,47 +49,59 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Periodo invalido' }, { status: 400 })
     }
 
-    const pedidos = await prisma.pedido.findMany({
-      where: {
-        tenantId: admin.tenantId,
-        OR: [
-          {
-            tipoEntrega: { not: 'ENCOMENDA' },
-            criadoEm: { gte: start, lt: end },
-          },
-          {
-            tipoEntrega: 'ENCOMENDA',
-            encomendaPara: { gte: start, lt: end },
-          },
-        ],
-      },
-      include: { itens: true },
-      orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
-    })
-
     const hasStructuredSchema = await hasFornecedorFinanceiroSchema()
-    const contasPagar = hasStructuredSchema
-      ? await prisma.contaPagar.findMany({
-          where: {
-            tenantId: admin.tenantId,
-            vencimento: { gte: start, lt: end },
-          },
-          include: {
-            fornecedorFinanceiro: {
-              select: {
-                nome: true,
+    const [pedidos, contasPagar, logsOperacionais] = await Promise.all([
+      prisma.pedido.findMany({
+        where: {
+          tenantId: admin.tenantId,
+          OR: [
+            {
+              tipoEntrega: { not: 'ENCOMENDA' },
+              criadoEm: { gte: start, lt: end },
+            },
+            {
+              tipoEntrega: 'ENCOMENDA',
+              encomendaPara: { gte: start, lt: end },
+            },
+          ],
+        },
+        include: { itens: true },
+        orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
+      }),
+      hasStructuredSchema
+        ? prisma.contaPagar.findMany({
+            where: {
+              tenantId: admin.tenantId,
+              vencimento: { gte: start, lt: end },
+            },
+            include: {
+              fornecedorFinanceiro: {
+                select: {
+                  nome: true,
+                },
               },
             },
-          },
-          orderBy: { vencimento: 'asc' },
-        })
-      : await prisma.contaPagar.findMany({
-          where: {
-            tenantId: admin.tenantId,
-            vencimento: { gte: start, lt: end },
-          },
-          orderBy: { vencimento: 'asc' },
-        })
+            orderBy: { vencimento: 'asc' },
+          })
+        : prisma.contaPagar.findMany({
+            where: {
+              tenantId: admin.tenantId,
+              vencimento: { gte: start, lt: end },
+            },
+            orderBy: { vencimento: 'asc' },
+          }),
+      prisma.logOperacao.findMany({
+        where: {
+          tenantId: admin.tenantId,
+          criadoEm: { gte: start, lt: end },
+          tipo: 'AJUSTE_ESTOQUE',
+        },
+        select: {
+          quantidade: true,
+          metadata: true,
+        },
+      }),
+    ])
 
     const porStatus = {
       FEITO: 0,
@@ -180,6 +193,17 @@ export async function GET(request: NextRequest) {
       .filter((conta) => conta.status !== 'CANCELADO')
       .reduce((acc, conta) => acc + conta.valor, 0)
     const resultadoRealizado = recebimentoRealizado - custosPagos
+    const mimosConcedidos = logsOperacionais.reduce((acc, log) => {
+      const metadata = getMimoLogMetadata(log.metadata)
+      if (!metadata) return acc
+      return acc + Math.max(Math.abs(log.quantidade ?? 0), metadata.quantidadeMimo ?? 0, 1)
+    }, 0)
+    const valorMimosConcedidos = logsOperacionais.reduce((acc, log) => {
+      const metadata = getMimoLogMetadata(log.metadata)
+      if (!metadata) return acc
+      const quantidade = Math.max(Math.abs(log.quantidade ?? 0), metadata.quantidadeMimo ?? 0, 1)
+      return acc + (metadata.valorReferencial ?? 0) * quantidade
+    }, 0)
     const fornecedores = Array.from(
       contasPagar.reduce((acc, conta) => {
         if (conta.status === 'CANCELADO') return acc
@@ -220,6 +244,8 @@ export async function GET(request: NextRequest) {
       receitaCartaoBruta,
       taxaCartao,
       receitaCartaoLiquida,
+      mimosConcedidos,
+      valorMimosConcedidos,
       recebimentoPrevisto,
       recebimentoRealizado,
       recebimentoEmAberto,
