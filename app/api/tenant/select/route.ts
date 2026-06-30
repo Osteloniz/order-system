@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 
 // POST /api/tenant/select - sempre seleciona Brookie Pregiato (single-tenant)
-export async function POST(request: NextRequest) {
+export async function POST() {
   // Force Brookie Pregiato como único tenant
   const slug = 'brookie-pregiato'
 

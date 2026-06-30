@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Archive, ArrowDownCircle, ArrowUpCircle, BarChart3, ChevronDown, ChevronLeft, ClipboardList, FileClock, Landmark, LogOut, Menu, Package, Settings, Store, Tags, Users, X, BadgePercent, ChefHat } from 'lucide-react'
+import { Archive, ArrowDownCircle, ArrowUpCircle, BarChart3, BadgePercent, ChefHat, ChevronDown, ChevronLeft, ClipboardList, FileClock, Landmark, LogOut, Menu, Package, Settings, Store, Tags, Users, X, type LucideIcon } from 'lucide-react'
 import useSWR from 'swr'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -11,15 +11,17 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
 import { cn } from '@/lib/utils'
 
-const mainMenuItems = [
+const coreMenuItems = [
   { href: '/admin', label: 'Pedidos', icon: ClipboardList },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
-  { href: '/admin/logs', label: 'Logs', icon: FileClock },
-  { href: '/admin/relatorios', label: 'Relatórios', icon: BarChart3 },
+]
+
+const operationalMenuItems = [
+  { href: '/admin/relatorios', label: 'Relatorios', icon: BarChart3 },
   { href: '/admin/financeiro/contas-receber', label: 'Contas a receber', icon: ArrowUpCircle },
   { href: '/admin/financeiro/fluxo-caixa', label: 'Fluxo de caixa', icon: Landmark },
   { href: '/admin/financeiro/contas-pagar', label: 'Contas a pagar', icon: ArrowDownCircle },
-  { href: '/admin/config', label: 'Configurações', icon: Settings },
+  { href: '/admin/logs', label: 'Logs', icon: FileClock },
 ]
 
 const cadastroMenuItems = [
@@ -28,10 +30,46 @@ const cadastroMenuItems = [
   { href: '/admin/categorias-financeiras', label: 'Categorias financeiras', icon: Landmark },
   { href: '/admin/cupons', label: 'Cupons', icon: BadgePercent },
   { href: '/admin/estoque', label: 'Estoque', icon: Archive },
-  { href: '/admin/producao', label: 'Produção', icon: ChefHat },
+  { href: '/admin/producao', label: 'Producao', icon: ChefHat },
 ]
 
+const settingsMenuItem = { href: '/admin/config', label: 'Configuracoes', icon: Settings }
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
+function SidebarLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+  collapsed = false,
+  onClick,
+}: {
+  href: string
+  label: string
+  icon: LucideIcon
+  active: boolean
+  collapsed?: boolean
+  onClick?: () => void
+}) {
+  return (
+    <Link
+      href={href}
+      title={collapsed ? label : undefined}
+      onClick={onClick}
+      className={cn(
+        'flex items-center rounded-lg text-sm font-medium transition-colors',
+        collapsed ? 'justify-center px-3 py-3' : 'gap-3 px-4 py-3',
+        active
+          ? 'bg-primary text-primary-foreground'
+          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+      )}
+    >
+      <Icon className="h-5 w-5 shrink-0" />
+      {!collapsed ? label : null}
+    </Link>
+  )
+}
 
 export function AdminSidebar({
   collapsed = false,
@@ -62,19 +100,23 @@ export function AdminSidebar({
     }
   }, [cadastrosActive])
 
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
   return (
     <>
       <div className="fixed left-0 right-0 top-0 z-50 flex min-h-14 items-center justify-between border-b border-border bg-card px-4 pt-[env(safe-area-inset-top)] md:hidden">
-        <div className="flex items-center gap-2 text-primary">
-          <Store className="h-5 w-5" />
-          <span className="max-w-[60vw] truncate font-bold">{tenantNome}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
+        <div className="flex min-w-0 items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setMobileOpen((current) => !current)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
+          <div className="flex min-w-0 items-center gap-2 text-primary">
+            <Store className="h-5 w-5 shrink-0" />
+            <span className="truncate font-bold">{tenantNome}</span>
+          </div>
         </div>
+        <ThemeToggle />
       </div>
 
       {mobileOpen && (
@@ -83,24 +125,28 @@ export function AdminSidebar({
           onClick={() => setMobileOpen(false)}
         >
           <nav
-            className="h-full w-[min(18rem,85vw)] space-y-2 overflow-y-auto border-r border-border bg-card p-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
+            className="h-full w-[min(19rem,88vw)] space-y-3 overflow-y-auto border-r border-border bg-card p-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
             onClick={(event) => event.stopPropagation()}
           >
-            {mainMenuItems.map((item) => (
-              <Link
+            <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+              <div className="flex items-center gap-3 text-primary">
+                <Store className="h-5 w-5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{tenantNome}</p>
+                  <p className="text-xs text-muted-foreground">Navegacao principal</p>
+                </div>
+              </div>
+            </div>
+
+            {coreMenuItems.map((item) => (
+              <SidebarLink
                 key={item.href}
                 href={item.href}
+                label={item.label}
+                icon={item.icon}
+                active={isActive(item.href)}
                 onClick={() => setMobileOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
-                  isActive(item.href)
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.label}
-              </Link>
+              />
             ))}
 
             <Collapsible open={mobileCadastrosOpen} onOpenChange={setMobileCadastrosOpen} className="rounded-lg border border-border/60 bg-background/70">
@@ -110,23 +156,36 @@ export function AdminSidebar({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1 px-2 pb-2">
                 {cadastroMenuItems.map((item) => (
-                  <Link
+                  <SidebarLink
                     key={item.href}
                     href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    active={isActive(item.href)}
                     onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
-                      isActive(item.href)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
-                  </Link>
+                  />
                 ))}
               </CollapsibleContent>
             </Collapsible>
+
+            {operationalMenuItems.map((item) => (
+              <SidebarLink
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                active={isActive(item.href)}
+                onClick={() => setMobileOpen(false)}
+              />
+            ))}
+
+            <SidebarLink
+              href={settingsMenuItem.href}
+              label={settingsMenuItem.label}
+              icon={settingsMenuItem.icon}
+              active={isActive(settingsMenuItem.href)}
+              onClick={() => setMobileOpen(false)}
+            />
 
             <div className="border-t border-border pt-4">
               <Button
@@ -154,40 +213,28 @@ export function AdminSidebar({
         </div>
 
         <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-          {mainMenuItems.map((item) => (
-            <Link
+          {coreMenuItems.map((item) => (
+            <SidebarLink
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                'flex items-center rounded-lg text-sm font-medium transition-colors',
-                collapsed ? 'justify-center px-3 py-3' : 'gap-3 px-4 py-3',
-                isActive(item.href)
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {!collapsed ? item.label : null}
-            </Link>
+              label={item.label}
+              icon={item.icon}
+              active={isActive(item.href)}
+              collapsed={collapsed}
+            />
           ))}
 
           {collapsed ? (
             <div className="space-y-2 pt-2">
               {cadastroMenuItems.map((item) => (
-                <Link
+                <SidebarLink
                   key={item.href}
                   href={item.href}
-                  title={item.label}
-                  className={cn(
-                    'flex items-center justify-center rounded-lg px-3 py-3 text-sm font-medium transition-colors',
-                    isActive(item.href)
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                </Link>
+                  label={item.label}
+                  icon={item.icon}
+                  active={isActive(item.href)}
+                  collapsed
+                />
               ))}
             </div>
           ) : (
@@ -198,23 +245,36 @@ export function AdminSidebar({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1 px-2 pb-2">
                 {cadastroMenuItems.map((item) => (
-                  <Link
+                  <SidebarLink
                     key={item.href}
                     href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
-                      isActive(item.href)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
-                  </Link>
+                    label={item.label}
+                    icon={item.icon}
+                    active={isActive(item.href)}
+                  />
                 ))}
               </CollapsibleContent>
             </Collapsible>
           )}
+
+          {operationalMenuItems.map((item) => (
+            <SidebarLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              active={isActive(item.href)}
+              collapsed={collapsed}
+            />
+          ))}
+
+          <SidebarLink
+            href={settingsMenuItem.href}
+            label={settingsMenuItem.label}
+            icon={settingsMenuItem.icon}
+            active={isActive(settingsMenuItem.href)}
+            collapsed={collapsed}
+          />
         </nav>
 
         <div className="shrink-0 border-t border-border p-3">

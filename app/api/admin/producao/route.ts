@@ -4,7 +4,7 @@ import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { numeroPedidoCurto } from '@/lib/operation-log'
-import { formatDateInSaoPaulo, getCurrentMonthRangeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
+import { formatDateInSaoPaulo, getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
 import { addAvailableStock, consumeAvailableStock, reserveFromAvailableStock, releaseReservedToAvailableStock, setAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'

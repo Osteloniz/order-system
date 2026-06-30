@@ -115,6 +115,12 @@ export interface Configuracao {
   mensagemStatusAceito: string
   mensagemStatusPreparacao: string
   mensagemStatusEntregue: string
+  padraoNovoPedidoEntrega?: TipoEntrega
+  padraoNovoPedidoPagamento?: TipoPagamento
+  padraoNovoPedidoTipoCartao?: TipoCartao | null
+  padraoNovoPedidoDescontosExpandidos?: boolean
+  padraoNovoPedidoObservacoesExpandidas?: boolean
+  padraoNovoPedidoResponsavelExpandido?: boolean
 }
 
 // Payload para criar pedido

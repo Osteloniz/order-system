@@ -62,7 +62,8 @@ Produtos:
 Configuracoes:
 - GET `/api/admin/config`
 - PUT `/api/admin/config`
-  - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento? }`
+  - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento?, envioAutomaticoWhatsappStatus?, mensagemStatusAceito?, mensagemStatusPreparacao?, mensagemStatusEntregue?, padraoNovoPedidoEntrega?, padraoNovoPedidoPagamento?, padraoNovoPedidoTipoCartao?, padraoNovoPedidoDescontosExpandidos?, padraoNovoPedidoObservacoesExpandidas?, padraoNovoPedidoResponsavelExpandido? }`
+  - Observacao: `padraoNovoPedidoTipoCartao` so deve ser enviado quando `padraoNovoPedidoPagamento = CARTAO`.
 
 Tenant:
 - GET `/api/admin/tenant`

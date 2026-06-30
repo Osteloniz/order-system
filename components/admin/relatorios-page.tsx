@@ -401,24 +401,28 @@ export function RelatoriosPage() {
               Periodo padrao da tela: semana atual, de domingo a sabado.
             </p>
           </div>
-          <div className="grid gap-2 lg:grid-cols-[180px_180px_auto_auto_auto] lg:items-end">
-            <div className="space-y-2">
-              <Label>De</Label>
-              <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} />
+          <div className="w-full max-w-3xl space-y-3 lg:max-w-none lg:flex-1">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>De</Label>
+                <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Ate</Label>
+                <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Ate</Label>
-              <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} />
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <Button type="button" className="w-full whitespace-nowrap" onClick={handleAplicarPeriodo} disabled={!periodoPendente}>
+                <Search className="mr-2 h-4 w-4" /> Buscar periodo
+              </Button>
+              <Button type="button" variant="outline" className="w-full whitespace-nowrap" onClick={periodoPendente ? handleLimparPeriodo : () => mutate()}>
+                <RefreshCw className="mr-2 h-4 w-4" /> {periodoPendente ? 'Limpar periodo' : 'Atualizar'}
+              </Button>
+              <Button type="button" variant="outline" className="w-full whitespace-nowrap" onClick={handleExportProdutos} disabled={!data?.produtos.length}>
+                <Download className="mr-2 h-4 w-4" /> Exportar Excel
+              </Button>
             </div>
-            <Button type="button" onClick={handleAplicarPeriodo} disabled={!periodoPendente}>
-              <Search className="mr-2 h-4 w-4" /> Buscar
-            </Button>
-            <Button type="button" variant="outline" onClick={periodoPendente ? handleLimparPeriodo : () => mutate()}>
-              <RefreshCw className="mr-2 h-4 w-4" /> {periodoPendente ? 'Limpar periodo' : 'Atualizar'}
-            </Button>
-            <Button type="button" variant="outline" onClick={handleExportProdutos} disabled={!data?.produtos.length}>
-              <Download className="mr-2 h-4 w-4" /> Exportar Excel
-            </Button>
           </div>
         </div>
       </div>
@@ -733,11 +737,11 @@ export function RelatoriosPage() {
             </div>
           </div>
 
-          <div className="mb-5 flex flex-wrap gap-2">
-            <Button type="button" onClick={handleAplicarFiltrosPedidos} disabled={!filtrosPedidosPendentes}>
+          <div className="mb-5 grid gap-2 sm:grid-cols-2 lg:max-w-xl">
+            <Button type="button" className="w-full whitespace-nowrap" onClick={handleAplicarFiltrosPedidos} disabled={!filtrosPedidosPendentes}>
               <Search className="mr-2 h-4 w-4" /> Buscar pedidos
             </Button>
-            <Button type="button" variant="outline" onClick={filtrosPedidosPendentes ? handleLimparFiltrosPedidos : () => mutate()}>
+            <Button type="button" variant="outline" className="w-full whitespace-nowrap" onClick={filtrosPedidosPendentes ? handleLimparFiltrosPedidos : () => mutate()}>
               <RefreshCw className="mr-2 h-4 w-4" /> {filtrosPedidosPendentes ? 'Limpar filtros' : 'Atualizar dados'}
             </Button>
           </div>

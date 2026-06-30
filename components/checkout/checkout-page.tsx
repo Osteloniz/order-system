@@ -49,9 +49,6 @@ export function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const freteBase = menuData?.freteBase ?? 500
-  const freteRaioKm = menuData?.freteRaioKm ?? 3
-  const freteKmExcedente = menuData?.freteKmExcedente ?? 100
   const frete = 0 // Sem taxa de entrega agora
   const total = Math.max(0, subtotal + frete - descontoValor)
 

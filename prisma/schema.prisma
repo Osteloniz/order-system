@@ -104,6 +104,12 @@ model Configuracao {
   estabelecimentoLat  Float    @default(0)
   estabelecimentoLng  Float    @default(0)
   envioAutomaticoWhatsappStatus Boolean @default(true)
+  padraoNovoPedidoEntrega TipoEntrega @default(RESERVA_PAULISTANO)
+  padraoNovoPedidoPagamento TipoPagamento @default(DINHEIRO)
+  padraoNovoPedidoTipoCartao TipoCartao?
+  padraoNovoPedidoDescontosExpandidos Boolean @default(false)
+  padraoNovoPedidoObservacoesExpandidas Boolean @default(false)
+  padraoNovoPedidoResponsavelExpandido Boolean @default(false)
   mensagemStatusAceito String?
   mensagemStatusPreparacao String?
   mensagemStatusEntregue String?
