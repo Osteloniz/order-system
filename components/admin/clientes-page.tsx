@@ -68,7 +68,6 @@ export function ClientesPage() {
   )
 
   const totalClientes = clientes?.length ?? 0
-  const totalPedidosCliente = selected?.totalPedidos ?? 0
   const ultimoPedido = selected?.pedidos?.[0] ?? null
   const totalCookiesCliente = selected?.resumoConsumo.totalCookies ?? 0
   const saboresFavoritos = selected?.resumoConsumo.sabores.slice(0, 4) ?? []

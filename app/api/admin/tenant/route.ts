@@ -4,6 +4,28 @@ import { getAdminSession } from '@/lib/auth-helpers'
 
 export const runtime = 'nodejs'
 
+function formatTenantLoadError(error: unknown) {
+  const baseMessage = error instanceof Error ? error.message : 'Erro ao carregar dados da empresa.'
+  const restartHint = /Unknown arg|Unknown field|P2022|P6001|prisma:\/\//i.test(baseMessage)
+    ? ' Reinicie o servidor dev e gere novamente o Prisma Client apos aplicar migrations.'
+    : ''
+
+  return process.env.NODE_ENV !== 'production'
+    ? `${baseMessage}${restartHint}`
+    : 'Erro ao carregar dados da empresa. Se houve troca de banco ou deploy recente, confira a conexao e as migrations.'
+}
+
+function formatTenantSaveError(error: unknown) {
+  const baseMessage = error instanceof Error ? error.message : 'Erro ao atualizar dados da empresa.'
+  const restartHint = /Unknown arg|Unknown field|P2022|P6001|prisma:\/\//i.test(baseMessage)
+    ? ' Reinicie o servidor dev e gere novamente o Prisma Client apos aplicar migrations.'
+    : ''
+
+  return process.env.NODE_ENV !== 'production'
+    ? `${baseMessage}${restartHint}`
+    : 'Erro ao atualizar dados da empresa.'
+}
+
 // GET /api/admin/tenant - dados basicos da empresa
 export async function GET() {
   const admin = await getAdminSession()
@@ -25,7 +47,7 @@ export async function GET() {
   } catch (error) {
     console.error('[admin/tenant][GET] Erro ao carregar tenant:', error)
     return NextResponse.json(
-      { error: 'Erro ao carregar dados da empresa. Se houve troca de banco ou deploy recente, confira a conexao e as migrations.' },
+      { error: formatTenantLoadError(error) },
       { status: 500 }
     )
   }
@@ -51,7 +73,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('[admin/tenant][PUT] Erro ao atualizar tenant:', error)
     return NextResponse.json(
-      { error: 'Erro ao atualizar dados da empresa.' },
+      { error: formatTenantSaveError(error) },
       { status: 500 }
     )
   }

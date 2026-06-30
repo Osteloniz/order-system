@@ -243,6 +243,6 @@ export async function POST(request: NextRequest) {
 }
 
 // Historico por telefone foi desativado para evitar exposicao de dados pessoais.
-export async function GET(request: NextRequest) {
+export async function GET() {
   return NextResponse.json({ error: 'Metodo nao permitido' }, { status: 405 })
 }

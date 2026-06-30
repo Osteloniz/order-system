@@ -68,6 +68,12 @@ type ConfiguracaoWithNullableMessages = {
   estabelecimentoLat?: number
   estabelecimentoLng?: number
   envioAutomaticoWhatsappStatus?: boolean | null
+  padraoNovoPedidoEntrega?: Configuracao['padraoNovoPedidoEntrega']
+  padraoNovoPedidoPagamento?: Configuracao['padraoNovoPedidoPagamento']
+  padraoNovoPedidoTipoCartao?: Configuracao['padraoNovoPedidoTipoCartao']
+  padraoNovoPedidoDescontosExpandidos?: Configuracao['padraoNovoPedidoDescontosExpandidos']
+  padraoNovoPedidoObservacoesExpandidas?: Configuracao['padraoNovoPedidoObservacoesExpandidas']
+  padraoNovoPedidoResponsavelExpandido?: Configuracao['padraoNovoPedidoResponsavelExpandido']
   mensagemStatusAceito?: string | null
   mensagemStatusPreparacao?: string | null
   mensagemStatusEntregue?: string | null
@@ -83,6 +89,12 @@ export function hydrateConfigWithMessageDefaults(config: ConfiguracaoWithNullabl
     estabelecimentoLat: config?.estabelecimentoLat ?? 0,
     estabelecimentoLng: config?.estabelecimentoLng ?? 0,
     envioAutomaticoWhatsappStatus: config?.envioAutomaticoWhatsappStatus ?? true,
+    padraoNovoPedidoEntrega: config?.padraoNovoPedidoEntrega ?? 'RESERVA_PAULISTANO',
+    padraoNovoPedidoPagamento: config?.padraoNovoPedidoPagamento ?? 'DINHEIRO',
+    padraoNovoPedidoTipoCartao: config?.padraoNovoPedidoTipoCartao ?? null,
+    padraoNovoPedidoDescontosExpandidos: config?.padraoNovoPedidoDescontosExpandidos ?? false,
+    padraoNovoPedidoObservacoesExpandidas: config?.padraoNovoPedidoObservacoesExpandidas ?? false,
+    padraoNovoPedidoResponsavelExpandido: config?.padraoNovoPedidoResponsavelExpandido ?? false,
     mensagemStatusAceito: sanitizeTemplate(config?.mensagemStatusAceito, defaultStatusMessageTemplates.ACEITO),
     mensagemStatusPreparacao: sanitizeTemplate(config?.mensagemStatusPreparacao, defaultStatusMessageTemplates.PREPARACAO),
     mensagemStatusEntregue: sanitizeTemplate(config?.mensagemStatusEntregue, defaultStatusMessageTemplates.ENTREGUE),

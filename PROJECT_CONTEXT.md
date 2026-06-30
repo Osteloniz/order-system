@@ -26,6 +26,7 @@
 - `lib/`: business logic helpers.
 - `prisma/schema.prisma`: source of truth for domain entities.
 - `docs/API.md`: route inventory.
+- `docs/admin-mobile-order-flow-handoff.md`: current admin mobile UX decisions, validation workflow, cleanup notes, and next-chat handoff.
 - `SECURITY_AUTH.md`: auth and invite rules.
 
 ## Domain Notes
@@ -58,7 +59,7 @@
 ## Fast Prompt For Future Chats
 Use something like:
 
-`Leia AGENTS.md e PROJECT_CONTEXT.md. Estamos corrigindo um bug em producao: <descreva o sintoma>.`
+`Leia AGENTS.md, PROJECT_CONTEXT.md e docs/admin-mobile-order-flow-handoff.md. Estamos corrigindo um bug em producao: <descreva o sintoma>.`
 
 That is usually enough to rehydrate context quickly.
 

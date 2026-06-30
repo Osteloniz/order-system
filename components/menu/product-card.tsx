@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { Plus, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/button'

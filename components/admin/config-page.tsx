@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState, useEffect, useRef } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, Copy, Link2, MessageCircle, RotateCcw, Save, Loader2, Settings, Shield, Sparkles, Store, Volume2 } from 'lucide-react'
+import { Bell, Copy, CreditCard, Link2, MapPin, MessageCircle, PackageCheck, QrCode, RotateCcw, Save, Loader2, Settings, Shield, Sparkles, Store, Volume2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertSoundEnabled, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
-import type { Configuracao } from '@/lib/types'
+import type { Configuracao, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 import { getDefaultStatusTemplate, hydrateConfigWithMessageDefaults, statusMessageTemplateFields, supportedStatusTemplateVariables } from '@/lib/message-templates'
 
 async function fetcher<T>(url: string): Promise<T> {
@@ -53,6 +53,12 @@ export function ConfigPage() {
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState('')
   const [enderecoRetirada, setEnderecoRetirada] = useState('')
   const [envioAutomaticoWhatsappStatus, setEnvioAutomaticoWhatsappStatus] = useState(true)
+  const [padraoNovoPedidoEntrega, setPadraoNovoPedidoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
+  const [padraoNovoPedidoPagamento, setPadraoNovoPedidoPagamento] = useState<TipoPagamento>('DINHEIRO')
+  const [padraoNovoPedidoTipoCartao, setPadraoNovoPedidoTipoCartao] = useState<TipoCartao>('CREDITO')
+  const [padraoNovoPedidoDescontosExpandidos, setPadraoNovoPedidoDescontosExpandidos] = useState(false)
+  const [padraoNovoPedidoObservacoesExpandidas, setPadraoNovoPedidoObservacoesExpandidas] = useState(false)
+  const [padraoNovoPedidoResponsavelExpandido, setPadraoNovoPedidoResponsavelExpandido] = useState(false)
   const [mensagemStatusAceito, setMensagemStatusAceito] = useState('')
   const [mensagemStatusPreparacao, setMensagemStatusPreparacao] = useState('')
   const [mensagemStatusEntregue, setMensagemStatusEntregue] = useState('')
@@ -105,6 +111,12 @@ export function ConfigPage() {
       setNomeEstabelecimento(config.nomeEstabelecimento)
       setEnderecoRetirada(config.enderecoRetirada)
       setEnvioAutomaticoWhatsappStatus(config.envioAutomaticoWhatsappStatus)
+      setPadraoNovoPedidoEntrega(config.padraoNovoPedidoEntrega ?? 'RESERVA_PAULISTANO')
+      setPadraoNovoPedidoPagamento(config.padraoNovoPedidoPagamento ?? 'DINHEIRO')
+      setPadraoNovoPedidoTipoCartao(config.padraoNovoPedidoTipoCartao ?? 'CREDITO')
+      setPadraoNovoPedidoDescontosExpandidos(config.padraoNovoPedidoDescontosExpandidos ?? false)
+      setPadraoNovoPedidoObservacoesExpandidas(config.padraoNovoPedidoObservacoesExpandidas ?? false)
+      setPadraoNovoPedidoResponsavelExpandido(config.padraoNovoPedidoResponsavelExpandido ?? false)
       setMensagemStatusAceito(config.mensagemStatusAceito)
       setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
       setMensagemStatusEntregue(config.mensagemStatusEntregue)
@@ -164,6 +176,12 @@ export function ConfigPage() {
       nomeEstabelecimento,
       enderecoRetirada,
       envioAutomaticoWhatsappStatus,
+      padraoNovoPedidoEntrega,
+      padraoNovoPedidoPagamento,
+      padraoNovoPedidoTipoCartao: padraoNovoPedidoPagamento === 'CARTAO' ? padraoNovoPedidoTipoCartao : null,
+      padraoNovoPedidoDescontosExpandidos,
+      padraoNovoPedidoObservacoesExpandidas,
+      padraoNovoPedidoResponsavelExpandido,
       mensagemStatusAceito: mensagemStatusAceito.trim(),
       mensagemStatusPreparacao: mensagemStatusPreparacao.trim(),
       mensagemStatusEntregue: mensagemStatusEntregue.trim()
@@ -175,24 +193,41 @@ export function ConfigPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
+      const updatedConfig = await readResponseBody(configResponse)
+
       const tenantResponse = await fetch('/api/admin/tenant', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isOpen })
       })
-
-      const updatedConfig = await readResponseBody(configResponse)
-      if (!configResponse.ok) {
-        throw new Error(typeof updatedConfig === 'object' && updatedConfig && 'error' in updatedConfig ? String(updatedConfig.error) : 'Erro ao salvar configuracoes')
-      }
-
       const updatedTenant = await readResponseBody(tenantResponse)
-      if (!tenantResponse.ok) {
-        throw new Error(typeof updatedTenant === 'object' && updatedTenant && 'error' in updatedTenant ? String(updatedTenant.error) : 'Erro ao atualizar status da loja')
+
+      const errors: string[] = []
+
+      if (configResponse.ok) {
+        mutate('/api/admin/config', updatedConfig, false)
+      } else {
+        errors.push(
+          typeof updatedConfig === 'object' && updatedConfig && 'error' in updatedConfig
+            ? `Configuracoes: ${String(updatedConfig.error)}`
+            : 'Configuracoes: erro ao salvar configuracoes'
+        )
       }
 
-      mutate('/api/admin/config', updatedConfig, false)
-      mutate('/api/admin/tenant', updatedTenant, false)
+      if (tenantResponse.ok) {
+        mutate('/api/admin/tenant', updatedTenant, false)
+      } else {
+        errors.push(
+          typeof updatedTenant === 'object' && updatedTenant && 'error' in updatedTenant
+            ? `Loja: ${String(updatedTenant.error)}`
+            : 'Loja: erro ao atualizar status da loja'
+        )
+      }
+
+      if (errors.length > 0) {
+        throw new Error(errors.join(' | '))
+      }
+
       setIsDirty(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -326,6 +361,160 @@ export function ConfigPage() {
                     </Badge>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-background/65 p-4">
+              <div className="mb-4">
+                <Label className="text-base">Padrao para novos pedidos manuais</Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Define entrega, pagamento e cards expandidos por padrao ao abrir a tela de novo pedido no admin.
+                </p>
+              </div>
+              <div className="mb-5">
+                <p className="text-sm font-medium">Entrega inicial</p>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPadraoNovoPedidoEntrega('RESERVA_PAULISTANO')
+                      setIsDirty(true)
+                    }}
+                    className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoEntrega === 'RESERVA_PAULISTANO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      Condominio
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Ja abre com bloco e apartamento no foco da operacao.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPadraoNovoPedidoEntrega('RETIRADA')
+                      setIsDirty(true)
+                    }}
+                    className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoEntrega === 'RETIRADA' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Store className="h-4 w-4 text-primary" />
+                      Retirada
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Ideal quando o fechamento costuma ser no balcao.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPadraoNovoPedidoEntrega('ENCOMENDA')
+                      setIsDirty(true)
+                    }}
+                    className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoEntrega === 'ENCOMENDA' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <PackageCheck className="h-4 w-4 text-primary" />
+                      Encomenda
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Ja deixa o fluxo pronto para data e hora agendadas.</p>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Pagamento inicial</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoPagamento('DINHEIRO')
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoPagamento === 'DINHEIRO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    Dinheiro
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Nao exige confirmacao extra.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoPagamento('PIX')
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoPagamento === 'PIX' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <div className="flex items-center gap-2 font-semibold">
+                    <QrCode className="h-4 w-4 text-primary" />
+                    PIX
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Ja abre com pagamento pendente.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoPagamento('CARTAO')
+                    setPadraoNovoPedidoTipoCartao('CREDITO')
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoPagamento === 'CARTAO' && padraoNovoPedidoTipoCartao === 'CREDITO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <div className="flex items-center gap-2 font-semibold">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    Cartao credito
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Taxa prevista de 3,09%.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoPagamento('CARTAO')
+                    setPadraoNovoPedidoTipoCartao('DEBITO')
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoPagamento === 'CARTAO' && padraoNovoPedidoTipoCartao === 'DEBITO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <div className="flex items-center gap-2 font-semibold">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    Cartao debito
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Taxa prevista de 0,89%.</p>
+                </button>
+              </div>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoDescontosExpandidos((current) => !current)
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoDescontosExpandidos ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <p className="font-semibold">Descontos</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Padrao: {padraoNovoPedidoDescontosExpandidos ? 'expandido' : 'recolhido'}.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoObservacoesExpandidas((current) => !current)
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoObservacoesExpandidas ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <p className="font-semibold">Observacoes</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Padrao: {padraoNovoPedidoObservacoesExpandidas ? 'expandido' : 'recolhido'}.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPadraoNovoPedidoResponsavelExpandido((current) => !current)
+                    setIsDirty(true)
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoResponsavelExpandido ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                >
+                  <p className="font-semibold">Responsavel e etiquetas</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Padrao: {padraoNovoPedidoResponsavelExpandido ? 'expandido' : 'recolhido'}.</p>
+                </button>
               </div>
             </div>
 
