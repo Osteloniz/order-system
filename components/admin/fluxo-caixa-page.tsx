@@ -3,7 +3,17 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { ArrowDownCircle, ArrowUpCircle, CalendarRange, Filter, Landmark, RefreshCw, Search, Wallet } from 'lucide-react'
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  CalendarRange,
+  Filter,
+  Landmark,
+  RefreshCw,
+  Search,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
@@ -132,13 +142,27 @@ export function FluxoCaixaPage() {
     setTo(range.to)
   }
 
+  const resetarOuAtualizar = () => {
+    if (periodoPendente) {
+      setFromInput(currentWeek.from)
+      setToInput(currentWeek.to)
+      setViewInput('AMBOS')
+      setFrom(currentWeek.from)
+      setTo(currentWeek.to)
+      setView('AMBOS')
+      return
+    }
+
+    void mutate()
+  }
+
   const cardsResumo = [
     {
       key: 'previsto',
       visible: view !== 'REALIZADO',
       title: 'Entradas previstas',
       value: formatarMoeda(data?.resumo.entradasPrevistas ?? 0),
-      detail: `Taxas: ${formatarMoeda(data?.resumo.taxasPrevistas ?? 0)}`,
+      detail: `Taxas previstas: ${formatarMoeda(data?.resumo.taxasPrevistas ?? 0)}`,
       icon: ArrowUpCircle,
       tone: 'text-primary',
     },
@@ -147,7 +171,7 @@ export function FluxoCaixaPage() {
       visible: view !== 'PREVISTO',
       title: 'Entradas realizadas',
       value: formatarMoeda(data?.resumo.entradasRealizadas ?? 0),
-      detail: `Taxas: ${formatarMoeda(data?.resumo.taxasRealizadas ?? 0)}`,
+      detail: `Taxas realizadas: ${formatarMoeda(data?.resumo.taxasRealizadas ?? 0)}`,
       icon: Wallet,
       tone: 'text-success',
     },
@@ -156,7 +180,7 @@ export function FluxoCaixaPage() {
       visible: view === 'AMBOS' || view === 'PREVISTO',
       title: view === 'REALIZADO' ? 'Saidas realizadas' : 'Saidas previstas',
       value: formatarMoeda(view === 'REALIZADO' ? data?.resumo.saidasRealizadas ?? 0 : data?.resumo.saidasPrevistas ?? 0),
-      detail: view === 'REALIZADO' ? 'Pagamentos ja baixados' : 'Contas ainda abertas',
+      detail: view === 'REALIZADO' ? 'Pagamentos ja liquidados' : 'Compromissos ainda em aberto',
       icon: ArrowDownCircle,
       tone: 'text-destructive',
     },
@@ -165,10 +189,11 @@ export function FluxoCaixaPage() {
       visible: true,
       title: view === 'PREVISTO' ? 'Saldo previsto' : 'Saldo realizado',
       value: formatarMoeda(view === 'PREVISTO' ? data?.resumo.saldoPrevisto ?? 0 : data?.resumo.saldoRealizado ?? 0),
-      detail: view === 'AMBOS'
-        ? `Saldo previsto: ${formatarMoeda(data?.resumo.saldoPrevisto ?? 0)}`
-        : 'Leitura consolidada do periodo',
-      icon: Landmark,
+      detail:
+        view === 'AMBOS'
+          ? `Saldo previsto: ${formatarMoeda(data?.resumo.saldoPrevisto ?? 0)}`
+          : 'Leitura consolidada do periodo',
+      icon: TrendingUp,
       tone: 'text-primary',
     },
   ].filter((card) => card.visible)
@@ -176,115 +201,127 @@ export function FluxoCaixaPage() {
   const totalDias = getDiffInDays(fromInput, toInput)
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-primary/15 bg-card/95">
-        <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-sm shadow-primary/20">
-                <Landmark className="h-6 w-6" />
-              </span>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Fluxo de caixa</h1>
-                <p className="text-sm text-muted-foreground">Analise detalhada do caixa projetado e realizado sem perder o contexto dos pedidos e das saidas.</p>
-              </div>
+    <div className="space-y-6 overflow-x-hidden">
+      <section className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/16 p-5 shadow-sm md:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <Landmark className="h-3.5 w-3.5" />
+              Caixa previsto e realizado
+            </div>
+            <h1 className="mt-3 flex items-center gap-2 text-2xl font-bold md:text-3xl">
+              <Landmark className="h-7 w-7 text-primary" />
+              Fluxo de caixa
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground md:text-base">
+              Analise entradas, saidas e saldo com uma visao mais confortavel no mobile, sem perder a leitura diaria.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+            <div className="rounded-2xl border bg-background/82 p-4">
+              <p className="text-xs text-muted-foreground">Periodo ativo</p>
+              <p className="mt-1 text-sm font-semibold">
+                {formatDateInSaoPaulo(from)} ate {formatDateInSaoPaulo(to)}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-background/82 p-4">
+              <p className="text-xs text-muted-foreground">Visualizacao</p>
+              <p className="mt-1 text-2xl font-bold">{view === 'AMBOS' ? '2' : '1'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{view === 'AMBOS' ? 'Previsto e realizado' : 'Uma camada ativa'}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/82 p-4 sm:col-span-2 xl:col-span-1">
+              <p className="text-xs text-muted-foreground">Janela analisada</p>
+              <p className="mt-1 text-2xl font-bold">{totalDias}</p>
+              <p className="mt-1 text-xs text-muted-foreground">dia(s) no intervalo</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-muted-foreground">
-            Periodo padrao: semana atual, de domingo a sabado.
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <Card className="border-border/70 bg-card/95">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/15 text-success">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary">
               <Filter className="h-5 w-5" />
             </span>
             Configuracoes e filtros
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-success/15 text-success">
-                <CalendarRange className="h-5 w-5" />
-              </span>
-              <div>
-                <h3 className="font-semibold">Periodo de analise</h3>
-                <p className="text-sm text-muted-foreground">Selecione a visualizacao, use um atalho rapido e ajuste o intervalo quando precisar.</p>
-              </div>
+          <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <Label>Visualizacao</Label>
+              <Select value={viewInput} onValueChange={(value) => setViewInput(value as VisualizacaoFluxo)}>
+                <SelectTrigger className="h-11 rounded-2xl bg-background/80">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PREVISTO">Previsto</SelectItem>
+                  <SelectItem value="REALIZADO">Realizado</SelectItem>
+                  <SelectItem value="AMBOS">Ambos</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[240px_1fr]">
+            <div className="space-y-3">
               <div className="space-y-2">
-                <Label>Visualizacao</Label>
-                <Select value={viewInput} onValueChange={(value) => setViewInput(value as VisualizacaoFluxo)}>
-                  <SelectTrigger className="w-full bg-background/80">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PREVISTO">Previsto</SelectItem>
-                    <SelectItem value="REALIZADO">Realizado</SelectItem>
-                    <SelectItem value="AMBOS">Ambos</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Periodos rapidos</Label>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('SEMANA')}>
+                    Esta semana
+                  </Button>
+                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('MES')}>
+                    Este mes
+                  </Button>
+                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('TRIMESTRE')}>
+                    Trimestre
+                  </Button>
+                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('SEMESTRE')}>
+                    Semestre
+                  </Button>
+                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('ANO')}>
+                    Este ano
+                  </Button>
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Periodos rapidos</Label>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                    <Button type="button" variant="outline" onClick={() => aplicarPeriodoRapido('SEMANA')}>Esta semana</Button>
-                    <Button type="button" variant="outline" onClick={() => aplicarPeriodoRapido('MES')}>Este mes</Button>
-                    <Button type="button" variant="outline" onClick={() => aplicarPeriodoRapido('TRIMESTRE')}>Trimestre</Button>
-                    <Button type="button" variant="outline" onClick={() => aplicarPeriodoRapido('SEMESTRE')}>Semestre</Button>
-                    <Button type="button" variant="outline" onClick={() => aplicarPeriodoRapido('ANO')}>Este ano</Button>
-                  </div>
+                  <Label>Data inicio</Label>
+                  <Input
+                    type="date"
+                    value={fromInput}
+                    onChange={(event) => setFromInput(event.target.value)}
+                    className="h-11 rounded-2xl"
+                  />
                 </div>
+                <div className="space-y-2">
+                  <Label>Data fim</Label>
+                  <Input
+                    type="date"
+                    value={toInput}
+                    onChange={(event) => setToInput(event.target.value)}
+                    className="h-11 rounded-2xl"
+                  />
+                </div>
+              </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Data inicio</Label>
-                    <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Data fim</Label>
-                    <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} />
-                  </div>
-                </div>
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/15 bg-primary/8 px-4 py-3 text-sm text-muted-foreground">
+                <CalendarRange className="h-4 w-4 text-primary" />
+                Periodo selecionado: {formatDateInSaoPaulo(fromInput)} ate {formatDateInSaoPaulo(toInput)}
+                <span className="ml-auto text-xs">({totalDias} dia(s))</span>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/15 bg-primary/8 px-4 py-3 text-sm text-muted-foreground">
-                  <span className="h-2.5 w-2.5 rounded-full bg-success" />
-                  Periodo selecionado: {formatDateInSaoPaulo(fromInput)} ate {formatDateInSaoPaulo(toInput)}
-                  <span className="ml-auto text-xs">({totalDias} dia(s))</span>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={aplicarPeriodo} disabled={!periodoPendente}>
-                    <Search className="mr-2 h-4 w-4" />
-                    Buscar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={
-                      periodoPendente
-                        ? () => {
-                            setFromInput(currentWeek.from)
-                            setToInput(currentWeek.to)
-                            setViewInput('AMBOS')
-                            setFrom(currentWeek.from)
-                            setTo(currentWeek.to)
-                            setView('AMBOS')
-                          }
-                        : () => mutate()
-                    }
-                  >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {periodoPendente ? 'Limpar filtros' : 'Atualizar'}
-                  </Button>
-                </div>
+              <div className="flex flex-wrap gap-2">
+                <Button className="h-11 rounded-2xl" onClick={aplicarPeriodo} disabled={!periodoPendente}>
+                  <Search className="mr-2 h-4 w-4" />
+                  Buscar
+                </Button>
+                <Button className="h-11 rounded-2xl" variant="outline" onClick={resetarOuAtualizar}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {periodoPendente ? 'Limpar filtros' : 'Atualizar'}
+                </Button>
               </div>
             </div>
           </div>
@@ -317,7 +354,9 @@ export function FluxoCaixaPage() {
       )}
 
       <Card className="border-border/70 bg-card/95">
-        <CardHeader><CardTitle>Evolucao do caixa</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Evolucao do caixa</CardTitle>
+        </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-[280px] w-full" />
@@ -325,8 +364,8 @@ export function FluxoCaixaPage() {
             <ChartContainer
               className="h-[280px] w-full"
               config={{
-                saldoPrevisto: { label: 'Saldo previsto', color: '#5B7CFF' },
-                saldoRealizado: { label: 'Saldo realizado', color: '#22C7B7' },
+                saldoPrevisto: { label: 'Saldo previsto', color: '#DDA15E' },
+                saldoRealizado: { label: 'Saldo realizado', color: '#7F5539' },
               }}
             >
               <AreaChart data={data?.dias ?? []} margin={{ left: 12, right: 12, top: 12, bottom: 8 }}>
@@ -335,10 +374,10 @@ export function FluxoCaixaPage() {
                 <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatarMoeda(Number(value)).replace('R$', 'R$ ')} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatarMoeda(Number(value))} />} />
                 {view !== 'REALIZADO' ? (
-                  <Area type="monotone" dataKey="saldoPrevisto" stroke="#5B7CFF" fill="#5B7CFF" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="saldoPrevisto" stroke="#DDA15E" fill="#DDA15E" fillOpacity={0.18} />
                 ) : null}
                 {view !== 'PREVISTO' ? (
-                  <Area type="monotone" dataKey="saldoRealizado" stroke="#22C7B7" fill="#22C7B7" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="saldoRealizado" stroke="#7F5539" fill="#7F5539" fillOpacity={0.18} />
                 ) : null}
               </AreaChart>
             </ChartContainer>
@@ -347,58 +386,130 @@ export function FluxoCaixaPage() {
       </Card>
 
       <Card className="border-border/70 bg-card/95">
-        <CardHeader><CardTitle>Movimento por dia</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Movimento por dia</CardTitle>
+        </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-3"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
-          ) : data?.dias.length ? (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className={`w-full text-sm ${view === 'AMBOS' ? 'min-w-[1100px]' : 'min-w-[760px]'}`}>
-                <thead className="bg-muted/35 text-left text-muted-foreground">
-                  <tr>
-                    <th className="py-3 pl-4 pr-4 font-medium">Data</th>
-                    {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Entradas previstas</th> : null}
-                    {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Entradas realizadas</th> : null}
-                    {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Saidas previstas</th> : null}
-                    {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Saidas realizadas</th> : null}
-                    {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Taxas previstas</th> : null}
-                    {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Taxas realizadas</th> : null}
-                    {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Saldo previsto</th> : null}
-                    {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Saldo realizado</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.dias.map((dia) => (
-                    <tr key={dia.data} className="border-t odd:bg-background even:bg-muted/15">
-                      <td className="py-3 pl-4 pr-4 font-medium">{formatDateInSaoPaulo(dia.data)}</td>
-                      {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(dia.entradasPrevistas)}</td> : null}
-                      {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(dia.entradasRealizadas)}</td> : null}
-                      {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(dia.saidasPrevistas)}</td> : null}
-                      {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(dia.saidasRealizadas)}</td> : null}
-                      {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(dia.taxasPrevistas)}</td> : null}
-                      {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(dia.taxasRealizadas)}</td> : null}
-                      {view !== 'REALIZADO' ? <td className="py-3 pr-4 font-semibold text-primary">{formatarMoeda(dia.saldoPrevisto)}</td> : null}
-                      {view !== 'PREVISTO' ? <td className="py-3 pr-4 font-semibold text-success">{formatarMoeda(dia.saldoRealizado)}</td> : null}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 bg-muted/35 font-semibold">
-                    <td className="py-3 pl-4 pr-4">Saldo final</td>
-                    {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.entradasPrevistas)}</td> : null}
-                    {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.entradasRealizadas)}</td> : null}
-                    {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.saidasPrevistas)}</td> : null}
-                    {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.saidasRealizadas)}</td> : null}
-                    {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.taxasPrevistas)}</td> : null}
-                    {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.taxasRealizadas)}</td> : null}
-                    {view !== 'REALIZADO' ? <td className="py-3 pr-4 text-primary">{formatarMoeda(data.resumo.saldoPrevisto)}</td> : null}
-                    {view !== 'PREVISTO' ? <td className="py-3 pr-4 text-success">{formatarMoeda(data.resumo.saldoRealizado)}</td> : null}
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
             </div>
+          ) : data?.dias.length ? (
+            <>
+              <div className="grid gap-3 lg:hidden">
+                {data.dias.map((dia) => (
+                  <div key={dia.data} className="rounded-[22px] border border-border/70 bg-background/80 p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold">{formatDateInSaoPaulo(dia.data)}</p>
+                      <span className="rounded-full border border-border/70 bg-card px-3 py-1 text-xs text-muted-foreground">
+                        {view === 'AMBOS' ? 'Previsto + realizado' : view === 'PREVISTO' ? 'Previsto' : 'Realizado'}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {view !== 'REALIZADO' ? (
+                        <div className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+                          <p className="text-xs text-muted-foreground">Previsto</p>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <p className="flex items-center justify-between gap-3">
+                              <span>Entradas</span>
+                              <span className="font-medium">{formatarMoeda(dia.entradasPrevistas)}</span>
+                            </p>
+                            <p className="flex items-center justify-between gap-3">
+                              <span>Saidas</span>
+                              <span>{formatarMoeda(dia.saidasPrevistas)}</span>
+                            </p>
+                            <p className="flex items-center justify-between gap-3">
+                              <span>Taxas</span>
+                              <span>{formatarMoeda(dia.taxasPrevistas)}</span>
+                            </p>
+                            <p className="flex items-center justify-between gap-3 font-semibold text-primary">
+                              <span>Saldo</span>
+                              <span>{formatarMoeda(dia.saldoPrevisto)}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {view !== 'PREVISTO' ? (
+                        <div className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+                          <p className="text-xs text-muted-foreground">Realizado</p>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <p className="flex items-center justify-between gap-3">
+                              <span>Entradas</span>
+                              <span className="font-medium">{formatarMoeda(dia.entradasRealizadas)}</span>
+                            </p>
+                            <p className="flex items-center justify-between gap-3">
+                              <span>Saidas</span>
+                              <span>{formatarMoeda(dia.saidasRealizadas)}</span>
+                            </p>
+                            <p className="flex items-center justify-between gap-3">
+                              <span>Taxas</span>
+                              <span>{formatarMoeda(dia.taxasRealizadas)}</span>
+                            </p>
+                            <p className="flex items-center justify-between gap-3 font-semibold text-secondary-foreground">
+                              <span>Saldo</span>
+                              <span>{formatarMoeda(dia.saldoRealizado)}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-xl border lg:block">
+                <table className={`w-full text-sm ${view === 'AMBOS' ? 'min-w-[1100px]' : 'min-w-[760px]'}`}>
+                  <thead className="bg-muted/35 text-left text-muted-foreground">
+                    <tr>
+                      <th className="py-3 pl-4 pr-4 font-medium">Data</th>
+                      {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Entradas previstas</th> : null}
+                      {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Entradas realizadas</th> : null}
+                      {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Saidas previstas</th> : null}
+                      {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Saidas realizadas</th> : null}
+                      {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Taxas previstas</th> : null}
+                      {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Taxas realizadas</th> : null}
+                      {view !== 'REALIZADO' ? <th className="py-3 pr-4 font-medium">Saldo previsto</th> : null}
+                      {view !== 'PREVISTO' ? <th className="py-3 pr-4 font-medium">Saldo realizado</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.dias.map((dia) => (
+                      <tr key={dia.data} className="border-t odd:bg-background even:bg-muted/15">
+                        <td className="py-3 pl-4 pr-4 font-medium">{formatDateInSaoPaulo(dia.data)}</td>
+                        {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(dia.entradasPrevistas)}</td> : null}
+                        {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(dia.entradasRealizadas)}</td> : null}
+                        {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(dia.saidasPrevistas)}</td> : null}
+                        {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(dia.saidasRealizadas)}</td> : null}
+                        {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(dia.taxasPrevistas)}</td> : null}
+                        {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(dia.taxasRealizadas)}</td> : null}
+                        {view !== 'REALIZADO' ? <td className="py-3 pr-4 font-semibold text-primary">{formatarMoeda(dia.saldoPrevisto)}</td> : null}
+                        {view !== 'PREVISTO' ? <td className="py-3 pr-4 font-semibold text-secondary-foreground">{formatarMoeda(dia.saldoRealizado)}</td> : null}
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-muted/35 font-semibold">
+                      <td className="py-3 pl-4 pr-4">Saldo final</td>
+                      {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.entradasPrevistas)}</td> : null}
+                      {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.entradasRealizadas)}</td> : null}
+                      {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.saidasPrevistas)}</td> : null}
+                      {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.saidasRealizadas)}</td> : null}
+                      {view !== 'REALIZADO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.taxasPrevistas)}</td> : null}
+                      {view !== 'PREVISTO' ? <td className="py-3 pr-4">{formatarMoeda(data.resumo.taxasRealizadas)}</td> : null}
+                      {view !== 'REALIZADO' ? <td className="py-3 pr-4 text-primary">{formatarMoeda(data.resumo.saldoPrevisto)}</td> : null}
+                      {view !== 'PREVISTO' ? <td className="py-3 pr-4 text-secondary-foreground">{formatarMoeda(data.resumo.saldoRealizado)}</td> : null}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
           ) : (
-            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum movimento financeiro encontrado para o periodo.</div>
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              Nenhum movimento financeiro encontrado para o periodo.
+            </div>
           )}
         </CardContent>
       </Card>

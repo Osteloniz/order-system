@@ -315,16 +315,20 @@ export function ContasPagarPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-primary/15 bg-card/95">
-        <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-6 overflow-x-hidden">
+      <section className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/16 p-5 shadow-sm md:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-sm shadow-primary/20">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <CalendarClock className="h-3.5 w-3.5" />
+              Saidas e vencimentos
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-background/82 text-primary shadow-sm shadow-primary/10">
                 <CalendarClock className="h-6 w-6" />
               </span>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">Contas a pagar</h1>
+                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Contas a pagar</h1>
                 <p className="text-sm text-muted-foreground">
                   Centralize custos, vencimentos e status de pagamento com uma leitura mais clara do caixa que vai sair.
                 </p>
@@ -332,11 +336,11 @@ export function ContasPagarPage() {
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button onClick={iniciarNovaConta}><Plus className="mr-2 h-4 w-4" />Nova conta</Button>
-            <Button variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
+            <Button className="h-11 rounded-2xl" onClick={iniciarNovaConta}><Plus className="mr-2 h-4 w-4" />Nova conta</Button>
+            <Button className="h-11 rounded-2xl" variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
 
@@ -378,16 +382,16 @@ export function ContasPagarPage() {
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[160px_160px_190px_minmax(320px,1fr)_auto_auto]">
               <div className="space-y-2">
                 <Label>De</Label>
-                <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} />
+                <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} className="h-11 rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label>Ate</Label>
-                <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} />
+                <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} className="h-11 rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={statusInput} onValueChange={(value) => setStatusInput(value as 'TODOS' | StatusContaPagar)}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-11 w-full rounded-2xl">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
@@ -402,15 +406,15 @@ export function ContasPagarPage() {
                 <Label>Buscar</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Descricao, categoria ou fornecedor" />
+                  <Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-11 rounded-2xl pl-9" placeholder="Descricao, categoria ou fornecedor" />
                 </div>
               </div>
-              <Button className="xl:self-end" onClick={aplicarFiltros} disabled={!periodoPendente}>
+              <Button className="h-11 rounded-2xl xl:self-end" onClick={aplicarFiltros} disabled={!periodoPendente}>
                 <Search className="mr-2 h-4 w-4" />
                 Buscar
               </Button>
               <Button
-                className="xl:self-end"
+                className="h-11 rounded-2xl xl:self-end"
                 variant="outline"
                 onClick={periodoPendente ? () => { setFromInput(defaultRange.from); setToInput(defaultRange.to); setStatusInput('TODOS'); setFrom(defaultRange.from); setTo(defaultRange.to); setStatus('TODOS') } : () => mutate()}
               >
@@ -501,7 +505,7 @@ export function ContasPagarPage() {
                   const dueState = getDueState(conta.vencimento, conta.status, today)
 
                   return (
-                    <div key={conta.id} className={`rounded-2xl border p-4 shadow-sm ${selected?.id === conta.id ? 'border-primary bg-primary/5' : 'bg-card'}`}>
+                    <div key={conta.id} className={`rounded-[22px] border border-border/70 p-4 shadow-sm ${selected?.id === conta.id ? 'border-primary bg-primary/5' : 'bg-background/80'}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
                           <p className="font-semibold">{conta.descricao}</p>
@@ -517,15 +521,15 @@ export function ContasPagarPage() {
                       </div>
 
                       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-xl bg-muted/25 p-3">
+                        <div className="rounded-2xl bg-muted/25 p-3">
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">Valor</p>
                           <p className="mt-1 text-lg font-semibold">{formatarMoeda(conta.valor)}</p>
                         </div>
-                        <div className="rounded-xl bg-muted/25 p-3">
+                        <div className="rounded-2xl bg-muted/25 p-3">
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">Vencimento</p>
                           <p className="mt-1 text-sm font-medium">{formatDateInSaoPaulo(conta.vencimento)}</p>
                         </div>
-                        <div className="rounded-xl bg-muted/25 p-3">
+                        <div className="rounded-2xl bg-muted/25 p-3">
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">Situacao</p>
                           <p className={`mt-1 text-sm font-medium ${dueState.tone}`}>{dueState.label}</p>
                         </div>
@@ -534,8 +538,8 @@ export function ContasPagarPage() {
                       {conta.observacoes ? <p className="mt-3 text-sm text-muted-foreground">{conta.observacoes}</p> : null}
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => abrirEdicao(conta)}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
-                        <Button size="sm" variant="destructive" onClick={() => excluirConta(conta.id)}><Trash2 className="mr-2 h-4 w-4" />Excluir</Button>
+                        <Button size="sm" className="rounded-2xl" variant="outline" onClick={() => abrirEdicao(conta)}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
+                        <Button size="sm" className="rounded-2xl" variant="destructive" onClick={() => excluirConta(conta.id)}><Trash2 className="mr-2 h-4 w-4" />Excluir</Button>
                       </div>
                     </div>
                   )
@@ -568,14 +572,14 @@ export function ContasPagarPage() {
           <div className="space-y-5">
             <div className="space-y-2">
               <Label>Descricao</Label>
-              <Input value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} placeholder="Ex: Embalagens, fornecedor, motoboy..." />
+              <Input value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} placeholder="Ex: Embalagens, fornecedor, motoboy..." className="h-11 rounded-2xl" />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Categoria financeira</Label>
                 <Select value={form.categoriaFinanceiraId || '__NONE__'} onValueChange={(value) => setForm((current) => ({ ...current, categoriaFinanceiraId: value === '__NONE__' ? '' : value }))}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-11 w-full rounded-2xl">
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -595,7 +599,7 @@ export function ContasPagarPage() {
               <div className="space-y-2">
                 <Label>Fornecedor</Label>
                 <Select value={form.fornecedorFinanceiroId || '__NONE__'} onValueChange={(value) => setForm((current) => ({ ...current, fornecedorFinanceiroId: value === '__NONE__' ? '' : value }))}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-11 w-full rounded-2xl">
                     <SelectValue placeholder="Selecione um fornecedor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -619,7 +623,7 @@ export function ContasPagarPage() {
                   <p className="text-sm font-medium">Cadastro de fornecedor</p>
                   <p className="text-xs text-muted-foreground">Cadastre uma vez e reutilize o fornecedor nos proximos lancamentos e relatorios.</p>
                 </div>
-                <Button type="button" variant="outline" onClick={() => setFornecedorModalOpen(true)} className="w-full sm:w-auto">
+                <Button type="button" variant="outline" onClick={() => setFornecedorModalOpen(true)} className="h-11 w-full rounded-2xl sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" />
                   Novo fornecedor
                 </Button>
@@ -627,15 +631,15 @@ export function ContasPagarPage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-2"><Label>Valor</Label><Input value={form.valor} onChange={(event) => setForm((current) => ({ ...current, valor: formatCurrencyInput(event.target.value) }))} placeholder="R$ 0,00" /></div>
-              <div className="space-y-2"><Label>Vencimento</Label><Input type="date" value={form.vencimento} onChange={(event) => setForm((current) => ({ ...current, vencimento: event.target.value }))} /></div>
+              <div className="space-y-2"><Label>Valor</Label><Input value={form.valor} onChange={(event) => setForm((current) => ({ ...current, valor: formatCurrencyInput(event.target.value) }))} placeholder="R$ 0,00" className="h-11 rounded-2xl" /></div>
+              <div className="space-y-2"><Label>Vencimento</Label><Input type="date" value={form.vencimento} onChange={(event) => setForm((current) => ({ ...current, vencimento: event.target.value }))} className="h-11 rounded-2xl" /></div>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as StatusContaPagar }))}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-11 w-full rounded-2xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -647,12 +651,12 @@ export function ContasPagarPage() {
               </div>
               <div className="hidden lg:block" />
             </div>
-            <div className="space-y-2"><Label>Observacoes</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Detalhes internos da conta" /></div>
+            <div className="space-y-2"><Label>Observacoes</Label><Input value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Detalhes internos da conta" className="h-11 rounded-2xl" /></div>
           </div>
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={resetarFormulario}>Cancelar</Button>
-            <Button type="button" onClick={salvarConta} disabled={saving}>
+            <Button type="button" className="h-11 rounded-2xl" variant="outline" onClick={resetarFormulario}>Cancelar</Button>
+            <Button type="button" className="h-11 rounded-2xl" onClick={salvarConta} disabled={saving}>
               {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               {isCreating ? 'Cadastrar conta' : 'Salvar alteracoes'}
             </Button>
@@ -684,14 +688,15 @@ export function ContasPagarPage() {
               onChange={(event) => setNovoFornecedorNome(event.target.value)}
               placeholder="Ex: Atacado X"
               autoFocus
+              className="h-11 rounded-2xl"
             />
           </div>
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setFornecedorModalOpen(false)} disabled={creatingFornecedor}>
+            <Button type="button" className="h-11 rounded-2xl" variant="outline" onClick={() => setFornecedorModalOpen(false)} disabled={creatingFornecedor}>
               Cancelar
             </Button>
-            <Button type="button" onClick={cadastrarFornecedorRapido} disabled={creatingFornecedor}>
+            <Button type="button" className="h-11 rounded-2xl" onClick={cadastrarFornecedorRapido} disabled={creatingFornecedor}>
               {creatingFornecedor ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salvar fornecedor
             </Button>

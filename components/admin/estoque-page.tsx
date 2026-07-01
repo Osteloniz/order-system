@@ -26,6 +26,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useIsMobile } from '@/components/ui/use-mobile'
+import { cn } from '@/lib/utils'
 import { formatDateInSaoPaulo, formatDateTimeInSaoPaulo, formatLongDateInSaoPaulo, getCurrentMonthRangeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
 
 type EstoqueItem = {
@@ -83,6 +85,7 @@ const fetcher = async (url: string) => {
 }
 
 export function EstoquePage() {
+  const isMobile = useIsMobile()
   const today = todayInSaoPaulo()
   const defaultRange = getCurrentMonthRangeInSaoPaulo()
   const [from, setFrom] = useState(defaultRange.from)
@@ -221,6 +224,7 @@ export function EstoquePage() {
   }
 
   const selectedStockItem = data?.estoque.find((item) => item.produtoId === stockConfirmProductId) ?? null
+  const productionDateLabel = formatDateInSaoPaulo(productionDate)
 
   const resumo = useMemo(() => {
     const estoque = data?.estoque ?? []
@@ -238,33 +242,41 @@ export function EstoquePage() {
       title: 'Produtos monitorados',
       value: resumo.produtos,
       detail: 'Itens ativos com controle de saldo.',
-      tone: 'border-sky-200/70 bg-sky-50/70',
+      tone: 'border-primary/25 bg-primary/10',
+      icon: Boxes,
+      iconClassName: 'text-primary',
     },
     {
       title: 'Disponivel agora',
       value: resumo.disponivel,
       detail: 'Saldo pronto para venda imediata.',
-      tone: 'border-emerald-200/70 bg-emerald-50/70',
+      tone: 'border-secondary/25 bg-secondary/10',
+      icon: Archive,
+      iconClassName: 'text-secondary',
     },
     {
       title: 'Reservado encomendas',
       value: resumo.reservado,
       detail: 'Volume comprometido em pedidos futuros.',
-      tone: 'border-amber-200/70 bg-amber-50/70',
+      tone: 'border-warning/35 bg-warning/15',
+      icon: CalendarDays,
+      iconClassName: 'text-warning-foreground',
     },
     {
       title: 'Saldo projetado',
       value: resumo.projetado,
       detail: `Baixa legada pendente: ${resumo.legado}`,
-      tone: 'border-violet-200/70 bg-violet-50/70',
-      valueClassName: resumo.projetado < 0 ? 'text-destructive' : 'text-emerald-600',
+      tone: 'border-accent/45 bg-accent/45',
+      valueClassName: resumo.projetado < 0 ? 'text-destructive' : 'text-secondary',
+      icon: Sparkles,
+      iconClassName: resumo.projetado < 0 ? 'text-destructive' : 'text-secondary',
     },
   ]
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border bg-gradient-to-r from-sky-50 via-background to-amber-50 p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+      <section className="rounded-[28px] border border-border/70 bg-gradient-to-br from-primary/16 via-card to-secondary/14 p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <Sparkles className="h-3.5 w-3.5" />
@@ -279,34 +291,53 @@ export function EstoquePage() {
                 Controle entrada de producao, acompanhe o saldo projetado e resolva pedidos antigos que ainda nao consumiram estoque.
               </p>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary" className="rounded-full border-primary/20 bg-primary/10 px-3 py-1 text-xs text-primary">
+                {resumo.produtos} produtos
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
+                {resumo.disponivel} livres agora
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
+                Projecao {resumo.projetado}
+              </Badge>
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[560px] xl:grid-cols-[150px_150px_170px_auto]">
-            <div className="space-y-2">
-              <Label htmlFor="estoque-data-inicio">De</Label>
-              <Input id="estoque-data-inicio" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          <div className="rounded-[22px] border border-border/70 bg-background/82 p-4 shadow-sm xl:min-w-[560px]">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_150px_170px_auto] xl:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="estoque-data-inicio">De</Label>
+                <Input id="estoque-data-inicio" type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="h-11 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estoque-data-fim">Ate</Label>
+                <Input id="estoque-data-fim" type="date" value={to} onChange={(event) => setTo(event.target.value)} className="h-11 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estoque-data-producao">Data produzida</Label>
+                <Input
+                  id="estoque-data-producao"
+                  type="date"
+                  value={productionDate}
+                  onChange={(event) => setProductionDate(event.target.value)}
+                  className="h-11 rounded-2xl"
+                />
+              </div>
+              <div className="flex flex-col justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => mutate()} className="h-11 w-full rounded-2xl">
+                  <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="estoque-data-fim">Ate</Label>
-              <Input id="estoque-data-fim" type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="estoque-data-producao">Data produzida</Label>
-              <Input
-                id="estoque-data-producao"
-                type="date"
-                value={productionDate}
-                onChange={(event) => setProductionDate(event.target.value)}
-              />
-            </div>
-            <div className="flex flex-col justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => mutate()} className="w-full">
-                <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Tudo que voce registrar abaixo entra como producao do dia {formatDateInSaoPaulo(productionDate)}.
-              </p>
-            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Tudo que voce registrar abaixo entra como producao do dia {productionDateLabel}.
+            </p>
+            {isMobile ? (
+              <div className="mt-3 rounded-2xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                Role para ver os cards por sabor e use os dois atalhos: ajustar saldo ou registrar producao.
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -317,21 +348,31 @@ export function EstoquePage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {cardsResumo.map((card) => (
-          <Card key={card.title} className={card.tone}>
-            <CardContent className="space-y-2 p-5">
-              <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-              <p className={`text-3xl font-semibold tracking-tight ${card.valueClassName ?? 'text-foreground'}`}>
-                {card.value}
-              </p>
-              <p className="text-sm text-muted-foreground">{card.detail}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {cardsResumo.map((card) => {
+          const Icon = card.icon
+          return (
+            <Card key={card.title} className={cn(card.tone, 'gap-0 rounded-[24px] border shadow-sm')}>
+              <CardContent className="p-4 sm:p-5">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                  </div>
+                  <div className="rounded-2xl border border-background/50 bg-background/55 p-2">
+                    <Icon className={cn('h-4 w-4', card.iconClassName)} />
+                  </div>
+                </div>
+                <p className={cn('text-3xl font-semibold tracking-tight', card.valueClassName ?? 'text-foreground')}>
+                  {card.value}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">{card.detail}</p>
+              </CardContent>
+            </Card>
+          )
+        })}
       </section>
 
-      <Card className={data?.pedidosLegadosPendentes ? 'border-amber-300/60 bg-amber-50/60' : ''}>
+      <Card className={data?.pedidosLegadosPendentes ? 'border-warning/35 bg-warning/10' : ''}>
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
@@ -346,7 +387,7 @@ export function EstoquePage() {
               </Badge>
               <Button
                 type="button"
-                className="w-full lg:w-auto"
+                className="w-full rounded-2xl lg:w-auto"
                 onClick={syncLegacyStock}
                 disabled={syncingLegacy || !data?.pedidosLegadosPendentes}
               >
@@ -371,7 +412,7 @@ export function EstoquePage() {
           {Boolean(data?.pedidosLegadosPendentesLista?.length) && (
             <div className="space-y-3">
               {data?.pedidosLegadosPendentesLista.map((pedido) => (
-                <div key={pedido.id} className="rounded-2xl border border-amber-200/70 bg-background/90 p-4 shadow-sm">
+                <div key={pedido.id} className="rounded-2xl border border-warning/25 bg-card/95 p-4 shadow-sm">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-1">
                       <p className="font-semibold">
@@ -394,7 +435,7 @@ export function EstoquePage() {
                     </div>
                   </div>
 
-                  <div className="mt-3 rounded-xl bg-amber-50/80 p-3 text-sm">
+                  <div className="mt-3 rounded-xl border border-warning/20 bg-warning/10 p-3 text-sm">
                     <p className="font-medium">Motivo rastreado</p>
                     <p className="mt-1 text-muted-foreground">{pedido.motivo}</p>
                   </div>
@@ -425,7 +466,7 @@ export function EstoquePage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -449,8 +490,8 @@ export function EstoquePage() {
           ) : data?.estoque.length ? (
             <div className="grid gap-4 2xl:grid-cols-2">
               {data.estoque.map((item) => (
-                <div key={item.produtoId} className="min-w-0 rounded-[24px] border bg-card p-4 shadow-sm">
-                  <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div key={item.produtoId} className="min-w-0 rounded-[26px] border border-border/70 bg-card/98 p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-lg font-semibold">{item.nomeProduto}</p>
                       <p className="text-sm text-muted-foreground">{item.categoriaNome}</p>
@@ -464,32 +505,35 @@ export function EstoquePage() {
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 p-3">
+                    <div className="rounded-2xl border border-primary/25 bg-primary/10 p-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Disponivel agora</p>
                       <p className="mt-2 text-3xl font-semibold text-primary">{item.quantidadeDisponivel}</p>
                     </div>
-                    <div className="rounded-2xl border border-amber-200/70 bg-amber-50/70 p-3">
+                    <div className="rounded-2xl border border-warning/35 bg-warning/15 p-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Reservado encomendas</p>
                       <p className="mt-2 text-3xl font-semibold">{item.quantidadeReservada}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3">
+                    <div className="rounded-2xl border border-muted/80 bg-muted/25 p-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Baixa legada pendente</p>
                       <p className="mt-2 text-3xl font-semibold">{item.pendenteBaixaLegada}</p>
                     </div>
-                    <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-3">
+                    <div className="rounded-2xl border border-accent/45 bg-accent/40 p-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Saldo projetado</p>
-                      <p className={`mt-2 text-3xl font-semibold ${item.saldoProjetado < 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                      <p className={`mt-2 text-3xl font-semibold ${item.saldoProjetado < 0 ? 'text-destructive' : 'text-secondary'}`}>
                         {item.saldoProjetado}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                    <div className="min-w-0 rounded-2xl border bg-background/70 p-3">
+                    <div className="min-w-0 rounded-[22px] border border-border/70 bg-background/80 p-3">
                       <div className="mb-3 flex items-center gap-2">
                         <Boxes className="h-4 w-4 text-primary" />
                         <p className="text-sm font-medium">Ajuste manual de saldo</p>
                       </div>
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        Corrige o disponivel atual do sabor sem esperar uma nova producao.
+                      </p>
                       <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
                         <Input
                           type="number"
@@ -499,30 +543,33 @@ export function EstoquePage() {
                           onChange={(event) =>
                             setStockDrafts((current) => ({ ...current, [item.produtoId]: event.target.value }))
                           }
-                          className="w-full"
+                          className="h-11 w-full rounded-2xl"
                         />
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => openStockConfirmation(item.produtoId)}
                           disabled={savingStockId === item.produtoId}
-                          className="w-full md:justify-center"
+                          className="h-11 w-full rounded-2xl md:justify-center"
                         >
                           {savingStockId === item.produtoId ? (
                             <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
                             <Save className="mr-2 h-4 w-4" />
                           )}
-                          Ajustar saldo atual
+                          {isMobile ? 'Ajustar saldo' : 'Ajustar saldo atual'}
                         </Button>
                       </div>
                     </div>
 
-                    <div className="min-w-0 rounded-2xl border bg-background/70 p-3">
+                    <div className="min-w-0 rounded-[22px] border border-border/70 bg-background/80 p-3">
                       <div className="mb-3 flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-primary" />
                         <p className="text-sm font-medium">Registrar producao</p>
                       </div>
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        Some novas unidades ao estoque com a data operacional definida no topo.
+                      </p>
                       <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
                         <Input
                           type="number"
@@ -532,21 +579,21 @@ export function EstoquePage() {
                           onChange={(event) =>
                             setProductionDrafts((current) => ({ ...current, [item.produtoId]: event.target.value }))
                           }
-                          className="w-full"
+                          className="h-11 w-full rounded-2xl"
                         />
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => recordProduction(item.produtoId)}
                           disabled={savingProductionId === item.produtoId}
-                          className="w-full md:justify-center"
+                          className="h-11 w-full rounded-2xl md:justify-center"
                         >
                           {savingProductionId === item.produtoId ? (
                             <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
                             <Save className="mr-2 h-4 w-4" />
                           )}
-                          Registrar
+                          {isMobile ? 'Registrar' : 'Registrar producao'}
                         </Button>
                       </div>
                     </div>

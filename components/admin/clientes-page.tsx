@@ -45,6 +45,15 @@ const fetcher = async (url: string) => {
   return data
 }
 
+function getClienteInitials(nome: string) {
+  return nome
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((parte) => parte[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
 export function ClientesPage() {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -155,9 +164,13 @@ export function ClientesPage() {
 
   return (
     <div className="space-y-6 overflow-x-hidden">
-      <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(71,125,232,0.12),rgba(34,199,183,0.08)_45%,rgba(244,183,64,0.12))] p-5 shadow-sm md:p-6">
+      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/16 p-5 shadow-sm md:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <UserRound className="h-3.5 w-3.5" />
+              Relacao com clientes
+            </div>
             <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
               <UserRound className="h-7 w-7 text-primary" />
               Clientes
@@ -166,7 +179,7 @@ export function ClientesPage() {
               Centralize WhatsApp, endereco no Paulistano, observacoes importantes e historico de compra para atendimento mais rapido.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             <div className="min-w-0 rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Clientes na busca</p>
               <p className="mt-1 text-2xl font-bold">{totalClientes}</p>
@@ -183,21 +196,25 @@ export function ClientesPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="text-sm text-muted-foreground">
-          Busque, selecione e atualize os dados sem sair da tela.
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button className="w-full sm:w-auto" onClick={startNewCliente}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo cliente
-          </Button>
-          <Button className="w-full sm:w-auto" variant="outline" onClick={() => mutate()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Atualizar
-          </Button>
-        </div>
-      </div>
+      <Card className="border-border/70 bg-card/95">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Busque, selecione e atualize os dados sem sair da tela.
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button className="h-11 w-full rounded-2xl sm:w-auto" onClick={startNewCliente}>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo cliente
+              </Button>
+              <Button className="h-11 w-full rounded-2xl sm:w-auto" variant="outline" onClick={() => mutate()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {message && <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">{message}</div>}
 
@@ -210,10 +227,12 @@ export function ClientesPage() {
           <CardContent className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome ou telefone" className="pl-9" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome ou telefone" className="h-11 rounded-2xl pl-9" />
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
-              {totalClientes} cliente(s) carregado(s)
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+              <span>{totalClientes} cliente(s) carregado(s)</span>
+              <span className="hidden sm:inline">-</span>
+              <span>Toque para abrir o cadastro</span>
             </div>
             <div className="max-h-[65vh] space-y-2 overflow-y-auto pr-1">
               {isLoading ? (
@@ -227,20 +246,47 @@ export function ClientesPage() {
                     key={cliente.id}
                     type="button"
                     onClick={() => selectCliente(cliente)}
-                    className={`w-full rounded-2xl border p-4 text-left transition hover:border-primary/40 hover:bg-primary/5 ${selected?.id === cliente.id ? 'border-primary bg-primary/10 shadow-sm' : 'bg-card/90'}`}
+                    className={`w-full rounded-[20px] border p-3 text-left transition hover:border-primary/40 hover:bg-primary/5 ${
+                      selected?.id === cliente.id ? 'border-primary bg-primary/10 shadow-sm' : 'bg-card/90'
+                    }`}
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="break-words font-semibold">{cliente.nome}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                          <span>{formatarTelefone(cliente.telefone)}</span>
-                          <span>-</span>
-                          <span>{cliente.totalPedidos} pedido(s)</span>
-                        </div>
+                    <div className="flex items-start gap-3">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border text-sm font-semibold ${
+                        selected?.id === cliente.id
+                          ? 'border-primary/30 bg-primary/15 text-primary'
+                          : 'border-border/70 bg-background/80 text-muted-foreground'
+                      }`}>
+                        {getClienteInitials(cliente.nome)}
                       </div>
-                      <Badge variant="outline" className="w-fit shrink-0">{cliente.clienteBloco || 'Sem bloco'}</Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="break-words font-semibold">{cliente.nome}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {formatarTelefone(cliente.telefone)}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline" className="w-fit rounded-full px-2.5 py-0.5 text-[11px]">
+                              {cliente.totalPedidos} pedido(s)
+                            </Badge>
+                            <Badge variant="outline" className="w-fit rounded-full px-2.5 py-0.5 text-[11px]">
+                              {cliente.clienteBloco ? `Bloco ${cliente.clienteBloco}` : 'Sem bloco'}
+                            </Badge>
+                          </div>
+                        </div>
+                        {cliente.ultimoPedidoEm ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Ultimo pedido em {formatDateTimeInSaoPaulo(cliente.ultimoPedidoEm)}
+                          </p>
+                        ) : null}
+                        {cliente.observacoes ? (
+                          <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                            {cliente.observacoes}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                    {cliente.observacoes ? <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{cliente.observacoes}</p> : null}
                   </button>
                 ))
               ) : (
@@ -265,28 +311,28 @@ export function ClientesPage() {
                 {!isCreating && selected ? (
                   <>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-2xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Phone className="h-3.5 w-3.5" />
                           Telefone
                         </div>
                         <p className="mt-1 break-words font-semibold">{formatarTelefone(selected.telefone)}</p>
                       </div>
-                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-2xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <MessageCircle className="h-3.5 w-3.5" />
                           WhatsApp
                         </div>
                         <p className="mt-1 break-words font-semibold">{formatarTelefone(selected.whatsapp)}</p>
                       </div>
-                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-2xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <ClipboardList className="h-3.5 w-3.5" />
                           Pedidos
                         </div>
                         <p className="mt-1 text-2xl font-bold">{selected.totalPedidos}</p>
                       </div>
-                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-2xl border bg-muted/20 p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <ClipboardList className="h-3.5 w-3.5" />
                           Cookies comprados
@@ -296,7 +342,7 @@ export function ClientesPage() {
                     </div>
 
                     <div className="grid gap-3 xl:grid-cols-2">
-                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-2xl border bg-muted/20 p-4">
                         <p className="text-sm font-medium">Fidelidade em andamento</p>
                         <p className="mt-1 text-2xl font-bold">{progressoFidelidade}/{MIMO_COOKIE_THRESHOLD}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -328,7 +374,7 @@ export function ClientesPage() {
                           Marcar mimo entregue
                         </Button>
                       </div>
-                      <div className="min-w-0 rounded-xl border bg-muted/20 p-4">
+                      <div className="min-w-0 rounded-2xl border bg-muted/20 p-4">
                         <p className="text-sm font-medium">Sabores mais comprados</p>
                         {saboresFavoritos.length ? (
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -349,37 +395,38 @@ export function ClientesPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
                     <Label>Nome</Label>
-                    <Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} />
+                    <Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} className="h-11 rounded-2xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Telefone</Label>
-                    <Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} disabled={!isCreating} placeholder="(47) 99999-9999 ou +47..." />
+                    <Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} disabled={!isCreating} placeholder="(47) 99999-9999 ou +47..." className="h-11 rounded-2xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>WhatsApp</Label>
-                    <Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))} placeholder="(47) 99999-9999 ou +47..." />
+                    <Input value={form.whatsapp} onChange={(event) => setForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))} placeholder="(47) 99999-9999 ou +47..." className="h-11 rounded-2xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Bloco</Label>
-                    <Input value={form.clienteBloco} onChange={(event) => setForm((current) => ({ ...current, clienteBloco: event.target.value }))} placeholder="Ex: A" />
+                    <Input value={form.clienteBloco} onChange={(event) => setForm((current) => ({ ...current, clienteBloco: event.target.value }))} placeholder="Ex: A" className="h-11 rounded-2xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Apartamento</Label>
-                    <Input value={form.clienteApartamento} onChange={(event) => setForm((current) => ({ ...current, clienteApartamento: event.target.value }))} placeholder="Ex: 101" />
+                    <Input value={form.clienteApartamento} onChange={(event) => setForm((current) => ({ ...current, clienteApartamento: event.target.value }))} placeholder="Ex: 101" className="h-11 rounded-2xl" />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>Observacoes</Label>
-                    <Textarea value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferencias, restricoes, forma de entrega, recados importantes..." rows={5} />
+                    <Textarea value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferencias, restricoes, forma de entrega, recados importantes..." rows={5} className="rounded-2xl" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={saveCliente} disabled={saving || !form.nome.trim()}>
+                  <Button onClick={saveCliente} disabled={saving || !form.nome.trim()} className="h-11 rounded-2xl">
                     {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     {isCreating ? 'Cadastrar cliente' : 'Salvar edicao'}
                   </Button>
                   {isCreating ? (
                     <Button
                       variant="outline"
+                      className="h-11 rounded-2xl"
                       onClick={() => {
                         setSelectedId(null)
                         setIsCreating(false)
@@ -403,7 +450,7 @@ export function ClientesPage() {
                   {selected.pedidos?.length ? (
                     <div className="space-y-3">
                       {selected.pedidos.map((pedido) => (
-                        <div key={pedido.id} className="min-w-0 rounded-2xl border bg-background/80 p-4 transition-colors hover:border-primary/35">
+                        <div key={pedido.id} className="min-w-0 rounded-[22px] border bg-background/80 p-4 transition-colors hover:border-primary/35">
                           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                             <div className="min-w-0">
                               <p className="font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p>
