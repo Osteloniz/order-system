@@ -128,6 +128,14 @@
 - `prisma/schema.prisma`
 - `docs/API.md`
 
+## Subsequent UI Passes After This Handoff
+- The admin visual language was extended beyond the order flow into stock, production, clients, products, categories, coupons, accounts payable, accounts receivable, and cash flow.
+- The current direction is still mobile-first, but without changing business rules or introducing new database requirements unless explicitly approved.
+- Clients now use a denser list pattern for mobile scanning instead of oversized stacked cards.
+- Accounts receivable and cash flow now have dedicated mobile card views so the experience does not depend on wide tables.
+- This continuation did not change `prisma/schema.prisma` or create new migrations.
+- Before opening PR / preparing PRD, the next chat should prioritize final visual QA in local/HML and confirm user approval.
+
 ## Suggested Prompt For The Next Chat
 Use something like:
 

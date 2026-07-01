@@ -249,7 +249,7 @@ export function ConfigPage() {
 
   return (
     <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(71,125,232,0.12),rgba(34,199,183,0.08)_45%,rgba(244,183,64,0.12))] p-5 shadow-sm md:p-6">
+      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/18 via-background to-secondary/16 p-5 shadow-sm md:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <Badge className="mb-3 bg-primary/90 text-primary-foreground hover:bg-primary/90">
@@ -650,9 +650,9 @@ export function ConfigPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-xl border border-[#22C0D4]/25 bg-[#22C0D4]/5 p-4">
+          <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-              <Link2 className="h-4 w-4 text-[#22C0D4]" />
+              <Link2 className="h-4 w-4 text-primary" />
               Link publico do catalogo
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">

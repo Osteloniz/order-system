@@ -208,10 +208,10 @@ export function RelatoriosPage() {
   }, [pedidosFiltrados])
 
   const graficoGestao = useMemo(() => [
-    { chave: 'realizado', label: 'Realizado', valor: data?.recebimentoRealizado ?? 0, fill: '#AF6E2A' },
-    { chave: 'previsto', label: 'Previsto', valor: data?.recebimentoPrevisto ?? 0, fill: '#22C0D4' },
-    { chave: 'aberto', label: 'Em aberto', valor: data?.recebimentoEmAberto ?? 0, fill: '#0E6C77' },
-    { chave: 'cancelado', label: 'Cancelado', valor: data?.valorCancelado ?? 0, fill: '#E11D48' },
+    { chave: 'realizado', label: 'Realizado', valor: data?.recebimentoRealizado ?? 0, fill: 'var(--chart-2)' },
+    { chave: 'previsto', label: 'Previsto', valor: data?.recebimentoPrevisto ?? 0, fill: 'var(--chart-1)' },
+    { chave: 'aberto', label: 'Em aberto', valor: data?.recebimentoEmAberto ?? 0, fill: 'var(--chart-3)' },
+    { chave: 'cancelado', label: 'Cancelado', valor: data?.valorCancelado ?? 0, fill: 'var(--destructive)' },
   ], [data?.recebimentoEmAberto, data?.recebimentoPrevisto, data?.recebimentoRealizado, data?.valorCancelado])
 
   const handleExportProdutos = () => {
@@ -283,54 +283,54 @@ export function RelatoriosPage() {
   const cardsVisaoGeral = [
     {
       key: 'pedidos',
-      className: 'border-[#22C0D4]/35 bg-[#22C0D4]/10',
+      className: 'border-primary/35 bg-primary/10',
       icon: ReceiptText,
-      iconClass: 'text-[#22C0D4]',
+      iconClass: 'text-primary',
       title: 'Pedidos no periodo',
       value: String(data?.totalPedidos ?? 0),
       detail: `${entregues} entregues`,
     },
     {
       key: 'receita',
-      className: 'border-[#AF6E2A]/35 bg-[#AF6E2A]/10',
+      className: 'border-secondary/35 bg-secondary/10',
       icon: PackageCheck,
-      iconClass: 'text-[#AF6E2A]',
+      iconClass: 'text-secondary',
       title: 'Receita entregue',
       value: formatarMoeda(data?.receitaEntregue ?? 0),
       detail: 'Base para resultado real',
     },
     {
       key: 'ticket',
-      className: 'border-[#F8CF40]/45 bg-[#F8CF40]/15',
+      className: 'border-warning/45 bg-warning/15',
       icon: TrendingUp,
-      iconClass: 'text-[#AF6E2A]',
+      iconClass: 'text-warning-foreground',
       title: 'Ticket medio',
       value: formatarMoeda(data?.ticketMedioEntregue ?? 0),
       detail: 'Sobre pedidos entregues',
     },
     {
       key: 'unidades',
-      className: 'border-[#FF6BBB]/35 bg-[#FF6BBB]/10',
+      className: 'border-accent/45 bg-accent/60',
       icon: BarChart3,
-      iconClass: 'text-[#FF6BBB]',
+      iconClass: 'text-accent-foreground',
       title: 'Unidades vendidas',
       value: String(totalUnidades),
       detail: 'Somando todos os sabores',
     },
     {
       key: 'mimos',
-      className: 'border-[#F4A261]/35 bg-[#F4A261]/10',
+      className: 'border-secondary/30 bg-secondary/12',
       icon: Sparkles,
-      iconClass: 'text-[#AF6E2A]',
+      iconClass: 'text-secondary',
       title: 'Mimos concedidos',
       value: String(data?.mimosConcedidos ?? 0),
       detail: `Valor referencial: ${formatarMoeda(data?.valorMimosConcedidos ?? 0)}`,
     },
     {
       key: 'cartao',
-      className: 'border-[#0e6c77]/25 bg-[#22C0D4]/5',
+      className: 'border-primary/25 bg-primary/5',
       icon: PackageCheck,
-      iconClass: 'text-[#0e6c77]',
+      iconClass: 'text-primary',
       title: 'Cartao bruto / liquido',
       value: formatarMoeda(data?.receitaCartaoBruta ?? 0),
       detail: `Liquido: ${formatarMoeda(data?.receitaCartaoLiquida ?? 0)} • Taxas: ${formatarMoeda(data?.taxaCartao ?? 0)}`,
@@ -346,9 +346,9 @@ export function RelatoriosPage() {
     },
     {
       key: 'custos',
-      className: 'border-[#0E6C77]/25 bg-[#0E6C77]/5',
+      className: 'border-muted-foreground/20 bg-muted/20',
       icon: XCircle,
-      iconClass: 'text-[#0E6C77]',
+      iconClass: 'text-muted-foreground',
       title: 'Custos do periodo',
       value: formatarMoeda(data?.custosTotal ?? 0),
       detail: `Pago: ${formatarMoeda(data?.custosPagos ?? 0)} • Pendente: ${formatarMoeda(data?.custosPendentes ?? 0)}`,
@@ -384,14 +384,14 @@ export function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(135deg,rgba(34,192,212,0.16),rgba(255,107,187,0.10)_40%,rgba(248,207,64,0.18))] p-5 shadow-sm md:p-6">
+      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/18 p-5 shadow-sm md:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <Badge className="mb-3 bg-[#AF6E2A] text-white hover:bg-[#AF6E2A]">
+            <Badge className="mb-3 bg-secondary text-secondary-foreground hover:bg-secondary">
               <Sparkles className="mr-1 h-3 w-3" /> Inteligencia do dia
             </Badge>
             <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
-              <BarChart3 className="h-7 w-7 text-[#22C0D4]" />
+              <BarChart3 className="h-7 w-7 text-primary" />
               Relatorios
             </h1>
             <p className="mt-2 text-sm text-muted-foreground md:text-base">
@@ -469,7 +469,7 @@ export function RelatoriosPage() {
           </CardContent>
         </Card>
 
-      <Card className="overflow-hidden border-[#F8CF40]/40 bg-[linear-gradient(145deg,rgba(248,207,64,0.18),rgba(34,192,212,0.08))]">
+      <Card className="overflow-hidden border-warning/40 bg-gradient-to-br from-warning/18 to-primary/8">
           <CardHeader><CardTitle>Leitura rapida</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-2xl bg-background/75 p-4">
@@ -549,7 +549,7 @@ export function RelatoriosPage() {
             <ChartContainer
               className="h-[280px] w-full"
               config={{
-                valor: { label: 'Valor', color: '#AF6E2A' },
+                valor: { label: 'Valor', color: 'var(--chart-2)' },
               }}
             >
               <BarChart data={graficoGestao} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
@@ -584,7 +584,7 @@ export function RelatoriosPage() {
           ) : data?.produtos.length ? (
             <div className="overflow-x-auto rounded-xl border">
               <table className="w-full min-w-[720px] text-sm">
-                <thead className="bg-[#22C0D4]/10 text-left text-muted-foreground">
+                <thead className="bg-primary/10 text-left text-muted-foreground">
                   <tr>
                     <th className="py-3 pl-4 pr-4 font-medium">Sabor</th>
                     <th className="py-3 pr-4 font-medium">Qtd.</th>
@@ -596,10 +596,10 @@ export function RelatoriosPage() {
                 <tbody>
                   {data.produtos.map((produto, index) => (
                     <tr key={produto.chave} className="border-t odd:bg-background even:bg-muted/20">
-                      <td className="py-3 pl-4 pr-4 font-medium"><span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#F8CF40]/35 text-xs font-bold">{index + 1}</span>{produto.nomeProduto}</td>
+                      <td className="py-3 pl-4 pr-4 font-medium"><span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-warning/35 text-xs font-bold text-warning-foreground">{index + 1}</span>{produto.nomeProduto}</td>
                       <td className="py-3 pr-4 font-semibold">{produto.quantidade}</td>
                       <td className="py-3 pr-4">{formatarMoeda(produto.precoUnitario)}</td>
-                      <td className="py-3 pr-4 font-semibold text-[#AF6E2A]">{formatarMoeda(produto.total)}</td>
+                      <td className="py-3 pr-4 font-semibold text-secondary">{formatarMoeda(produto.total)}</td>
                       <td className="py-3 pr-4">{produto.pedidos}</td>
                     </tr>
                   ))}
@@ -609,7 +609,7 @@ export function RelatoriosPage() {
                     <td className="py-3 pl-4 pr-4">Total do periodo</td>
                     <td className="py-3 pr-4">{totalUnidades}</td>
                     <td className="py-3 pr-4">-</td>
-                    <td className="py-3 pr-4 text-[#AF6E2A]">{formatarMoeda(data.produtos.reduce((acc, produto) => acc + produto.total, 0))}</td>
+                    <td className="py-3 pr-4 text-secondary">{formatarMoeda(data.produtos.reduce((acc, produto) => acc + produto.total, 0))}</td>
                     <td className="py-3 pr-4">{data.produtos.reduce((acc, produto) => acc + produto.pedidos, 0)}</td>
                   </tr>
                 </tfoot>
@@ -819,7 +819,7 @@ export function RelatoriosPage() {
           ) : pedidosFiltrados.length ? (
             <div className="space-y-3">
               {pedidosFiltrados.map((pedido) => (
-                <div key={pedido.id} className="rounded-xl border bg-card/80 p-4 transition-colors hover:border-[#22C0D4]/45">
+                <div key={pedido.id} className="rounded-xl border bg-card/80 p-4 transition-colors hover:border-primary/45">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-semibold">#{pedido.numero} - {pedido.clienteNome}</p>
@@ -828,7 +828,7 @@ export function RelatoriosPage() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {pedido.tipoEntrega === 'ENCOMENDA' && <Badge className="bg-[#FF6BBB] text-white hover:bg-[#FF6BBB]">Encomenda</Badge>}
+                      {pedido.tipoEntrega === 'ENCOMENDA' && <Badge className="bg-secondary text-secondary-foreground hover:bg-secondary">Encomenda</Badge>}
                       <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
                       <Badge className={statusPedidoReportStyles[pedido.status]} variant="outline">{statusPedidoReportLabels[pedido.status]}</Badge>
                       <Badge variant="outline">{statusPagamentoLabels[pedido.statusPagamento]}</Badge>

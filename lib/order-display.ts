@@ -67,9 +67,9 @@ export const statusPedidoReportLabels: Record<StatusPedido, string> = {
 }
 
 export const statusPedidoReportStyles: Record<StatusPedido, string> = {
-  FEITO: 'border-[#F8CF40]/50 bg-[#F8CF40]/15 text-[#7a5713]',
-  ACEITO: 'border-[#FF6BBB]/45 bg-[#FF6BBB]/12 text-[#8a2861]',
-  PREPARACAO: 'border-[#22C0D4]/45 bg-[#22C0D4]/12 text-[#0e6c77]',
-  ENTREGUE: 'border-[#AF6E2A]/45 bg-[#AF6E2A]/12 text-[#744516]',
+  FEITO: 'border-warning/45 bg-warning/15 text-warning-foreground',
+  ACEITO: 'border-accent/45 bg-accent/45 text-accent-foreground',
+  PREPARACAO: 'border-primary/35 bg-primary/12 text-primary',
+  ENTREGUE: 'border-secondary/35 bg-secondary/12 text-secondary-foreground',
   CANCELADO: 'border-destructive/35 bg-destructive/10 text-destructive',
 }

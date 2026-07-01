@@ -1011,7 +1011,7 @@ export function PedidosDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border bg-[linear-gradient(145deg,rgba(99,102,241,0.12),rgba(34,197,94,0.04)_45%,rgba(148,163,184,0.08))] p-4 shadow-sm sm:p-5">
+      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/14 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl space-y-2">
             <h1 className="text-2xl font-bold md:text-3xl">Pedidos</h1>
