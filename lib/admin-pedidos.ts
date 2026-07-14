@@ -13,6 +13,14 @@ type PedidoComItens = Prisma.PedidoGetPayload<{
   }
 }>
 
+function parseDateOnlyOrDateTime(value: string) {
+  const normalized = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return new Date(`${normalized}T00:00:00-03:00`)
+  }
+  return new Date(normalized)
+}
+
 export type PedidoItemCalculado = {
   produtoId: string
   nomeProdutoSnapshot: string
@@ -235,7 +243,7 @@ export async function calcularPedidoAdmin(
   const statusPagamento = payload.statusPagamento ?? (payload.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE')
   const tipoCartao = payload.pagamento === 'CARTAO' ? (payload.tipoCartao ?? 'CREDITO') : null
   const encomendaPara = payload.tipoEntrega === 'ENCOMENDA' && payload.encomendaPara
-    ? new Date(payload.encomendaPara)
+    ? parseDateOnlyOrDateTime(payload.encomendaPara)
     : null
   const levadoEm = payload.levadoEm ? new Date(payload.levadoEm) : null
   const separacaoResponsavel = payload.separacaoResponsavel?.length ? payload.separacaoResponsavel : null

@@ -334,7 +334,7 @@ export function PedidosDashboard() {
     return {
       ok: response.ok,
       data,
-      error: data?.error || 'Nao foi possivel atualizar o status.',
+      error: data?.error || 'Não foi possível atualizar o status.',
     }
   }
 
@@ -348,7 +348,7 @@ export function PedidosDashboard() {
     return {
       ok: response.ok,
       data,
-      error: data?.error || 'Nao foi possivel atualizar o pagamento.',
+      error: data?.error || 'Não foi possível atualizar o pagamento.',
     }
   }
 
@@ -357,7 +357,7 @@ export function PedidosDashboard() {
     let permission = getNotificationPermission()
     if ('Notification' in window && Notification.permission === 'default') permission = await Notification.requestPermission()
     setNotificationPermission(permission)
-    setLastAlertMessage(permission === 'denied' ? 'Notificacoes bloqueadas no navegador. O som interno continua ativo enquanto a aba permitir audio.' : 'Alertas ativados para novos pedidos.')
+    setLastAlertMessage(permission === 'denied' ? 'Notificações bloqueadas no navegador. O som interno continua ativo enquanto a aba permitir áudio.' : 'Alertas ativados para novos pedidos.')
     setAlertsEnabled(true)
     setAdminAlertsEnabled(true)
     setSoundUnlocked(true)
@@ -401,7 +401,7 @@ export function PedidosDashboard() {
 
   const handleMovePedido = async (pedido: Pedido, targetStatus: StatusPedido) => {
     if (!canMovePedido(pedido, targetStatus)) {
-      setLastAlertMessage(`Movimento nao permitido: ${statusConfig[pedido.status].label} para ${statusConfig[targetStatus].label}.`)
+      setLastAlertMessage(`Movimento não permitido: ${statusConfig[pedido.status].label} para ${statusConfig[targetStatus].label}.`)
       return
     }
     await handleUpdateStatus(pedido, targetStatus)
@@ -614,7 +614,7 @@ export function PedidosDashboard() {
   const handleSendPaymentReminder = (pedido: Pedido) => {
     const url = buildWhatsappUrl(getPedidoWhatsapp(pedido), buildPaymentReminderMessage(pedido))
     if (!url) {
-      setLastAlertMessage('Esse pedido nao possui WhatsApp valido para cobranca.')
+      setLastAlertMessage('Esse pedido não possui WhatsApp válido para cobrança.')
       return
     }
     window.open(url, '_blank', 'noopener,noreferrer')
@@ -709,7 +709,7 @@ export function PedidosDashboard() {
           <Card className="overflow-hidden border-primary/20 bg-[linear-gradient(145deg,rgba(99,102,241,0.12),rgba(34,197,94,0.05)_52%,rgba(15,23,42,0.04))]">
             <CardContent className="space-y-5 p-5">
               <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.24em] text-primary/75">Resumo rapido</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-primary/75">Resumo rápido</p>
                 <h2 className="break-words text-2xl font-semibold">{pedido.clienteNome}</h2>
                 <p className="text-sm text-muted-foreground">{getPedidoPrimaryDateLabel(pedido)}</p>
               </div>
@@ -754,7 +754,7 @@ export function PedidosDashboard() {
 
           <Card className="border-border/70">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Progresso e acoes</CardTitle>
+              <CardTitle className="text-base">Progresso e ações</CardTitle>
               <CardDescription>Use este bloco para tocar o pedido adiante sem repetir passos.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -812,7 +812,7 @@ export function PedidosDashboard() {
                   <CreditCard className="h-4 w-4" />
                   Pagamento
                 </CardTitle>
-                <CardDescription>Ajuste fino do recebimento quando precisar sair do fluxo padrao.</CardDescription>
+                <CardDescription>Ajuste fino do recebimento quando precisar sair do fluxo padrão.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="rounded-2xl border bg-muted/20 p-4">
@@ -881,7 +881,7 @@ export function PedidosDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <User className="h-4 w-4" />
-                Cliente, entrega e observacoes
+                Cliente, entrega e observações
               </CardTitle>
               <CardDescription>Contexto completo para atendimento sem duplicidade visual.</CardDescription>
             </CardHeader>
@@ -891,7 +891,7 @@ export function PedidosDashboard() {
                   <p className="text-xs text-muted-foreground">Contato</p>
                   <p className="mt-1 break-words font-semibold">{pedido.clienteNome}</p>
                   <p className="mt-2 break-all text-sm text-muted-foreground">
-                    {pedido.clienteTelefone ? formatarTelefone(pedido.clienteTelefone) : 'Celular nao informado'}
+                    {pedido.clienteTelefone ? formatarTelefone(pedido.clienteTelefone) : 'Celular não informado'}
                   </p>
                 </div>
                 <div className="rounded-2xl border bg-background/75 p-4">
@@ -1151,7 +1151,7 @@ export function PedidosDashboard() {
           </div>
 
           <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-            Pedidos em aberto de dias anteriores continuam visiveis nesta tela.
+            Pedidos em aberto de dias anteriores continuam visiveis nesta tela. Encomendas abertas tambem aparecem antes do dia agendado para facilitar o controle.
           </div>
         </CardContent>
       </Card>

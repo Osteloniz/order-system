@@ -7,18 +7,21 @@ import { Clock, ReceiptText } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatarMoeda } from '@/lib/calc'
-import { clearRecentOrdersForCurrentCustomer, getRecentOrderIds } from '@/lib/customer-session'
+import { clearRecentOrdersForCurrentCustomer, getRecentOrders } from '@/lib/customer-session'
+import { ORDER_ACCESS_HEADER } from '@/lib/public-order-access'
 import { statusPagamentoLabelsLong, statusPedidoShortLabels } from '@/lib/order-display'
-import type { Pedido } from '@/lib/types'
+import type { PedidoPublico, RecentOrderReference } from '@/lib/types'
 
-const fetcher = async (url: string) => {
-  const response = await fetch(url)
+const fetcher = async ([url, accessToken]: [string, string]) => {
+  const response = await fetch(url, {
+    headers: accessToken ? { [ORDER_ACCESS_HEADER]: accessToken } : undefined,
+  })
   if (!response.ok) throw new Error('Pedido nao encontrado')
   return response.json()
 }
 
-function RecentOrderCard({ pedidoId }: { pedidoId: string }) {
-  const { data: pedido } = useSWR<Pedido>(`/api/pedidos/${pedidoId}`, fetcher, {
+function RecentOrderCard({ order }: { order: RecentOrderReference }) {
+  const { data: pedido } = useSWR<PedidoPublico>([`/api/pedidos/${order.id}`, order.accessToken || ''], fetcher, {
     refreshInterval: 15000,
     shouldRetryOnError: false,
   })
@@ -27,7 +30,7 @@ function RecentOrderCard({ pedidoId }: { pedidoId: string }) {
 
   return (
     <Link
-      href={`/confirmacao/${pedido.id}`}
+      href={order.accessToken ? `/confirmacao/${pedido.id}?token=${encodeURIComponent(order.accessToken)}` : `/confirmacao/${pedido.id}`}
       className="block rounded-lg border border-border bg-card px-3 py-3 hover:bg-secondary/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-3">
@@ -45,13 +48,13 @@ function RecentOrderCard({ pedidoId }: { pedidoId: string }) {
 }
 
 export function RecentOrders() {
-  const [orderIds, setOrderIds] = useState<string[]>([])
+  const [orders, setOrders] = useState<RecentOrderReference[]>([])
 
   useEffect(() => {
-    setOrderIds(getRecentOrderIds())
+    setOrders(getRecentOrders())
   }, [])
 
-  if (orderIds.length === 0) return null
+  if (orders.length === 0) return null
 
   return (
     <section className="max-w-2xl mx-auto px-4 pt-4">
@@ -66,8 +69,8 @@ export function RecentOrders() {
         </div>
       </div>
       <div className="space-y-2">
-        {orderIds.map((pedidoId) => (
-          <RecentOrderCard key={pedidoId} pedidoId={pedidoId} />
+        {orders.map((order) => (
+          <RecentOrderCard key={order.id} order={order} />
         ))}
       </div>
       <Button
@@ -76,7 +79,7 @@ export function RecentOrders() {
         className="mt-2 h-8 px-2 text-xs"
         onClick={() => {
           clearRecentOrdersForCurrentCustomer()
-          setOrderIds([])
+          setOrders([])
         }}
       >
         Limpar histórico deste aparelho

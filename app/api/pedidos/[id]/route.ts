@@ -2,10 +2,83 @@ import { NextRequest, NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
+import {
+  generatePublicOrderAccessToken,
+  hashPublicOrderAccessToken,
+  isValidPublicOrderAccessToken,
+  ORDER_ACCESS_HEADER,
+} from '@/lib/public-order-access'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
+
+const publicPedidoSelect = {
+  id: true,
+  clienteId: true,
+  status: true,
+  statusPagamento: true,
+  clienteNome: true,
+  clienteTelefone: true,
+  clienteWhatsapp: true,
+  clienteBloco: true,
+  clienteApartamento: true,
+  observacoesPedido: true,
+  pagamento: true,
+  tipoCartao: true,
+  tipoEntrega: true,
+  encomendaPara: true,
+  enderecoRetirada: true,
+  frete: true,
+  subtotal: true,
+  total: true,
+  criadoEm: true,
+  motivoCancelamento: true,
+  distanciaKm: true,
+  descontoValor: true,
+  cupomCodigoSnapshot: true,
+  publicAccessTokenHash: true,
+  itens: true,
+} as const
+
+function getOrderAccessToken(request: NextRequest) {
+  return request.headers.get(ORDER_ACCESS_HEADER)?.trim() || request.nextUrl.searchParams.get('token')?.trim() || ''
+}
+
+function serializePublicPedido(
+  pedido: Awaited<ReturnType<typeof prisma.pedido.findFirst>>,
+  publicAccessToken?: string | null
+) {
+  if (!pedido) return null
+
+  return {
+    id: pedido.id,
+    clienteId: pedido.clienteId,
+    status: pedido.status,
+    statusPagamento: pedido.statusPagamento,
+    clienteNome: pedido.clienteNome,
+    clienteTelefone: pedido.clienteTelefone,
+    clienteWhatsapp: pedido.clienteWhatsapp,
+    clienteBloco: pedido.clienteBloco,
+    clienteApartamento: pedido.clienteApartamento,
+    observacoesPedido: pedido.observacoesPedido,
+    pagamento: pedido.pagamento,
+    tipoCartao: pedido.tipoCartao,
+    tipoEntrega: pedido.tipoEntrega,
+    encomendaPara: pedido.encomendaPara,
+    enderecoRetirada: pedido.enderecoRetirada,
+    frete: pedido.frete,
+    subtotal: pedido.subtotal,
+    total: pedido.total,
+    criadoEm: pedido.criadoEm,
+    motivoCancelamento: pedido.motivoCancelamento,
+    distanciaKm: pedido.distanciaKm,
+    descontoValor: pedido.descontoValor,
+    cupomCodigoSnapshot: pedido.cupomCodigoSnapshot,
+    itens: pedido.itens,
+    publicAccessToken: publicAccessToken ?? null,
+  }
+}
 
 // GET /api/pedidos/:id - Detalhe do pedido
 export async function GET(
@@ -19,16 +92,34 @@ export async function GET(
       return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
 
-    const pedido = await prisma.pedido.findUnique({
-      where: { id },
-      include: { itens: true }
+    const accessToken = getOrderAccessToken(request)
+    const pedido = await prisma.pedido.findFirst({
+      where: { id, tenantId: tenant.id },
+      select: publicPedidoSelect,
     })
 
-    if (!pedido || pedido.tenantId !== tenant.id) {
+    if (!pedido) {
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
-    return NextResponse.json(pedido)
+    if (pedido.publicAccessTokenHash) {
+      if (!isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
+        return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
+      }
+
+      return NextResponse.json(serializePublicPedido(pedido))
+    }
+
+    const legacyAccessToken = generatePublicOrderAccessToken()
+    await prisma.pedido.update({
+      where: { id: pedido.id },
+      data: {
+        publicAccessTokenHash: hashPublicOrderAccessToken(legacyAccessToken),
+        publicAccessTokenIssuedAt: new Date(),
+      },
+    })
+
+    return NextResponse.json(serializePublicPedido(pedido, legacyAccessToken))
   } catch (error) {
     return handleApiError('api/pedidos/[id] GET', error, 'Erro ao carregar pedido')
   }
@@ -46,6 +137,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
 
+    const accessToken = getOrderAccessToken(request)
     const pedido = await prisma.pedido.findFirst({
       where: { id, tenantId: tenant.id },
       include: {
@@ -60,6 +152,10 @@ export async function PATCH(
     })
 
     if (!pedido) {
+      return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
+    }
+
+    if (!pedido.publicAccessTokenHash || !isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 

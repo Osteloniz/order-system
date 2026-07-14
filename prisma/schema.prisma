@@ -31,6 +31,11 @@ enum TipoCartao {
   DEBITO
 }
 
+enum ModoEncomendaCheckout {
+  CLIENTE_DEFINE
+  FIXO
+}
+
 enum TipoEntrega {
   ENTREGA
   RETIRADA
@@ -110,6 +115,16 @@ model Configuracao {
   padraoNovoPedidoDescontosExpandidos Boolean @default(false)
   padraoNovoPedidoObservacoesExpandidas Boolean @default(false)
   padraoNovoPedidoResponsavelExpandido Boolean @default(false)
+  checkoutPublicoEntregaReservaPaulistano Boolean @default(true)
+  checkoutPublicoEntregaRetirada Boolean @default(true)
+  checkoutPublicoEntregaEncomenda Boolean @default(true)
+  checkoutPublicoEncomendaModo ModoEncomendaCheckout @default(CLIENTE_DEFINE)
+  checkoutPublicoEncomendaDataFixa DateTime?
+  checkoutPublicoPagamentoPix Boolean @default(true)
+  checkoutPublicoPagamentoDinheiro Boolean @default(true)
+  checkoutPublicoPagamentoCartao Boolean @default(true)
+  checkoutPublicoPagamentoCartaoCredito Boolean @default(true)
+  checkoutPublicoPagamentoCartaoDebito Boolean @default(true)
   mensagemStatusAceito String?
   mensagemStatusPreparacao String?
   mensagemStatusEntregue String?
@@ -165,6 +180,8 @@ model Pedido {
   status          StatusPedido  @default(FEITO)
   estoqueReservadoEm DateTime?
   estoqueBaixadoEm DateTime?
+  publicAccessTokenHash String?
+  publicAccessTokenIssuedAt DateTime?
   clienteNome     String
   clienteTelefone String?
   clienteWhatsapp String?

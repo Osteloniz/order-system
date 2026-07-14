@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
+import { generatePublicOrderAccessToken, hashPublicOrderAccessToken } from '@/lib/public-order-access'
 import { calcularTotalItem, calcularSubtotal, calcularTotal } from '@/lib/calc'
-import { isValidPhone, normalizePhone } from '@/lib/phone'
+import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import type { CriarPedidoPayload } from '@/lib/types'
 
@@ -44,17 +45,75 @@ const pedidoSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteApartamento'], message: 'Apartamento obrigatorio' })
     }
   }
-
-  if (data.tipoEntrega === 'ENCOMENDA') {
-    const parsedDate = data.encomendaPara ? new Date(data.encomendaPara) : null
-    if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
-    }
-  }
-  if (data.pagamento === 'CARTAO' && !data.tipoCartao) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoCartao'], message: 'Tipo do cartao obrigatorio' })
-  }
 })
+
+function serializePublicPedido(
+  pedido: {
+    id: string
+    clienteId: string | null
+    status: 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
+    statusPagamento: 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
+    clienteNome: string
+    clienteTelefone: string | null
+    clienteWhatsapp: string | null
+    clienteBloco: string | null
+    clienteApartamento: string | null
+    observacoesPedido: string | null
+    pagamento: 'PIX' | 'DINHEIRO' | 'CARTAO'
+    tipoCartao: 'CREDITO' | 'DEBITO' | null
+    tipoEntrega: 'ENTREGA' | 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOMENDA'
+    encomendaPara: Date | null
+    enderecoRetirada: string
+    frete: number
+    subtotal: number
+    total: number
+    criadoEm: Date
+    motivoCancelamento: string | null
+    distanciaKm: number | null
+    descontoValor: number | null
+    cupomCodigoSnapshot: string | null
+    itens: Array<{
+      id: string
+      pedidoId: string
+      produtoId: string
+      nomeProdutoSnapshot: string
+      precoUnitarioSnapshot: number
+      quantidade: number
+      totalItem: number
+      quantidadePreparada: number
+      preparadoEm: Date | null
+    }>
+  },
+  publicAccessToken?: string | null
+) {
+  return {
+    id: pedido.id,
+    clienteId: pedido.clienteId,
+    status: pedido.status,
+    statusPagamento: pedido.statusPagamento,
+    clienteNome: pedido.clienteNome,
+    clienteTelefone: pedido.clienteTelefone,
+    clienteWhatsapp: pedido.clienteWhatsapp,
+    clienteBloco: pedido.clienteBloco,
+    clienteApartamento: pedido.clienteApartamento,
+    observacoesPedido: pedido.observacoesPedido,
+    pagamento: pedido.pagamento,
+    tipoCartao: pedido.tipoCartao,
+    tipoEntrega: pedido.tipoEntrega,
+    encomendaPara: pedido.encomendaPara,
+    enderecoRetirada: pedido.enderecoRetirada,
+    frete: pedido.frete,
+    subtotal: pedido.subtotal,
+    total: pedido.total,
+    criadoEm: pedido.criadoEm,
+    motivoCancelamento: pedido.motivoCancelamento,
+    distanciaKm: pedido.distanciaKm,
+    descontoValor: pedido.descontoValor,
+    cupomCodigoSnapshot: pedido.cupomCodigoSnapshot,
+    itens: pedido.itens,
+    publicAccessToken: publicAccessToken ?? null,
+  }
+}
 
 // POST /api/pedidos - Cria um novo pedido
 export async function POST(request: NextRequest) {
@@ -67,6 +126,8 @@ export async function POST(request: NextRequest) {
     const body: CriarPedidoPayload = parsed.data
     const telefoneLimpo = normalizePhone(body.clienteTelefone)
     const whatsappLimpo = body.clienteWhatsapp ? normalizePhone(body.clienteWhatsapp) : ''
+    const telefoneCandidates = getPhoneLookupCandidates(body.clienteTelefone)
+    const whatsappCandidates = getPhoneLookupCandidates(body.clienteWhatsapp)
     if (!isValidPhone(telefoneLimpo)) {
       return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
     }
@@ -112,6 +173,66 @@ export async function POST(request: NextRequest) {
       where: { tenantId: tenant.id }
     })
     const frete = 0 // Sem taxa de entrega agora
+    const entregaReservaDisponivel = configuracao?.checkoutPublicoEntregaReservaPaulistano ?? true
+    const entregaRetiradaDisponivel = configuracao?.checkoutPublicoEntregaRetirada ?? true
+    const entregaEncomendaDisponivel = configuracao?.checkoutPublicoEntregaEncomenda ?? true
+    const pagamentoPixDisponivel = configuracao?.checkoutPublicoPagamentoPix ?? true
+    const pagamentoDinheiroDisponivel = configuracao?.checkoutPublicoPagamentoDinheiro ?? true
+    const pagamentoCartaoDisponivel = configuracao?.checkoutPublicoPagamentoCartao ?? true
+    const cartaoCreditoDisponivel = configuracao?.checkoutPublicoPagamentoCartaoCredito ?? true
+    const cartaoDebitoDisponivel = configuracao?.checkoutPublicoPagamentoCartaoDebito ?? true
+
+    if (
+      (body.tipoEntrega === 'RESERVA_PAULISTANO' && !entregaReservaDisponivel) ||
+      (body.tipoEntrega === 'RETIRADA' && !entregaRetiradaDisponivel) ||
+      (body.tipoEntrega === 'ENCOMENDA' && !entregaEncomendaDisponivel)
+    ) {
+      return NextResponse.json({ error: 'Esse tipo de entrega nao esta disponivel no momento' }, { status: 400 })
+    }
+
+    if (
+      (body.pagamento === 'PIX' && !pagamentoPixDisponivel) ||
+      (body.pagamento === 'DINHEIRO' && !pagamentoDinheiroDisponivel) ||
+      (body.pagamento === 'CARTAO' && !pagamentoCartaoDisponivel)
+    ) {
+      return NextResponse.json({ error: 'Essa forma de pagamento nao esta disponivel no momento' }, { status: 400 })
+    }
+
+    let encomendaParaPedido: Date | null = null
+    if (body.tipoEntrega === 'ENCOMENDA') {
+      if ((configuracao?.checkoutPublicoEncomendaModo ?? 'CLIENTE_DEFINE') === 'FIXO') {
+        if (!configuracao?.checkoutPublicoEncomendaDataFixa) {
+          return NextResponse.json({ error: 'A loja ainda nao configurou a data fixa para encomenda' }, { status: 400 })
+        }
+        encomendaParaPedido = configuracao.checkoutPublicoEncomendaDataFixa
+      } else {
+        const parsedDate = body.encomendaPara ? new Date(body.encomendaPara) : null
+        if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
+          return NextResponse.json({ error: 'Data e hora da encomenda obrigatorias' }, { status: 400 })
+        }
+        encomendaParaPedido = parsedDate
+      }
+    }
+
+    let tipoCartaoPedido: 'CREDITO' | 'DEBITO' | null = null
+    if (body.pagamento === 'CARTAO') {
+      if (body.tipoCartao === 'CREDITO' && !cartaoCreditoDisponivel) {
+        return NextResponse.json({ error: 'Cartao de credito indisponivel no momento' }, { status: 400 })
+      }
+      if (body.tipoCartao === 'DEBITO' && !cartaoDebitoDisponivel) {
+        return NextResponse.json({ error: 'Cartao de debito indisponivel no momento' }, { status: 400 })
+      }
+
+      if (body.tipoCartao) {
+        tipoCartaoPedido = body.tipoCartao
+      } else if (cartaoCreditoDisponivel && !cartaoDebitoDisponivel) {
+        tipoCartaoPedido = 'CREDITO'
+      } else if (!cartaoCreditoDisponivel && cartaoDebitoDisponivel) {
+        tipoCartaoPedido = 'DEBITO'
+      } else {
+        return NextResponse.json({ error: 'Tipo do cartao obrigatorio' }, { status: 400 })
+      }
+    }
 
     let cupomId: string | undefined
     let cupomCodigoSnapshot: string | undefined
@@ -145,40 +266,63 @@ export async function POST(request: NextRequest) {
     }
 
     const total = calcularTotal(subtotal, frete) - descontoValor
-    const cliente = await prisma.cliente.upsert({
-      where: { tenantId_telefone: { tenantId: tenant.id, telefone: telefoneLimpo } },
-      create: {
+    const existingCliente = await prisma.cliente.findFirst({
+      where: {
         tenantId: tenant.id,
-        nome: body.clienteNome.trim(),
-        telefone: telefoneLimpo,
-        whatsapp: whatsappLimpo || telefoneLimpo,
-        clienteBloco: body.clienteBloco?.trim() ?? null,
-        clienteApartamento: body.clienteApartamento?.trim() ?? null,
-        observacoes: null,
+        OR: [
+          { telefone: { in: telefoneCandidates } },
+          { whatsapp: { in: telefoneCandidates } },
+          ...(whatsappCandidates.length > 0
+            ? [
+                { telefone: { in: whatsappCandidates } },
+                { whatsapp: { in: whatsappCandidates } },
+              ]
+            : []),
+        ],
       },
-      update: {
-        nome: body.clienteNome.trim(),
-        whatsapp: whatsappLimpo || telefoneLimpo,
-        clienteBloco: body.clienteBloco?.trim() ?? null,
-        clienteApartamento: body.clienteApartamento?.trim() ?? null,
+      select: {
+        id: true,
+        nome: true,
+        telefone: true,
+        whatsapp: true,
       },
-      select: { id: true },
     })
+
+    const cliente = existingCliente
+      ? { id: existingCliente.id }
+      : await prisma.cliente.create({
+          data: {
+            tenantId: tenant.id,
+            nome: body.clienteNome.trim(),
+            telefone: telefoneLimpo,
+            whatsapp: whatsappLimpo || telefoneLimpo,
+            clienteBloco: body.clienteBloco?.trim() ?? null,
+            clienteApartamento: body.clienteApartamento?.trim() ?? null,
+            observacoes: null,
+          },
+          select: { id: true },
+        })
+
+    const clienteNomePedido = existingCliente?.nome?.trim() || body.clienteNome.trim()
+    const clienteWhatsappPedido = existingCliente?.whatsapp || whatsappLimpo || telefoneLimpo
+    const publicAccessToken = generatePublicOrderAccessToken()
 
     const novoPedido = await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
         data: {
           clienteId: cliente.id,
           status: 'FEITO',
-          clienteNome: body.clienteNome.trim(),
+          publicAccessTokenHash: hashPublicOrderAccessToken(publicAccessToken),
+          publicAccessTokenIssuedAt: new Date(),
+          clienteNome: clienteNomePedido,
           clienteTelefone: telefoneLimpo,
-          clienteWhatsapp: whatsappLimpo || null,
+          clienteWhatsapp: clienteWhatsappPedido || null,
           clienteBloco: body.clienteBloco?.trim() ?? null,
           clienteApartamento: body.clienteApartamento?.trim() ?? null,
           pagamento: body.pagamento,
-          tipoCartao: body.pagamento === 'CARTAO' ? body.tipoCartao ?? 'CREDITO' : null,
+          tipoCartao: tipoCartaoPedido,
           tipoEntrega: body.tipoEntrega,
-          encomendaPara: body.tipoEntrega === 'ENCOMENDA' && body.encomendaPara ? new Date(body.encomendaPara) : null,
+          encomendaPara: encomendaParaPedido,
           enderecoEntrega: null,
           enderecoRetirada: configuracao?.enderecoRetirada ?? '',
           frete,
@@ -232,7 +376,7 @@ export async function POST(request: NextRequest) {
 
     appLogger.info(`[api/pedidos] Novo pedido criado: ${novoPedido.id}`)
 
-    return NextResponse.json(novoPedido, { status: 201 })
+    return NextResponse.json(serializePublicPedido(novoPedido, publicAccessToken), { status: 201 })
   } catch (error) {
     console.error('[v0] Erro ao criar pedido:', error)
     return NextResponse.json(

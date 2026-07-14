@@ -1,4 +1,4 @@
-import { MIMO_COOKIE_THRESHOLD } from './mimos.ts'
+import { MIMO_COOKIE_THRESHOLD } from './mimos'
 
 type PedidoResumoItem = {
   nomeProdutoSnapshot: string

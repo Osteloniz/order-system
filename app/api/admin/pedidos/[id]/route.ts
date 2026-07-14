@@ -10,6 +10,14 @@ import { addAvailableStock, releaseReservedToAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
+function parseDateOnlyOrDateTime(value: string) {
+  const normalized = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return new Date(`${normalized}T00:00:00-03:00`)
+  }
+  return new Date(normalized)
+}
+
 const separacaoPessoaSchema = z.object({
   nome: z.string().trim().min(1).max(80),
   itens: z.array(z.object({
@@ -55,9 +63,9 @@ const pedidoAdminSchema = z.object({
   }
 
   if (data.tipoEntrega === 'ENCOMENDA') {
-    const parsedDate = data.encomendaPara ? new Date(data.encomendaPara) : null
+    const parsedDate = data.encomendaPara ? parseDateOnlyOrDateTime(data.encomendaPara) : null
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data e hora da encomenda obrigatorias' })
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['encomendaPara'], message: 'Data da encomenda obrigatoria' })
     }
   }
   if (data.criadoEm?.trim()) {

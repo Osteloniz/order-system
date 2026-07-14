@@ -3,22 +3,24 @@ import type { StatusPagamento, StatusPedido, TipoCartao, TipoEntrega, TipoPagame
 export const pagamentoLabels: Record<TipoPagamento, string> = {
   PIX: 'PIX',
   DINHEIRO: 'Dinheiro',
-  CARTAO: 'Cartao',
+  CARTAO: 'Cartão',
 }
 
 export const tipoCartaoLabels: Record<TipoCartao, string> = {
-  CREDITO: 'Credito',
-  DEBITO: 'Debito',
+  CREDITO: 'Crédito',
+  DEBITO: 'Débito',
 }
 
 export function getPagamentoLabel(pagamento: TipoPagamento, tipoCartao?: TipoCartao | null) {
   if (pagamento !== 'CARTAO') return pagamentoLabels[pagamento]
-  const subtipo = tipoCartao ? tipoCartaoLabels[tipoCartao] : tipoCartaoLabels.CREDITO
-  return `Cartao (${subtipo})`
+  if (!tipoCartao) return pagamentoLabels[pagamento]
+  const subtipo = tipoCartaoLabels[tipoCartao]
+  return `Cartão (${subtipo})`
 }
 
 export const entregaLabels: Record<TipoEntrega, string> = {
-  RESERVA_PAULISTANO: 'Condominio',
+  ENTREGA: 'Entrega',
+  RESERVA_PAULISTANO: 'Condomínio',
   RETIRADA: 'Retirada',
   ENCOMENDA: 'Encomenda',
 }

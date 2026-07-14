@@ -1,6 +1,6 @@
 'use client'
 
-import type { Pedido } from '@/lib/types'
+import type { Pedido, RecentOrderReference } from '@/lib/types'
 
 export type CustomerProfile = {
   nome: string
@@ -15,6 +15,12 @@ const ORDERS_KEY = 'brookie.customer.orders'
 const MENU_SCROLL_KEY = 'brookie.menu.scrollY'
 const MAX_RECENT_ORDERS = 5
 
+function isRecentOrderReference(value: unknown): value is RecentOrderReference {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.id === 'string'
+}
+
 function normalizeContact(value?: string | null) {
   return (value || '').replace(/\D/g, '')
 }
@@ -24,40 +30,73 @@ function getOrdersKeyForContact(contact?: string | null) {
   return normalized ? `${ORDERS_KEY}.${normalized}` : ORDERS_KEY
 }
 
-export function getCustomerProfile(): CustomerProfile | null {
+function getProfileStorageKey(contact?: string | null) {
+  const normalized = normalizeContact(contact)
+  return normalized ? `${PROFILE_KEY}.${normalized}` : PROFILE_KEY
+}
+
+export function getCustomerProfile(contact?: string | null): CustomerProfile | null {
   try {
-    const raw = window.localStorage.getItem(PROFILE_KEY)
-    return raw ? JSON.parse(raw) : null
+    const storageKey = getProfileStorageKey(contact)
+    const raw = window.localStorage.getItem(storageKey)
+    if (raw) return JSON.parse(raw)
+
+    if (contact) {
+      return null
+    }
+
+    const legacyRaw = window.localStorage.getItem(PROFILE_KEY)
+    if (!legacyRaw) return null
+    return JSON.parse(legacyRaw)
   } catch {
     return null
   }
 }
 
 export function saveCustomerProfile(profile: CustomerProfile) {
+  const contact = normalizeContact(profile.whatsapp || profile.telefone)
+  if (contact) {
+    window.localStorage.setItem(getProfileStorageKey(contact), JSON.stringify(profile))
+  }
   window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
 }
 
-export function getRecentOrderIds() {
+export function getRecentOrders() {
   try {
     const profile = getCustomerProfile()
     const contact = normalizeContact(profile?.whatsapp || profile?.telefone)
-    if (!contact) return []
+    if (!contact) return [] as RecentOrderReference[]
 
     const raw = window.localStorage.getItem(getOrdersKeyForContact(contact))
-    const ids = raw ? JSON.parse(raw) : []
-    return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []
+    const items = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(items)) return [] as RecentOrderReference[]
+
+    return items
+      .map((item) => {
+        if (typeof item === 'string') {
+          return { id: item, accessToken: null }
+        }
+        return isRecentOrderReference(item) ? { id: item.id, accessToken: item.accessToken?.toString() || null } : null
+      })
+      .filter((item): item is RecentOrderReference => Boolean(item))
   } catch {
-    return []
+    return [] as RecentOrderReference[]
   }
 }
 
-export function saveRecentOrder(pedido: Pick<Pedido, 'id' | 'clienteTelefone' | 'clienteWhatsapp'>) {
+export function getRecentOrderIds() {
+  return getRecentOrders().map((pedido) => pedido.id)
+}
+
+export function saveRecentOrder(
+  pedido: Pick<Pedido, 'id' | 'clienteTelefone' | 'clienteWhatsapp'> & { accessToken?: string | null }
+) {
   const contact = normalizeContact(pedido.clienteWhatsapp || pedido.clienteTelefone)
   const storageKey = getOrdersKeyForContact(contact)
-  const ids = getRecentOrderIds().filter((id) => id !== pedido.id)
+  const orders = getRecentOrders().filter((item) => item.id !== pedido.id)
   window.localStorage.setItem(
     storageKey,
-    JSON.stringify([pedido.id, ...ids].slice(0, MAX_RECENT_ORDERS))
+    JSON.stringify([{ id: pedido.id, accessToken: pedido.accessToken || null }, ...orders].slice(0, MAX_RECENT_ORDERS))
   )
 }
 

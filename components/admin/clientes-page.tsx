@@ -141,7 +141,7 @@ export function ClientesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: form.nome,
-          ...(isCreating ? { telefone: normalizePhone(form.telefone) } : {}),
+          telefone: normalizePhone(form.telefone) || undefined,
           whatsapp: normalizePhone(form.whatsapp),
           clienteBloco: form.clienteBloco || undefined,
           clienteApartamento: form.clienteApartamento || undefined,
@@ -398,8 +398,11 @@ export function ClientesPage() {
                     <Input value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} className="h-11 rounded-2xl" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} disabled={!isCreating} placeholder="(47) 99999-9999 ou +47..." className="h-11 rounded-2xl" />
+                    <Label>Telefone principal</Label>
+                    <Input value={form.telefone} onChange={(event) => setForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))} placeholder="(47) 99999-9999 ou +47..." className="h-11 rounded-2xl" />
+                    <p className="text-xs text-muted-foreground">
+                      Esse numero e usado para evitar duplicidade e para preencher dados automaticamente no link publico.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>WhatsApp</Label>

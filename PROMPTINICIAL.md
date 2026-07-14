@@ -42,8 +42,22 @@ Use este comando base:
 - As telas de cupons, contas a pagar, contas a receber e fluxo de caixa ja receberam uma nova passada visual/mobile-first, preservando comportamento e priorizando legibilidade no celular
 - Ja existe base tecnica de PWA com `manifest` e registro de `service worker`, mas o `sw.js` atual ainda e propositalmente minimo e nao implementa operacao offline segura
 - O sistema ja suporta tema `claro`, `escuro` e `sistema`; a base global foi ajustada para a nova identidade visual, e os proximos refinamentos devem continuar substituindo cores hardcoded restantes por tokens semanticos
-- Nesta passada nao houve alteracao em `prisma/schema.prisma` nem em `prisma/migrations/`; portanto nao existe atualizacao de banco pendente por causa dessas telas
-- O proximo passo natural e revisao visual final em HML/local, seguida de preparacao de PR e depois fluxo de PRD apenas apos confirmacao explicita do usuario
+- O fluxo publico agora abre direto no catalogo pela raiz `/`, sem expor login admin, e o link de catalogo mostrado em configuracoes deve ser tratado como o link principal a enviar para clientes
+- No fluxo publico do cliente, a troca manual de tema nao deve mais aparecer; o catalogo, checkout e confirmacao devem seguir o tema do sistema do aparelho ao abrir o link
+- O checkout publico foi aproximado do novo padrao visual e agora consulta cadastro existente por telefone para pre-preencher nome e endereco quando houver cliente ja salvo
+- O bloco `Identificacao e contato` do checkout publico foi refinado para deixar o telefone mais guiado e claramente obrigatorio, com feedback visual de busca do cadastro e nome travado quando o numero ja pertence a um cliente encontrado
+- O acompanhamento publico de pedido agora deve ser tratado como fluxo protegido por token de acesso por pedido, e nao mais apenas pelo `id` exposto na URL
+- A edicao de clientes no admin agora permite corrigir o telefone principal, com bloqueio de conflito quando o numero ja pertence a outro cadastro
+- No checkout publico, o pagamento segue sendo apenas um indicador de metodo para controle operacional; a efetivacao continua sendo tratada fora do site
+- O checkout publico agora tambem e configuravel por tenant: o admin pode ligar/desligar tipos de entrega, controlar pagamentos disponiveis e definir se `ENCOMENDA` usa data escolhida pelo cliente ou data fixa da loja
+- Para pagamento com cartao no checkout publico, a interface agora permite expor `credito`, `debito` ou ambos, espelhando melhor o fluxo do pedido manual
+- Nesta passada houve alteracao em `prisma/schema.prisma` e foi criada a migration `20260713113000_add_public_checkout_controls_to_configuracao`
+- Nesta frente de seguranca do checkout publico tambem foi criada a migration `20260713170000_add_public_order_access_token`
+- Antes de validar em HML/PRD ou subir deploy com essa entrega, sera obrigatorio aplicar a migration no banco e regenerar o Prisma Client
+- O prefill publico por telefone agora deve continuar minimalista e com limitacao de tentativas; novas evolucoes nesse fluxo nao devem voltar a expor telefone completo, WhatsApp completo ou historico do cliente
+- O checkout publico nao deve mais sobrescrever automaticamente o cadastro mestre do cliente quando encontra um telefone existente; o pedido pode usar snapshot proprio sem regravar o registro base
+- O fluxo do kanban apos a criacao do pedido deve continuar sendo preservado; esta frente mexe no checkout e nas configuracoes, nao no pipeline central de status
+- O proximo passo natural, se quisermos continuar essa frente, e revisar detalhes finais do checkout publico e depois entrar nos ajustes pontuais do kanban sem alterar sua logica principal
 
 ## Regra para continuidade entre chats
 - Ao final de cada conversa relevante, este documento deve ser revisado e atualizado se houver mudanca de contexto, processo, entregas, migracoes, decisoes de UX, fluxo de deploy ou pontos de atencao

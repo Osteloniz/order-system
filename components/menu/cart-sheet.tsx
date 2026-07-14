@@ -24,7 +24,7 @@ export function CartSheet({ open, onOpenChange, onCheckout, canCheckout = true }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col w-full sm:max-w-md">
+      <SheetContent className="flex w-full flex-col border-l border-border/80 bg-background sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <ShoppingBag className="h-5 w-5" />
@@ -44,16 +44,16 @@ export function CartSheet({ open, onOpenChange, onCheckout, canCheckout = true }
               {itens.map(item => (
                 <div
                   key={item.produto.id}
-                  className="flex gap-3 p-3 bg-secondary/50 rounded-lg"
+                  className="flex gap-3 rounded-[22px] border border-border/80 bg-card px-4 py-4 shadow-sm"
                 >
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-foreground truncate">
+                    <h4 className="truncate text-lg font-semibold text-foreground">
                       {item.produto.nome}
                     </h4>
                     <p className="text-sm text-muted-foreground">
                       {formatarMoeda(item.produto.preco)} cada
                     </p>
-                    <p className="text-primary font-semibold mt-1">
+                    <p className="mt-2 text-2xl font-bold text-primary">
                       {formatarMoeda(item.produto.preco * item.quantidade)}
                     </p>
                   </div>
@@ -72,18 +72,18 @@ export function CartSheet({ open, onOpenChange, onCheckout, canCheckout = true }
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-7 w-7 bg-transparent"
+                        className="h-10 w-10 rounded-full border-border/80 bg-background"
                         onClick={() => atualizarQuantidade(item.produto.id, item.quantidade - 1)}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
-                      <span className="w-8 text-center font-medium text-sm">
+                      <span className="w-10 text-center text-lg font-medium">
                         {item.quantidade}
                       </span>
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-7 w-7 bg-transparent"
+                        className="h-10 w-10 rounded-full border-border/80 bg-background"
                         onClick={() => atualizarQuantidade(item.produto.id, item.quantidade + 1)}
                       >
                         <Plus className="h-3 w-3" />
@@ -106,7 +106,7 @@ export function CartSheet({ open, onOpenChange, onCheckout, canCheckout = true }
                   </p>
                 )}
                 <Button
-                  className="w-full h-12 text-base"
+                  className="h-14 w-full rounded-2xl text-base"
                   onClick={onCheckout}
                   disabled={!canCheckout}
                 >

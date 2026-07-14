@@ -2,7 +2,12 @@ import type { Configuracao, Pedido, StatusPedido } from '@/lib/types'
 import { formatarMoeda } from '@/lib/calc'
 import { getPagamentoLabel, statusPagamentoLabelsLong } from '@/lib/order-display'
 
-const entregaLabels = { RESERVA_PAULISTANO: 'Reserva', RETIRADA: 'Retirada', ENCOMENDA: 'Encomenda' } as const
+const entregaLabels = {
+  ENTREGA: 'Entrega',
+  RESERVA_PAULISTANO: 'Reserva',
+  RETIRADA: 'Retirada',
+  ENCOMENDA: 'Encomenda',
+} as const
 
 export const defaultStatusMessageTemplates = {
   ACEITO: [
@@ -74,12 +79,27 @@ type ConfiguracaoWithNullableMessages = {
   padraoNovoPedidoDescontosExpandidos?: Configuracao['padraoNovoPedidoDescontosExpandidos']
   padraoNovoPedidoObservacoesExpandidas?: Configuracao['padraoNovoPedidoObservacoesExpandidas']
   padraoNovoPedidoResponsavelExpandido?: Configuracao['padraoNovoPedidoResponsavelExpandido']
+  checkoutPublicoEntregaReservaPaulistano?: Configuracao['checkoutPublicoEntregaReservaPaulistano']
+  checkoutPublicoEntregaRetirada?: Configuracao['checkoutPublicoEntregaRetirada']
+  checkoutPublicoEntregaEncomenda?: Configuracao['checkoutPublicoEntregaEncomenda']
+  checkoutPublicoEncomendaModo?: Configuracao['checkoutPublicoEncomendaModo']
+  checkoutPublicoEncomendaDataFixa?: Configuracao['checkoutPublicoEncomendaDataFixa'] | Date
+  checkoutPublicoPagamentoPix?: Configuracao['checkoutPublicoPagamentoPix']
+  checkoutPublicoPagamentoDinheiro?: Configuracao['checkoutPublicoPagamentoDinheiro']
+  checkoutPublicoPagamentoCartao?: Configuracao['checkoutPublicoPagamentoCartao']
+  checkoutPublicoPagamentoCartaoCredito?: Configuracao['checkoutPublicoPagamentoCartaoCredito']
+  checkoutPublicoPagamentoCartaoDebito?: Configuracao['checkoutPublicoPagamentoCartaoDebito']
   mensagemStatusAceito?: string | null
   mensagemStatusPreparacao?: string | null
   mensagemStatusEntregue?: string | null
 }
 
 export function hydrateConfigWithMessageDefaults(config: ConfiguracaoWithNullableMessages | null | undefined): Configuracao {
+  const checkoutPublicoEncomendaDataFixa =
+    config?.checkoutPublicoEncomendaDataFixa instanceof Date
+      ? config.checkoutPublicoEncomendaDataFixa.toISOString()
+      : (config?.checkoutPublicoEncomendaDataFixa ?? null)
+
   return {
     freteBase: config?.freteBase ?? 500,
     freteRaioKm: config?.freteRaioKm ?? 3,
@@ -95,6 +115,16 @@ export function hydrateConfigWithMessageDefaults(config: ConfiguracaoWithNullabl
     padraoNovoPedidoDescontosExpandidos: config?.padraoNovoPedidoDescontosExpandidos ?? false,
     padraoNovoPedidoObservacoesExpandidas: config?.padraoNovoPedidoObservacoesExpandidas ?? false,
     padraoNovoPedidoResponsavelExpandido: config?.padraoNovoPedidoResponsavelExpandido ?? false,
+    checkoutPublicoEntregaReservaPaulistano: config?.checkoutPublicoEntregaReservaPaulistano ?? true,
+    checkoutPublicoEntregaRetirada: config?.checkoutPublicoEntregaRetirada ?? true,
+    checkoutPublicoEntregaEncomenda: config?.checkoutPublicoEntregaEncomenda ?? true,
+    checkoutPublicoEncomendaModo: config?.checkoutPublicoEncomendaModo ?? 'CLIENTE_DEFINE',
+    checkoutPublicoEncomendaDataFixa,
+    checkoutPublicoPagamentoPix: config?.checkoutPublicoPagamentoPix ?? true,
+    checkoutPublicoPagamentoDinheiro: config?.checkoutPublicoPagamentoDinheiro ?? true,
+    checkoutPublicoPagamentoCartao: config?.checkoutPublicoPagamentoCartao ?? true,
+    checkoutPublicoPagamentoCartaoCredito: config?.checkoutPublicoPagamentoCartaoCredito ?? true,
+    checkoutPublicoPagamentoCartaoDebito: config?.checkoutPublicoPagamentoCartaoDebito ?? true,
     mensagemStatusAceito: sanitizeTemplate(config?.mensagemStatusAceito, defaultStatusMessageTemplates.ACEITO),
     mensagemStatusPreparacao: sanitizeTemplate(config?.mensagemStatusPreparacao, defaultStatusMessageTemplates.PREPARACAO),
     mensagemStatusEntregue: sanitizeTemplate(config?.mensagemStatusEntregue, defaultStatusMessageTemplates.ENTREGUE),

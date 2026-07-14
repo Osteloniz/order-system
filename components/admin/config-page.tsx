@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState, useEffect, useRef } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, Copy, CreditCard, Link2, MapPin, MessageCircle, PackageCheck, QrCode, RotateCcw, Save, Loader2, Settings, Shield, Sparkles, Store, Volume2, Wallet } from 'lucide-react'
+import { Bell, CalendarClock, Copy, CreditCard, Link2, MapPin, MessageCircle, PackageCheck, QrCode, RotateCcw, Save, Loader2, Settings, Shield, Sparkles, Store, Volume2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,8 +14,20 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertSoundEnabled, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
-import type { Configuracao, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
+import type { Configuracao, ModoEncomendaCheckout, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 import { getDefaultStatusTemplate, hydrateConfigWithMessageDefaults, statusMessageTemplateFields, supportedStatusTemplateVariables } from '@/lib/message-templates'
+
+function formatDateInputValue(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
 
 async function fetcher<T>(url: string): Promise<T> {
   const response = await fetch(url)
@@ -59,6 +71,16 @@ export function ConfigPage() {
   const [padraoNovoPedidoDescontosExpandidos, setPadraoNovoPedidoDescontosExpandidos] = useState(false)
   const [padraoNovoPedidoObservacoesExpandidas, setPadraoNovoPedidoObservacoesExpandidas] = useState(false)
   const [padraoNovoPedidoResponsavelExpandido, setPadraoNovoPedidoResponsavelExpandido] = useState(false)
+  const [checkoutPublicoEntregaReservaPaulistano, setCheckoutPublicoEntregaReservaPaulistano] = useState(true)
+  const [checkoutPublicoEntregaRetirada, setCheckoutPublicoEntregaRetirada] = useState(true)
+  const [checkoutPublicoEntregaEncomenda, setCheckoutPublicoEntregaEncomenda] = useState(true)
+  const [checkoutPublicoEncomendaModo, setCheckoutPublicoEncomendaModo] = useState<ModoEncomendaCheckout>('CLIENTE_DEFINE')
+  const [checkoutPublicoEncomendaDataFixa, setCheckoutPublicoEncomendaDataFixa] = useState('')
+  const [checkoutPublicoPagamentoPix, setCheckoutPublicoPagamentoPix] = useState(true)
+  const [checkoutPublicoPagamentoDinheiro, setCheckoutPublicoPagamentoDinheiro] = useState(true)
+  const [checkoutPublicoPagamentoCartao, setCheckoutPublicoPagamentoCartao] = useState(true)
+  const [checkoutPublicoPagamentoCartaoCredito, setCheckoutPublicoPagamentoCartaoCredito] = useState(true)
+  const [checkoutPublicoPagamentoCartaoDebito, setCheckoutPublicoPagamentoCartaoDebito] = useState(true)
   const [mensagemStatusAceito, setMensagemStatusAceito] = useState('')
   const [mensagemStatusPreparacao, setMensagemStatusPreparacao] = useState('')
   const [mensagemStatusEntregue, setMensagemStatusEntregue] = useState('')
@@ -74,7 +96,7 @@ export function ConfigPage() {
   const [baseUrl, setBaseUrl] = useState('')
   const configHydratedRef = useRef(false)
   const tenantHydratedRef = useRef(false)
-  const publicCatalogUrl = baseUrl ? `${baseUrl}/menu` : '/menu'
+  const publicCatalogUrl = baseUrl || '/'
   const adminLoginUrl = baseUrl ? `${baseUrl}/admin/login` : '/admin/login'
   const permissionLabel = notificationPermission === 'granted' ? 'permitida' : notificationPermission === 'denied' ? 'bloqueada' : notificationPermission === 'default' ? 'pendente' : 'nao suportada'
   const permissionTone = notificationPermission === 'granted' ? 'border-success/25 bg-success/10 text-success' : notificationPermission === 'denied' ? 'border-destructive/25 bg-destructive/10 text-destructive' : 'border-warning/25 bg-warning/10 text-warning-foreground'
@@ -84,7 +106,7 @@ export function ConfigPage() {
       await navigator.clipboard.writeText(value)
       setAlertMessage(successMessage)
     } catch {
-      setAlertMessage('Nao foi possivel copiar automaticamente. Você ainda pode copiar manualmente.')
+      setAlertMessage('Não foi possível copiar automaticamente. Você ainda pode copiar manualmente.')
     }
   }
 
@@ -117,6 +139,16 @@ export function ConfigPage() {
       setPadraoNovoPedidoDescontosExpandidos(config.padraoNovoPedidoDescontosExpandidos ?? false)
       setPadraoNovoPedidoObservacoesExpandidas(config.padraoNovoPedidoObservacoesExpandidas ?? false)
       setPadraoNovoPedidoResponsavelExpandido(config.padraoNovoPedidoResponsavelExpandido ?? false)
+      setCheckoutPublicoEntregaReservaPaulistano(config.checkoutPublicoEntregaReservaPaulistano ?? true)
+      setCheckoutPublicoEntregaRetirada(config.checkoutPublicoEntregaRetirada ?? true)
+      setCheckoutPublicoEntregaEncomenda(config.checkoutPublicoEntregaEncomenda ?? true)
+      setCheckoutPublicoEncomendaModo(config.checkoutPublicoEncomendaModo ?? 'CLIENTE_DEFINE')
+      setCheckoutPublicoEncomendaDataFixa(formatDateInputValue(config.checkoutPublicoEncomendaDataFixa))
+      setCheckoutPublicoPagamentoPix(config.checkoutPublicoPagamentoPix ?? true)
+      setCheckoutPublicoPagamentoDinheiro(config.checkoutPublicoPagamentoDinheiro ?? true)
+      setCheckoutPublicoPagamentoCartao(config.checkoutPublicoPagamentoCartao ?? true)
+      setCheckoutPublicoPagamentoCartaoCredito(config.checkoutPublicoPagamentoCartaoCredito ?? true)
+      setCheckoutPublicoPagamentoCartaoDebito(config.checkoutPublicoPagamentoCartaoDebito ?? true)
       setMensagemStatusAceito(config.mensagemStatusAceito)
       setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
       setMensagemStatusEntregue(config.mensagemStatusEntregue)
@@ -172,7 +204,7 @@ export function ConfigPage() {
     setSaved(false)
     setSubmitError('')
 
-    const payload: Record<string, number | string | boolean> = {
+    const payload: Record<string, number | string | boolean | null> = {
       nomeEstabelecimento,
       enderecoRetirada,
       envioAutomaticoWhatsappStatus,
@@ -182,6 +214,18 @@ export function ConfigPage() {
       padraoNovoPedidoDescontosExpandidos,
       padraoNovoPedidoObservacoesExpandidas,
       padraoNovoPedidoResponsavelExpandido,
+      checkoutPublicoEntregaReservaPaulistano,
+      checkoutPublicoEntregaRetirada,
+      checkoutPublicoEntregaEncomenda,
+      checkoutPublicoEncomendaModo,
+      checkoutPublicoEncomendaDataFixa: checkoutPublicoEntregaEncomenda && checkoutPublicoEncomendaModo === 'FIXO' && checkoutPublicoEncomendaDataFixa
+        ? new Date(`${checkoutPublicoEncomendaDataFixa}T00:00:00-03:00`).toISOString()
+        : null,
+      checkoutPublicoPagamentoPix,
+      checkoutPublicoPagamentoDinheiro,
+      checkoutPublicoPagamentoCartao,
+      checkoutPublicoPagamentoCartaoCredito,
+      checkoutPublicoPagamentoCartaoDebito,
       mensagemStatusAceito: mensagemStatusAceito.trim(),
       mensagemStatusPreparacao: mensagemStatusPreparacao.trim(),
       mensagemStatusEntregue: mensagemStatusEntregue.trim()
@@ -209,8 +253,8 @@ export function ConfigPage() {
       } else {
         errors.push(
           typeof updatedConfig === 'object' && updatedConfig && 'error' in updatedConfig
-            ? `Configuracoes: ${String(updatedConfig.error)}`
-            : 'Configuracoes: erro ao salvar configuracoes'
+            ? `Configurações: ${String(updatedConfig.error)}`
+            : 'Configurações: erro ao salvar configurações'
         )
       }
 
@@ -232,7 +276,7 @@ export function ConfigPage() {
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Erro ao salvar configuracoes')
+      setSubmitError(error instanceof Error ? error.message : 'Erro ao salvar configurações')
     } finally {
       setIsSubmitting(false)
     }
@@ -257,16 +301,16 @@ export function ConfigPage() {
             </Badge>
             <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
               <Settings className="h-7 w-7 text-primary" />
-              Configuracoes
+              Configurações
             </h1>
             <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Centralize os dados do estabelecimento, textos do WhatsApp, links de operacao e alertas deste navegador.
+              Centralize os dados do estabelecimento, textos do WhatsApp, links de operação e alertas deste navegador.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Loja</p>
-              <p className="mt-1 font-semibold">{nomeEstabelecimento || 'Nao configurado'}</p>
+              <p className="mt-1 font-semibold">{nomeEstabelecimento || 'Não configurado'}</p>
               <p className="mt-1 text-xs text-muted-foreground">{isOpen ? 'Aberta para pedidos' : 'Fechada no checkout'}</p>
             </div>
             <div className="rounded-2xl border bg-background/80 p-4">
@@ -276,7 +320,7 @@ export function ConfigPage() {
             </div>
             <div className="rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Mensagens</p>
-              <p className="mt-1 font-semibold">{envioAutomaticoWhatsappStatus ? 'Envio automatico ligado' : 'Envio manual'}</p>
+              <p className="mt-1 font-semibold">{envioAutomaticoWhatsappStatus ? 'Envio automático ligado' : 'Envio manual'}</p>
               <p className="mt-1 text-xs text-muted-foreground">Fluxo de status do pedido</p>
             </div>
           </div>
@@ -286,7 +330,7 @@ export function ConfigPage() {
       {(configError || tenantError) && (
         <Card className="max-w-4xl border-destructive/40 bg-destructive/5">
           <CardContent className="p-4 text-sm text-destructive">
-            {(configError || tenantError)?.message || 'Nao foi possivel carregar as configuracoes.'}
+            {(configError || tenantError)?.message || 'Não foi possível carregar as configurações.'}
           </CardContent>
         </Card>
       )}
@@ -319,7 +363,7 @@ export function ConfigPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="endereco">Endereco para Retirada</Label>
+                  <Label htmlFor="endereco">Endereço para Retirada</Label>
                   <Input
                     id="endereco"
                     value={enderecoRetirada}
@@ -337,7 +381,7 @@ export function ConfigPage() {
                   <div>
                     <Label htmlFor="aberto">Aberto para pedidos</Label>
                     <p className="text-xs text-muted-foreground">
-                      Quando fechado, o cliente nao consegue finalizar pedidos.
+                      Quando fechado, o cliente não consegue finalizar pedidos.
                     </p>
                   </div>
                   <Switch
@@ -366,9 +410,9 @@ export function ConfigPage() {
 
             <div className="rounded-2xl border border-border/70 bg-background/65 p-4">
               <div className="mb-4">
-                <Label className="text-base">Padrao para novos pedidos manuais</Label>
+                <Label className="text-base">Padrão para novos pedidos manuais</Label>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Define entrega, pagamento e cards expandidos por padrao ao abrir a tela de novo pedido no admin.
+                  Define entrega, pagamento e cards expandidos por padrão ao abrir a tela de novo pedido no admin.
                 </p>
               </div>
               <div className="mb-5">
@@ -384,9 +428,9 @@ export function ConfigPage() {
                   >
                     <div className="flex items-center gap-2 font-semibold">
                       <MapPin className="h-4 w-4 text-primary" />
-                      Condominio
+                      Condomínio
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">Ja abre com bloco e apartamento no foco da operacao.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Já abre com bloco e apartamento no foco da operação.</p>
                   </button>
                   <button
                     type="button"
@@ -434,7 +478,7 @@ export function ConfigPage() {
                     <Wallet className="h-4 w-4 text-primary" />
                     Dinheiro
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">Nao exige confirmacao extra.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Não exige confirmação extra.</p>
                 </button>
                 <button
                   type="button"
@@ -461,7 +505,7 @@ export function ConfigPage() {
                 >
                   <div className="flex items-center gap-2 font-semibold">
                     <CreditCard className="h-4 w-4 text-primary" />
-                    Cartao credito
+                    Cartão crédito
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">Taxa prevista de 3,09%.</p>
                 </button>
@@ -476,7 +520,7 @@ export function ConfigPage() {
                 >
                   <div className="flex items-center gap-2 font-semibold">
                     <CreditCard className="h-4 w-4 text-primary" />
-                    Cartao debito
+                    Cartão débito
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">Taxa prevista de 0,89%.</p>
                 </button>
@@ -491,7 +535,7 @@ export function ConfigPage() {
                   className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoDescontosExpandidos ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
                 >
                   <p className="font-semibold">Descontos</p>
-                  <p className="mt-2 text-xs text-muted-foreground">Padrao: {padraoNovoPedidoDescontosExpandidos ? 'expandido' : 'recolhido'}.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Padrão: {padraoNovoPedidoDescontosExpandidos ? 'expandido' : 'recolhido'}.</p>
                 </button>
                 <button
                   type="button"
@@ -501,8 +545,8 @@ export function ConfigPage() {
                   }}
                   className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoObservacoesExpandidas ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
                 >
-                  <p className="font-semibold">Observacoes</p>
-                  <p className="mt-2 text-xs text-muted-foreground">Padrao: {padraoNovoPedidoObservacoesExpandidas ? 'expandido' : 'recolhido'}.</p>
+                  <p className="font-semibold">Observações</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Padrão: {padraoNovoPedidoObservacoesExpandidas ? 'expandido' : 'recolhido'}.</p>
                 </button>
                 <button
                   type="button"
@@ -513,8 +557,204 @@ export function ConfigPage() {
                   className={`rounded-2xl border p-4 text-left transition ${padraoNovoPedidoResponsavelExpandido ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
                 >
                   <p className="font-semibold">Responsavel e etiquetas</p>
-                  <p className="mt-2 text-xs text-muted-foreground">Padrao: {padraoNovoPedidoResponsavelExpandido ? 'expandido' : 'recolhido'}.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Padrão: {padraoNovoPedidoResponsavelExpandido ? 'expandido' : 'recolhido'}.</p>
                 </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-background/65 p-4">
+              <div className="mb-4">
+                <Label className="text-base">Checkout público</Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Defina quais entregas e pagamentos ficam visíveis para o cliente no pedido via link público.
+                </p>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-border/70 bg-background p-4">
+                  <div className="mb-4">
+                    <p className="text-sm font-medium">Tipos de entrega disponíveis</p>
+                    <p className="mt-1 text-xs text-muted-foreground">O cliente vê apenas as opções habilitadas aqui.</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3">
+                      <div>
+                        <p className="font-medium">Reserva Paulistano</p>
+                        <p className="text-xs text-muted-foreground">Entrega no condomínio.</p>
+                      </div>
+                      <Switch
+                        checked={checkoutPublicoEntregaReservaPaulistano}
+                        onCheckedChange={(value) => {
+                          setCheckoutPublicoEntregaReservaPaulistano(value)
+                          setIsDirty(true)
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3">
+                      <div>
+                        <p className="font-medium">Retirada</p>
+                        <p className="text-xs text-muted-foreground">Usa o endereço configurado da loja.</p>
+                      </div>
+                      <Switch
+                        checked={checkoutPublicoEntregaRetirada}
+                        onCheckedChange={(value) => {
+                          setCheckoutPublicoEntregaRetirada(value)
+                          setIsDirty(true)
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3">
+                      <div>
+                        <p className="font-medium">Encomenda</p>
+                        <p className="text-xs text-muted-foreground">Agendamento especial de produção.</p>
+                      </div>
+                      <Switch
+                        checked={checkoutPublicoEntregaEncomenda}
+                        onCheckedChange={(value) => {
+                          setCheckoutPublicoEntregaEncomenda(value)
+                          setIsDirty(true)
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {checkoutPublicoEntregaEncomenda ? (
+                    <div className="mt-4 rounded-2xl border border-primary/15 bg-primary/[0.04] p-4">
+                      <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                        <CalendarClock className="h-4 w-4 text-primary" />
+                        Regra da encomenda
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCheckoutPublicoEncomendaModo('CLIENTE_DEFINE')
+                            setIsDirty(true)
+                          }}
+                          className={`rounded-2xl border p-4 text-left transition ${checkoutPublicoEncomendaModo === 'CLIENTE_DEFINE' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                        >
+                          <p className="font-semibold">Cliente define</p>
+                          <p className="mt-2 text-xs text-muted-foreground">O checkout mostra data e hora para o cliente escolher.</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCheckoutPublicoEncomendaModo('FIXO')
+                            setIsDirty(true)
+                          }}
+                          className={`rounded-2xl border p-4 text-left transition ${checkoutPublicoEncomendaModo === 'FIXO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'}`}
+                        >
+                          <p className="font-semibold">Data fixa do admin</p>
+                          <p className="mt-2 text-xs text-muted-foreground">Todos os pedidos de encomenda usam a data definida aqui.</p>
+                        </button>
+                      </div>
+
+                      {checkoutPublicoEncomendaModo === 'FIXO' ? (
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor="checkout-encomenda-fixa">Data fixa</Label>
+                          <Input
+                            id="checkout-encomenda-fixa"
+                            type="date"
+                            value={checkoutPublicoEncomendaDataFixa}
+                            onChange={(event) => {
+                              setCheckoutPublicoEncomendaDataFixa(event.target.value)
+                              setIsDirty(true)
+                            }}
+                            className="h-11 rounded-2xl"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-2xl border border-border/70 bg-background p-4">
+                  <div className="mb-4">
+                    <p className="text-sm font-medium">Pagamentos disponíveis</p>
+                    <p className="mt-1 text-xs text-muted-foreground">O cliente escolhe apenas os métodos liberados para controle operacional.</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3">
+                      <div>
+                        <p className="font-medium">PIX</p>
+                        <p className="text-xs text-muted-foreground">Referencia para atendimento.</p>
+                      </div>
+                      <Switch
+                        checked={checkoutPublicoPagamentoPix}
+                        onCheckedChange={(value) => {
+                          setCheckoutPublicoPagamentoPix(value)
+                          setIsDirty(true)
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3">
+                      <div>
+                        <p className="font-medium">Dinheiro</p>
+                        <p className="text-xs text-muted-foreground">Pagamento combinado na entrega ou retirada.</p>
+                      </div>
+                      <Switch
+                        checked={checkoutPublicoPagamentoDinheiro}
+                        onCheckedChange={(value) => {
+                          setCheckoutPublicoPagamentoDinheiro(value)
+                          setIsDirty(true)
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3">
+                      <div>
+                        <p className="font-medium">Cartao</p>
+                        <p className="text-xs text-muted-foreground">Mostra credito e debito como no pedido manual.</p>
+                      </div>
+                      <Switch
+                        checked={checkoutPublicoPagamentoCartao}
+                        onCheckedChange={(value) => {
+                          setCheckoutPublicoPagamentoCartao(value)
+                          setIsDirty(true)
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {checkoutPublicoPagamentoCartao ? (
+                    <div className="mt-4 rounded-2xl border border-primary/15 bg-primary/[0.04] p-4">
+                      <p className="text-sm font-medium">Opções dentro de cartão</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background p-3">
+                          <div>
+                            <p className="font-medium">Crédito</p>
+                            <p className="text-xs text-muted-foreground">Aparece como escolha para o cliente.</p>
+                          </div>
+                          <Switch
+                            checked={checkoutPublicoPagamentoCartaoCredito}
+                            onCheckedChange={(value) => {
+                              setCheckoutPublicoPagamentoCartaoCredito(value)
+                              setIsDirty(true)
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background p-3">
+                          <div>
+                            <p className="font-medium">Débito</p>
+                            <p className="text-xs text-muted-foreground">Aparece como escolha para o cliente.</p>
+                          </div>
+                          <Switch
+                            checked={checkoutPublicoPagamentoCartaoDebito}
+                            onCheckedChange={(value) => {
+                              setCheckoutPublicoPagamentoCartaoDebito(value)
+                              setIsDirty(true)
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 
@@ -523,7 +763,7 @@ export function ConfigPage() {
                 <div>
                   <div className="flex items-center gap-2 text-base font-semibold">
                     <MessageCircle className="h-4 w-4 text-primary" />
-                    Mensagens padrao do WhatsApp
+                    Mensagens padrão do WhatsApp
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Edite os textos enviados ao avancar o status do pedido. As variaveis abaixo sao substituidas automaticamente.
@@ -533,9 +773,9 @@ export function ConfigPage() {
 
               <div className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-background/75 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <Label htmlFor="envio-automatico-whatsapp">Envio automatico de mensagens</Label>
+                  <Label htmlFor="envio-automatico-whatsapp">Envio automático de mensagens</Label>
                   <p className="text-xs text-muted-foreground">
-                    Quando desligado, o status do pedido continua mudando normalmente, mas o WhatsApp nao abre sozinho.
+                    Quando desligado, o status do pedido continua mudando normalmente, mas o WhatsApp não abre sozinho.
                   </p>
                 </div>
                 <Switch
@@ -599,7 +839,7 @@ export function ConfigPage() {
                           }}
                         >
                           <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                          Restaurar padrao
+                          Restaurar padrão
                         </Button>
                       </div>
                     </div>
@@ -620,12 +860,12 @@ export function ConfigPage() {
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-0 md:mr-2" />
-                    Salvar configuracoes
+                    Salvar configurações
                   </>
                 )}
               </Button>
               <span className="text-xs text-muted-foreground">
-                {isDirty ? 'Existem alteracoes pendentes nesta tela.' : 'Nenhuma alteracao pendente no momento.'}
+                {isDirty ? 'Existem alterações pendentes nesta tela.' : 'Nenhuma alteração pendente no momento.'}
               </span>
             </div>
 
@@ -646,24 +886,24 @@ export function ConfigPage() {
             Links de Acesso
           </CardTitle>
           <CardDescription>
-            Use o link do catalogo para clientes. O acesso admin fica separado e interno.
+            Use o link do catálogo para clientes. O acesso admin fica separado e interno.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium">
               <Link2 className="h-4 w-4 text-primary" />
-              Link publico do catalogo
+              Link público do catálogo
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input value={publicCatalogUrl} readOnly />
-              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => copyToClipboard(publicCatalogUrl, 'Link do catalogo copiado.')}>
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => copyToClipboard(publicCatalogUrl, 'Link do catálogo copiado.')}>
                 <Copy className="h-4 w-4 mr-2" />
                 Copiar
               </Button>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Esse e o link que você envia para clientes. Ele abre direto o catalogo e nao expõe a entrada do painel.
+              Esse é o link que você envia para clientes. Ele abre direto o catálogo e não expõe a entrada do painel.
             </p>
           </div>
 
@@ -680,7 +920,7 @@ export function ConfigPage() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Mantenha esse link apenas para uso interno. O painel continua protegido por login e nao aparece mais na entrada publica.
+              Mantenha esse link apenas para uso interno. O painel continua protegido por login e não aparece mais na entrada pública.
             </p>
           </div>
 
@@ -704,7 +944,7 @@ export function ConfigPage() {
           <div className={alertMessage ? `rounded-xl border p-3 ${permissionTone}` : `rounded-xl border p-3 ${permissionTone}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <Label htmlFor="alertas">Notificacoes de novos pedidos</Label>
+              <Label htmlFor="alertas">Notificações de novos pedidos</Label>
               <p className="text-xs text-muted-foreground">
                 Permissao atual: {permissionLabel}.
               </p>

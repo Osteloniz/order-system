@@ -2,6 +2,7 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -22,11 +23,20 @@ import {
 } from '@/components/ui/alert-dialog'
 import { formatarMoeda, formatarDataHora, formatarTelefone } from '@/lib/calc'
 import { saveRecentOrder } from '@/lib/customer-session'
+import { ORDER_ACCESS_HEADER } from '@/lib/public-order-access'
 import { getPagamentoLabel, statusPagamentoLabelsLong } from '@/lib/order-display'
 import { buildWhatsappUrl } from '@/lib/phone'
-import type { Pedido, StatusPedido } from '@/lib/types'
+import type { PedidoPublico, StatusPedido } from '@/lib/types'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+const fetcher = async ([url, accessToken]: [string, string]) => {
+  const response = await fetch(url, {
+    headers: accessToken ? { [ORDER_ACCESS_HEADER]: accessToken } : undefined,
+  })
+  if (!response.ok) {
+    throw new Error('Pedido nao encontrado')
+  }
+  return response.json()
+}
 
 const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
   FEITO: { label: 'Pedido Recebido', color: 'bg-warning text-warning-foreground' },
@@ -38,22 +48,32 @@ const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
 
 interface ConfirmationPageProps {
   pedidoId: string
+  accessToken?: string
 }
 
-export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
+export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProps) {
+  const router = useRouter()
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
-  const { data: pedido, isLoading, error, mutate } = useSWR<Pedido>(
-    `/api/pedidos/${pedidoId}`,
+  const [activeAccessToken, setActiveAccessToken] = useState(accessToken || '')
+  const { data: pedido, isLoading, error, mutate } = useSWR<PedidoPublico>(
+    [`/api/pedidos/${pedidoId}`, activeAccessToken],
     fetcher,
     { refreshInterval: 10000 } // Atualiza a cada 10s para ver mudanças de status
   )
 
   useEffect(() => {
     if (pedido) {
-      saveRecentOrder(pedido)
+      const resolvedAccessToken = pedido.publicAccessToken || activeAccessToken || null
+
+      if (pedido.publicAccessToken && pedido.publicAccessToken !== activeAccessToken) {
+        setActiveAccessToken(pedido.publicAccessToken)
+        router.replace(`/confirmacao/${pedidoId}?token=${encodeURIComponent(pedido.publicAccessToken)}`)
+      }
+
+      saveRecentOrder({ ...pedido, accessToken: resolvedAccessToken })
     }
-  }, [pedido])
+  }, [activeAccessToken, pedido, pedidoId, router])
 
   if (error) {
     return (
@@ -93,7 +113,10 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
     try {
       const response = await fetch(`/api/pedidos/${pedido.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(activeAccessToken ? { [ORDER_ACCESS_HEADER]: activeAccessToken } : {}),
+        },
         body: JSON.stringify({ action: 'cancel' })
       })
       const data = await response.json()
@@ -193,7 +216,11 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              {pedido.tipoEntrega === 'RESERVA_PAULISTANO' ? 'Entrega Reserva Paulistano' : 'Retirada'}
+              {pedido.tipoEntrega === 'RESERVA_PAULISTANO'
+                ? 'Entrega Reserva Paulistano'
+                : pedido.tipoEntrega === 'ENCOMENDA'
+                  ? 'Encomenda'
+                  : 'Retirada'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -294,7 +321,7 @@ export function ConfirmationPage({ pedidoId }: ConfirmationPageProps) {
               Acompanhar Pedido
             </Button>
           )}
-          <Link href="/" className="block">
+          <Link href="/menu" className="block">
             <Button variant="outline" className="w-full h-12 bg-transparent">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Fazer novo pedido

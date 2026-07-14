@@ -4,7 +4,8 @@ export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CAN
 export type StatusPagamento = 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
 export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 export type TipoCartao = 'CREDITO' | 'DEBITO'
-export type TipoEntrega = 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOMENDA'
+export type TipoEntrega = 'ENTREGA' | 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOMENDA'
+export type ModoEncomendaCheckout = 'CLIENTE_DEFINE' | 'FIXO'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 export type StatusContaPagar = 'PENDENTE' | 'PAGO' | 'CANCELADO'
 export type EscopoCategoriaFinanceira = 'PAGAR' | 'RECEBER' | 'AMBOS'
@@ -62,6 +63,7 @@ export interface Pedido {
   clienteWhatsapp?: string | null
   clienteBloco?: string | null
   clienteApartamento?: string | null
+  clienteObservacoes?: string | null
   observacoesPedido?: string | null
   responsavelPedido?: string | null
   destinatariosPedido?: string | null
@@ -82,6 +84,10 @@ export interface Pedido {
   descontoValor?: number | null // centavos
   cupomCodigoSnapshot?: string | null
   itens: ItemPedido[]
+}
+
+export interface PedidoPublico extends Pedido {
+  publicAccessToken?: string | null
 }
 
 export interface Cliente {
@@ -121,6 +127,40 @@ export interface Configuracao {
   padraoNovoPedidoDescontosExpandidos?: boolean
   padraoNovoPedidoObservacoesExpandidas?: boolean
   padraoNovoPedidoResponsavelExpandido?: boolean
+  checkoutPublicoEntregaReservaPaulistano?: boolean
+  checkoutPublicoEntregaRetirada?: boolean
+  checkoutPublicoEntregaEncomenda?: boolean
+  checkoutPublicoEncomendaModo?: ModoEncomendaCheckout
+  checkoutPublicoEncomendaDataFixa?: string | null
+  checkoutPublicoPagamentoPix?: boolean
+  checkoutPublicoPagamentoDinheiro?: boolean
+  checkoutPublicoPagamentoCartao?: boolean
+  checkoutPublicoPagamentoCartaoCredito?: boolean
+  checkoutPublicoPagamentoCartaoDebito?: boolean
+}
+
+export interface RecentOrderReference {
+  id: string
+  accessToken?: string | null
+}
+
+export interface CheckoutPublicoConfig {
+  entregas: {
+    reservaPaulistano: boolean
+    retirada: boolean
+    encomenda: boolean
+  }
+  encomenda: {
+    modo: ModoEncomendaCheckout
+    dataFixa?: string | null
+  }
+  pagamentos: {
+    pix: boolean
+    dinheiro: boolean
+    cartao: boolean
+    cartaoCredito: boolean
+    cartaoDebito: boolean
+  }
 }
 
 // Payload para criar pedido
