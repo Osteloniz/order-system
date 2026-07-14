@@ -1,6 +1,6 @@
-﻿# API - Order System (rotas atuais)
+# API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-01-27
+Ultima atualizacao: 2026-07-13
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -10,21 +10,31 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
 - POST `/api/tenant/select`
   - Body: `{ slug }`
   - Define o cookie `tenant_slug`.
+- POST `/api/clientes/prefill`
+  - Body: `{ telefone }`
+  - Faz busca por telefone normalizado no tenant atual para pre-preencher nome e endereco do cliente no checkout.
+  - Observacao: retorna apenas dados operacionais minimos do cadastro, sem historico de pedidos, sem telefone completo de volta no payload e com limitacao de tentativas.
 - GET `/api/menu`
-  - Retorna estabelecimento, endereco de retirada, parametros de frete e categorias.
+  - Retorna estabelecimento, endereco de retirada, parametros de frete, regras do checkout publico e categorias.
   - Requer `tenant_slug`.
 - POST `/api/pedidos`
   - Cria pedido.
   - Body: `CriarPedidoPayload` (ver `lib/types`).
-  - Observacao: `distanciaKm` obrigatoria quando tipoEntrega = ENTREGA.
   - Observacao: `cupomCodigo` opcional (apenas 1 por pedido).
+  - Observacao: os tipos de entrega e pagamento aceitos dependem da configuracao publica do tenant.
+  - Observacao: para `ENCOMENDA`, a data pode ser definida pelo cliente ou fixada pelo admin nas configuracoes.
+  - Observacao: para pagamento em `CARTAO`, o checkout publico pode exigir a escolha entre `CREDITO` e `DEBITO`, conforme configuracao.
+  - Observacao: pedidos novos retornam um `publicAccessToken`, usado para abrir a confirmacao e cancelar o pedido com seguranca.
   - Observacao: retorna 403 se o estabelecimento estiver fechado.
 - GET `/api/cupons/validar?codigo=...&subtotal=...`
   - Valida cupom e retorna `descontoValor`.
-- GET `/api/pedidos?telefone=...`
-  - Lista pedidos do cliente por telefone (tenant atual).
 - GET `/api/pedidos/:id`
   - Retorna detalhe de um pedido (tenant atual).
+  - Observacao: para pedidos novos, exige o token enviado no header `x-order-access-token` ou na query `?token=...`.
+  - Observacao: pedidos antigos sem token salvo recebem um token novo no primeiro acesso bem-sucedido da confirmacao para manter compatibilidade de transicao.
+- PATCH `/api/pedidos/:id`
+  - Cancela pedido pelo cliente enquanto ele ainda estiver em `FEITO` e sem pagamento aprovado.
+  - Observacao: exige o mesmo token publico de acesso do pedido.
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
@@ -62,8 +72,11 @@ Produtos:
 Configuracoes:
 - GET `/api/admin/config`
 - PUT `/api/admin/config`
-  - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento?, envioAutomaticoWhatsappStatus?, mensagemStatusAceito?, mensagemStatusPreparacao?, mensagemStatusEntregue?, padraoNovoPedidoEntrega?, padraoNovoPedidoPagamento?, padraoNovoPedidoTipoCartao?, padraoNovoPedidoDescontosExpandidos?, padraoNovoPedidoObservacoesExpandidas?, padraoNovoPedidoResponsavelExpandido? }`
+  - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento?, envioAutomaticoWhatsappStatus?, mensagemStatusAceito?, mensagemStatusPreparacao?, mensagemStatusEntregue?, padraoNovoPedidoEntrega?, padraoNovoPedidoPagamento?, padraoNovoPedidoTipoCartao?, padraoNovoPedidoDescontosExpandidos?, padraoNovoPedidoObservacoesExpandidas?, padraoNovoPedidoResponsavelExpandido?, checkoutPublicoEntregaReservaPaulistano?, checkoutPublicoEntregaRetirada?, checkoutPublicoEntregaEncomenda?, checkoutPublicoEncomendaModo?, checkoutPublicoEncomendaDataFixa?, checkoutPublicoPagamentoPix?, checkoutPublicoPagamentoDinheiro?, checkoutPublicoPagamentoCartao?, checkoutPublicoPagamentoCartaoCredito?, checkoutPublicoPagamentoCartaoDebito? }`
   - Observacao: `padraoNovoPedidoTipoCartao` so deve ser enviado quando `padraoNovoPedidoPagamento = CARTAO`.
+  - Observacao: pelo menos um tipo de entrega e uma forma de pagamento devem permanecer habilitados no checkout publico.
+  - Observacao: quando `checkoutPublicoEncomendaModo = FIXO`, `checkoutPublicoEncomendaDataFixa` passa a ser obrigatoria.
+  - Observacao: quando `checkoutPublicoPagamentoCartao = true`, pelo menos uma opcao entre credito e debito deve permanecer habilitada.
 
 Tenant:
 - GET `/api/admin/tenant`

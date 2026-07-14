@@ -1,5 +1,6 @@
 import React from "react"
 import { CartProvider } from '@/contexts/cart-context'
+import { PublicThemeEnforcer } from '@/components/public-theme-enforcer'
 
 export default function ClienteLayout({
   children,
@@ -8,6 +9,7 @@ export default function ClienteLayout({
 }) {
   return (
     <CartProvider>
+      <PublicThemeEnforcer />
       {children}
     </CartProvider>
   )

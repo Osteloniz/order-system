@@ -1,6 +1,13 @@
 import { ConfirmationPage } from '@/components/checkout/confirmation-page'
 
-export default async function Confirmacao({ params }: { params: Promise<{ id: string }> }) {
+export default async function Confirmacao({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ token?: string }>
+}) {
   const { id } = await params
-  return <ConfirmationPage pedidoId={id} />
+  const { token } = await searchParams
+  return <ConfirmationPage pedidoId={id} accessToken={token} />
 }

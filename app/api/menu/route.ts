@@ -13,29 +13,49 @@ function getCategoriaPrioridade(nome: string) {
   return 99
 }
 
+function getDefaultMenuPayload() {
+  return {
+    estabelecimento: 'Brookie Pregiato',
+    enderecoRetirada: 'Endereco de Retirada',
+    freteBase: 500,
+    freteRaioKm: 3,
+    freteKmExcedente: 100,
+    estabelecimentoLat: 0,
+    estabelecimentoLng: 0,
+    isOpen: true,
+    checkoutPublico: {
+      entregas: {
+        reservaPaulistano: true,
+        retirada: true,
+        encomenda: true,
+      },
+      encomenda: {
+        modo: 'CLIENTE_DEFINE' as const,
+        dataFixa: null,
+      },
+      pagamentos: {
+        pix: true,
+        dinheiro: true,
+        cartao: true,
+        cartaoCredito: true,
+        cartaoDebito: true,
+      },
+    },
+    hasActiveCoupons: false,
+    categorias: [],
+  }
+}
+
 // GET /api/menu - Retorna categorias + produtos ativos
 export async function GET() {
   try {
     const tenant = await getTenantFromCookie()
     if (!tenant) {
-      return NextResponse.json(
-        {
-          estabelecimento: 'Brookie Pregiato',
-          enderecoRetirada: 'Endereço de Retirada',
-          freteBase: 500,
-          freteRaioKm: 3,
-          freteKmExcedente: 100,
-          estabelecimentoLat: 0,
-          estabelecimentoLng: 0,
-          isOpen: true,
-          categorias: []
-        },
-        { status: 400 }
-      )
+      return NextResponse.json(getDefaultMenuPayload(), { status: 400 })
     }
 
     let configuracao = await prisma.configuracao.findFirst({
-      where: { tenantId: tenant.id }
+      where: { tenantId: tenant.id },
     })
     if (!configuracao) {
       configuracao = await prisma.configuracao.create({
@@ -47,25 +67,48 @@ export async function GET() {
           freteKmExcedente: 100,
           estabelecimentoLat: 0,
           estabelecimentoLng: 0,
-          tenantId: tenant.id
-        }
+          checkoutPublicoEntregaReservaPaulistano: true,
+          checkoutPublicoEntregaRetirada: true,
+          checkoutPublicoEntregaEncomenda: true,
+          checkoutPublicoEncomendaModo: 'CLIENTE_DEFINE',
+          checkoutPublicoEncomendaDataFixa: null,
+          checkoutPublicoPagamentoPix: true,
+          checkoutPublicoPagamentoDinheiro: true,
+          checkoutPublicoPagamentoCartao: true,
+          checkoutPublicoPagamentoCartaoCredito: true,
+          checkoutPublicoPagamentoCartaoDebito: true,
+          tenantId: tenant.id,
+        },
       })
     }
 
-    // Busca categorias com produtos ativos ordenados.
-    const categoriasOrdenadas = await prisma.categoria.findMany({
+    const [categoriasOrdenadas, cuponsDisponiveis] = await Promise.all([
+      prisma.categoria.findMany({
       where: { tenantId: tenant.id },
       orderBy: { ordem: 'asc' },
       include: {
         produtos: {
           where: { ativo: true, tenantId: tenant.id },
-          orderBy: { ordem: 'asc' }
-        }
-      }
-    })
+          orderBy: { ordem: 'asc' },
+        },
+      },
+      }),
+      prisma.cupom.findMany({
+        where: {
+          tenantId: tenant.id,
+          ativo: true,
+          expiraEm: { gt: new Date() },
+        },
+        select: {
+          id: true,
+          usos: true,
+          maxUsos: true,
+        },
+      }),
+    ])
 
     const categoriasComProdutos = categoriasOrdenadas
-      .filter(cat => cat.produtos.length > 0)
+      .filter((cat) => cat.produtos.length > 0)
       .sort((a, b) => {
         const prioridadeA = getCategoriaPrioridade(a.nome)
         const prioridadeB = getCategoriaPrioridade(b.nome)
@@ -77,29 +120,40 @@ export async function GET() {
         return a.ordem - b.ordem
       })
 
+    const hasActiveCoupons = cuponsDisponiveis.some((cupom) => cupom.usos < cupom.maxUsos)
+
     return NextResponse.json({
-      estabelecimento: configuracao?.nomeEstabelecimento ?? 'Brookie Pregiato',
-      enderecoRetirada: configuracao?.enderecoRetirada ?? 'Endereço de Retirada',
-      freteBase: configuracao?.freteBase ?? 500,
-      freteRaioKm: configuracao?.freteRaioKm ?? 3,
-      freteKmExcedente: configuracao?.freteKmExcedente ?? 100,
-      estabelecimentoLat: configuracao?.estabelecimentoLat ?? 0,
-      estabelecimentoLng: configuracao?.estabelecimentoLng ?? 0,
+      estabelecimento: configuracao.nomeEstabelecimento || 'Brookie Pregiato',
+      enderecoRetirada: configuracao.enderecoRetirada || 'Endereco de Retirada',
+      freteBase: configuracao.freteBase ?? 500,
+      freteRaioKm: configuracao.freteRaioKm ?? 3,
+      freteKmExcedente: configuracao.freteKmExcedente ?? 100,
+      estabelecimentoLat: configuracao.estabelecimentoLat ?? 0,
+      estabelecimentoLng: configuracao.estabelecimentoLng ?? 0,
       isOpen: tenant.isOpen,
-      categorias: categoriasComProdutos ?? []
+      checkoutPublico: {
+        entregas: {
+          reservaPaulistano: configuracao.checkoutPublicoEntregaReservaPaulistano ?? true,
+          retirada: configuracao.checkoutPublicoEntregaRetirada ?? true,
+          encomenda: configuracao.checkoutPublicoEntregaEncomenda ?? true,
+        },
+        encomenda: {
+          modo: configuracao.checkoutPublicoEncomendaModo ?? 'CLIENTE_DEFINE',
+          dataFixa: configuracao.checkoutPublicoEncomendaDataFixa ?? null,
+        },
+        pagamentos: {
+          pix: configuracao.checkoutPublicoPagamentoPix ?? true,
+          dinheiro: configuracao.checkoutPublicoPagamentoDinheiro ?? true,
+          cartao: configuracao.checkoutPublicoPagamentoCartao ?? true,
+          cartaoCredito: configuracao.checkoutPublicoPagamentoCartaoCredito ?? true,
+          cartaoDebito: configuracao.checkoutPublicoPagamentoCartaoDebito ?? true,
+        },
+      },
+      hasActiveCoupons,
+      categorias: categoriasComProdutos ?? [],
     })
   } catch (error) {
     console.error('[api/menu] Erro:', error)
-    return NextResponse.json({
-      estabelecimento: 'Brookie Pregiato',
-      enderecoRetirada: 'Endereço de Retirada',
-      freteBase: 500,
-      freteRaioKm: 3,
-      freteKmExcedente: 100,
-      estabelecimentoLat: 0,
-      estabelecimentoLng: 0,
-      isOpen: true,
-      categorias: []
-    })
+    return NextResponse.json(getDefaultMenuPayload())
   }
 }

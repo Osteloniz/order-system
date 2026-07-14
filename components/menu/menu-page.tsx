@@ -9,7 +9,6 @@ import { CartButton } from './cart-button'
 import { CartSheet } from './cart-sheet'
 import { RecentOrders } from './recent-orders'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { restoreMenuScrollPosition, saveMenuScrollPosition } from '@/lib/customer-session'
 import type { Produto, Categoria } from '@/lib/types'
 
@@ -89,9 +88,6 @@ export function MenuPage() {
                     <MapPin className="h-4 w-4" />
                     <span>{data?.enderecoRetirada}</span>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ThemeToggle />
                 </div>
               </div>
             </>

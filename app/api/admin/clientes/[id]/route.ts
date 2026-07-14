@@ -10,6 +10,7 @@ export const runtime = 'nodejs'
 
 const clienteSchema = z.object({
   nome: z.string().trim().min(2).max(80),
+  telefone: z.string().trim().max(20).optional(),
   whatsapp: z.string().trim().max(20).optional(),
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
@@ -87,15 +88,39 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!current) return NextResponse.json({ error: 'Cliente nao encontrado' }, { status: 404 })
 
     const body = parsed.data
-    const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : current.telefone
+    const telefone = body.telefone !== undefined ? normalizePhone(body.telefone) : current.telefone
+    const whatsapp = body.whatsapp ? normalizePhone(body.whatsapp) : telefone || current.telefone
+
+    if (telefone && !isValidPhone(telefone)) {
+      return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
+    }
     if (whatsapp && !isValidPhone(whatsapp)) {
       return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
+    }
+
+    if (telefone && telefone !== current.telefone) {
+      const conflito = await prisma.cliente.findFirst({
+        where: {
+          tenantId: admin.tenantId,
+          telefone,
+          id: { not: id },
+        },
+        select: { id: true, nome: true },
+      })
+
+      if (conflito) {
+        return NextResponse.json(
+          { error: `Ja existe outro cliente com esse telefone: ${conflito.nome}.` },
+          { status: 409 }
+        )
+      }
     }
 
     const cliente = await prisma.cliente.update({
       where: { id },
       data: {
         nome: body.nome.trim(),
+        telefone,
         whatsapp,
         clienteBloco: body.clienteBloco?.trim() || null,
         clienteApartamento: body.clienteApartamento?.trim() || null,

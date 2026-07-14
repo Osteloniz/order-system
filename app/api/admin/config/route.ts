@@ -48,6 +48,16 @@ const configSchema = z.object({
   padraoNovoPedidoDescontosExpandidos: z.boolean().optional(),
   padraoNovoPedidoObservacoesExpandidas: z.boolean().optional(),
   padraoNovoPedidoResponsavelExpandido: z.boolean().optional(),
+  checkoutPublicoEntregaReservaPaulistano: z.boolean().optional(),
+  checkoutPublicoEntregaRetirada: z.boolean().optional(),
+  checkoutPublicoEntregaEncomenda: z.boolean().optional(),
+  checkoutPublicoEncomendaModo: z.enum(['CLIENTE_DEFINE', 'FIXO']).optional(),
+  checkoutPublicoEncomendaDataFixa: z.string().datetime({ offset: true }).nullable().optional(),
+  checkoutPublicoPagamentoPix: z.boolean().optional(),
+  checkoutPublicoPagamentoDinheiro: z.boolean().optional(),
+  checkoutPublicoPagamentoCartao: z.boolean().optional(),
+  checkoutPublicoPagamentoCartaoCredito: z.boolean().optional(),
+  checkoutPublicoPagamentoCartaoDebito: z.boolean().optional(),
   mensagemStatusAceito: z.string().trim().min(1).max(4000).optional(),
   mensagemStatusPreparacao: z.string().trim().min(1).max(4000).optional(),
   mensagemStatusEntregue: z.string().trim().min(1).max(4000).optional()
@@ -64,6 +74,48 @@ const configSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['padraoNovoPedidoTipoCartao'],
       message: 'Tipo do cartao so deve ser informado quando o padrao for cartao',
+    })
+  }
+
+  const entregas = [
+    data.checkoutPublicoEntregaReservaPaulistano,
+    data.checkoutPublicoEntregaRetirada,
+    data.checkoutPublicoEntregaEncomenda,
+  ]
+  if (entregas.every((value) => value === false)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['checkoutPublicoEntregaReservaPaulistano'],
+      message: 'Pelo menos um tipo de entrega deve ficar disponivel no checkout publico',
+    })
+  }
+
+  const pagamentos = [
+    data.checkoutPublicoPagamentoPix,
+    data.checkoutPublicoPagamentoDinheiro,
+    data.checkoutPublicoPagamentoCartao,
+  ]
+  if (pagamentos.every((value) => value === false)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['checkoutPublicoPagamentoPix'],
+      message: 'Pelo menos uma forma de pagamento deve ficar disponivel no checkout publico',
+    })
+  }
+
+  if (data.checkoutPublicoPagamentoCartao && data.checkoutPublicoPagamentoCartaoCredito === false && data.checkoutPublicoPagamentoCartaoDebito === false) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['checkoutPublicoPagamentoCartaoCredito'],
+      message: 'Cartao precisa ter pelo menos uma opcao entre credito e debito',
+    })
+  }
+
+  if (data.checkoutPublicoEntregaEncomenda && data.checkoutPublicoEncomendaModo === 'FIXO' && !data.checkoutPublicoEncomendaDataFixa) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['checkoutPublicoEncomendaDataFixa'],
+      message: 'Informe a data fixa quando a encomenda estiver travada pela configuracao',
     })
   }
 })
@@ -96,6 +148,16 @@ export async function GET() {
           padraoNovoPedidoDescontosExpandidos: false,
           padraoNovoPedidoObservacoesExpandidas: false,
           padraoNovoPedidoResponsavelExpandido: false,
+          checkoutPublicoEntregaReservaPaulistano: true,
+          checkoutPublicoEntregaRetirada: true,
+          checkoutPublicoEntregaEncomenda: true,
+          checkoutPublicoEncomendaModo: 'CLIENTE_DEFINE',
+          checkoutPublicoEncomendaDataFixa: null,
+          checkoutPublicoPagamentoPix: true,
+          checkoutPublicoPagamentoDinheiro: true,
+          checkoutPublicoPagamentoCartao: true,
+          checkoutPublicoPagamentoCartaoCredito: true,
+          checkoutPublicoPagamentoCartaoDebito: true,
           tenantId: admin.tenantId
         }
       })
@@ -148,6 +210,22 @@ export async function PUT(request: NextRequest) {
           padraoNovoPedidoDescontosExpandidos: body.padraoNovoPedidoDescontosExpandidos ?? false,
           padraoNovoPedidoObservacoesExpandidas: body.padraoNovoPedidoObservacoesExpandidas ?? false,
           padraoNovoPedidoResponsavelExpandido: body.padraoNovoPedidoResponsavelExpandido ?? false,
+          checkoutPublicoEntregaReservaPaulistano: body.checkoutPublicoEntregaReservaPaulistano ?? true,
+          checkoutPublicoEntregaRetirada: body.checkoutPublicoEntregaRetirada ?? true,
+          checkoutPublicoEntregaEncomenda: body.checkoutPublicoEntregaEncomenda ?? true,
+          checkoutPublicoEncomendaModo: body.checkoutPublicoEncomendaModo ?? 'CLIENTE_DEFINE',
+          checkoutPublicoEncomendaDataFixa: body.checkoutPublicoEncomendaModo === 'FIXO' && body.checkoutPublicoEncomendaDataFixa
+            ? new Date(body.checkoutPublicoEncomendaDataFixa)
+            : null,
+          checkoutPublicoPagamentoPix: body.checkoutPublicoPagamentoPix ?? true,
+          checkoutPublicoPagamentoDinheiro: body.checkoutPublicoPagamentoDinheiro ?? true,
+          checkoutPublicoPagamentoCartao: body.checkoutPublicoPagamentoCartao ?? true,
+          checkoutPublicoPagamentoCartaoCredito: body.checkoutPublicoPagamentoCartao === false
+            ? false
+            : (body.checkoutPublicoPagamentoCartaoCredito ?? true),
+          checkoutPublicoPagamentoCartaoDebito: body.checkoutPublicoPagamentoCartao === false
+            ? false
+            : (body.checkoutPublicoPagamentoCartaoDebito ?? true),
           mensagemStatusAceito: body.mensagemStatusAceito,
           mensagemStatusPreparacao: body.mensagemStatusPreparacao,
           mensagemStatusEntregue: body.mensagemStatusEntregue,
@@ -178,6 +256,28 @@ export async function PUT(request: NextRequest) {
         padraoNovoPedidoDescontosExpandidos: body.padraoNovoPedidoDescontosExpandidos ?? configuracao.padraoNovoPedidoDescontosExpandidos,
         padraoNovoPedidoObservacoesExpandidas: body.padraoNovoPedidoObservacoesExpandidas ?? configuracao.padraoNovoPedidoObservacoesExpandidas,
         padraoNovoPedidoResponsavelExpandido: body.padraoNovoPedidoResponsavelExpandido ?? configuracao.padraoNovoPedidoResponsavelExpandido,
+        checkoutPublicoEntregaReservaPaulistano: body.checkoutPublicoEntregaReservaPaulistano ?? configuracao.checkoutPublicoEntregaReservaPaulistano,
+        checkoutPublicoEntregaRetirada: body.checkoutPublicoEntregaRetirada ?? configuracao.checkoutPublicoEntregaRetirada,
+        checkoutPublicoEntregaEncomenda: body.checkoutPublicoEntregaEncomenda ?? configuracao.checkoutPublicoEntregaEncomenda,
+        checkoutPublicoEncomendaModo: body.checkoutPublicoEncomendaModo ?? configuracao.checkoutPublicoEncomendaModo,
+        checkoutPublicoEncomendaDataFixa: body.checkoutPublicoEncomendaModo
+          ? (body.checkoutPublicoEncomendaModo === 'FIXO'
+              ? (body.checkoutPublicoEncomendaDataFixa ? new Date(body.checkoutPublicoEncomendaDataFixa) : configuracao.checkoutPublicoEncomendaDataFixa)
+              : null)
+          : configuracao.checkoutPublicoEncomendaDataFixa,
+        checkoutPublicoPagamentoPix: body.checkoutPublicoPagamentoPix ?? configuracao.checkoutPublicoPagamentoPix,
+        checkoutPublicoPagamentoDinheiro: body.checkoutPublicoPagamentoDinheiro ?? configuracao.checkoutPublicoPagamentoDinheiro,
+        checkoutPublicoPagamentoCartao: body.checkoutPublicoPagamentoCartao ?? configuracao.checkoutPublicoPagamentoCartao,
+        checkoutPublicoPagamentoCartaoCredito: body.checkoutPublicoPagamentoCartao !== undefined
+          ? (body.checkoutPublicoPagamentoCartao
+              ? (body.checkoutPublicoPagamentoCartaoCredito ?? configuracao.checkoutPublicoPagamentoCartaoCredito)
+              : false)
+          : (body.checkoutPublicoPagamentoCartaoCredito ?? configuracao.checkoutPublicoPagamentoCartaoCredito),
+        checkoutPublicoPagamentoCartaoDebito: body.checkoutPublicoPagamentoCartao !== undefined
+          ? (body.checkoutPublicoPagamentoCartao
+              ? (body.checkoutPublicoPagamentoCartaoDebito ?? configuracao.checkoutPublicoPagamentoCartaoDebito)
+              : false)
+          : (body.checkoutPublicoPagamentoCartaoDebito ?? configuracao.checkoutPublicoPagamentoCartaoDebito),
         mensagemStatusAceito: body.mensagemStatusAceito ?? configuracao.mensagemStatusAceito,
         mensagemStatusPreparacao: body.mensagemStatusPreparacao ?? configuracao.mensagemStatusPreparacao,
         mensagemStatusEntregue: body.mensagemStatusEntregue ?? configuracao.mensagemStatusEntregue

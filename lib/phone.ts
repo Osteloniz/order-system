@@ -1,5 +1,32 @@
-export function normalizePhone(value?: string | null) {
+function rawPhoneDigits(value?: string | null) {
   return (value || '').replace(/\D/g, '')
+}
+
+function normalizeBrazilPhoneDigits(digits: string) {
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    const localDigits = digits.slice(2)
+    if (localDigits.length === 10 || localDigits.length === 11) {
+      return localDigits
+    }
+  }
+
+  return digits
+}
+
+export function normalizePhone(value?: string | null) {
+  return normalizeBrazilPhoneDigits(rawPhoneDigits(value))
+}
+
+export function getPhoneLookupCandidates(value?: string | null) {
+  const rawDigits = rawPhoneDigits(value)
+  const normalized = normalizePhone(value)
+  const candidates = new Set<string>()
+
+  if (rawDigits) candidates.add(rawDigits)
+  if (normalized) candidates.add(normalized)
+  if (normalized && normalized.length <= 11) candidates.add(`55${normalized}`)
+
+  return Array.from(candidates).filter(Boolean)
 }
 
 export function isValidPhone(value?: string | null) {
@@ -11,12 +38,13 @@ export function isValidPhone(value?: string | null) {
 export function formatPhoneInput(value: string) {
   const trimmed = value.trim()
   const hasLeadingPlus = trimmed.startsWith('+')
-  const digits = normalizePhone(value).slice(0, 15)
+  const rawDigits = rawPhoneDigits(value).slice(0, 15)
+  const digits = normalizeBrazilPhoneDigits(rawDigits).slice(0, 15)
 
   if (!digits) return ''
 
-  if (hasLeadingPlus || digits.length > 11) {
-    return `+${digits}`
+  if ((digits.length > 11 || hasLeadingPlus) && !(digits.length === 10 || digits.length === 11)) {
+    return `+${rawDigits}`
   }
 
   if (digits.length <= 2) return digits
@@ -29,16 +57,12 @@ export function formatPhoneDisplay(value?: string | null) {
   const digits = normalizePhone(value)
   if (!digits) return '-'
 
-  const brasil = digits.startsWith('55') && (digits.length === 12 || digits.length === 13)
-    ? digits.slice(2)
-    : digits
-
-  if (brasil.length === 10) {
-    return `(${brasil.slice(0, 2)}) ${brasil.slice(2, 6)}-${brasil.slice(6)}`
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
   }
 
-  if (brasil.length === 11) {
-    return `(${brasil.slice(0, 2)}) ${brasil.slice(2, 7)}-${brasil.slice(7)}`
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
   }
 
   return digits.length > 11 ? `+${digits}` : digits

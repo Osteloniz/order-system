@@ -175,7 +175,6 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [tipoCartao, setTipoCartao] = useState<TipoCartao>('CREDITO')
   const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('RESERVA_PAULISTANO')
   const [encomendaData, setEncomendaData] = useState('')
-  const [encomendaHora, setEncomendaHora] = useState('')
   const [cupomCodigo, setCupomCodigo] = useState('')
   const [valorPromocionalInput, setValorPromocionalInput] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
@@ -251,14 +250,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         month: '2-digit',
         day: '2-digit',
       }).format(data)
-      const horaString = new Intl.DateTimeFormat('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(data)
       setEncomendaData(dataString)
-      setEncomendaHora(horaString)
     }
     if (initialPedido.levadoEm) {
       const dataLevada = new Date(initialPedido.levadoEm)
@@ -555,7 +547,6 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     setTipoCartao(config?.padraoNovoPedidoTipoCartao ?? 'CREDITO')
     setTipoEntrega(config?.padraoNovoPedidoEntrega ?? 'RESERVA_PAULISTANO')
     setEncomendaData('')
-    setEncomendaHora('')
     setCupomCodigo('')
     setValorPromocionalInput('')
     setItems([])
@@ -578,7 +569,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     if (telefoneLimpo && !isValidPhone(telefoneLimpo)) return setError('Celular invalido')
     if (whatsappLimpo && !isValidPhone(whatsappLimpo)) return setError('WhatsApp invalido')
     if (tipoEntrega === 'RESERVA_PAULISTANO' && (!bloco.trim() || !apartamento.trim())) return setError('Informe bloco e apartamento')
-    if (tipoEntrega === 'ENCOMENDA' && (!encomendaData || !encomendaHora)) return setError('Informe data e hora da encomenda')
+    if (tipoEntrega === 'ENCOMENDA' && !encomendaData) return setError('Informe a data da encomenda')
     if (items.length === 0) return setError('Adicione pelo menos um produto')
     if (cupomCodigo && valorPromocional > 0) return setError('Use cupom ou valor promocional, nao os dois')
     if (temResponsavel && !responsavelPedido.trim()) return setError('Informe quem e o responsavel pelo pedido')
@@ -614,7 +605,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
           pagamento,
           tipoCartao: pagamento === 'CARTAO' ? tipoCartao : undefined,
           tipoEntrega,
-          encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T${encomendaHora}:00-03:00` : undefined,
+          encomendaPara: tipoEntrega === 'ENCOMENDA' ? `${encomendaData}T00:00:00-03:00` : undefined,
           statusPagamento: pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
           cupomCodigo: cupomCodigo || undefined,
           valorPromocional: valorPromocional || undefined,
@@ -830,16 +821,10 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         )}
 
         {tipoEntrega === 'ENCOMENDA' && (
-          <>
-            <div className="space-y-2">
-              <Label>Data da encomenda</Label>
-              <Input type="date" value={encomendaData} onChange={(event) => setEncomendaData(event.target.value)} className="h-11 rounded-2xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Hora da encomenda</Label>
-              <Input type="time" value={encomendaHora} onChange={(event) => setEncomendaHora(event.target.value)} className="h-11 rounded-2xl" />
-            </div>
-          </>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Data da encomenda</Label>
+            <Input type="date" value={encomendaData} onChange={(event) => setEncomendaData(event.target.value)} className="h-11 rounded-2xl" />
+          </div>
         )}
       </div>
     </div>
