@@ -23,6 +23,7 @@ export interface Produto {
   categoriaId: string
   preco: number // centavos
   ativo: boolean
+  novidade: boolean
   imagemUrl?: string
   imagens?: string[]
   ordem: number

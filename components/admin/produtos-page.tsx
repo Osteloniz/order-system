@@ -10,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
@@ -77,6 +78,7 @@ export function ProdutosPage() {
     preco: '',
     imagensText: '',
     ativo: true,
+    novidade: false,
   })
 
   const produtosFiltrados = useMemo(() => {
@@ -98,6 +100,7 @@ export function ProdutosPage() {
       ativos: lista.filter((produto) => produto.ativo).length,
       inativos: lista.filter((produto) => !produto.ativo).length,
       categorias: new Set(lista.map((produto) => produto.categoriaId)).size,
+      novidades: lista.filter((produto) => produto.novidade).length,
     }
   }, [produtos])
 
@@ -111,6 +114,7 @@ export function ProdutosPage() {
       preco: '',
       imagensText: '',
       ativo: true,
+      novidade: false,
     })
     setDialogOpen(true)
   }
@@ -126,6 +130,7 @@ export function ProdutosPage() {
       preco: (produto.preco / 100).toFixed(2).replace('.', ','),
       imagensText: imagens.join('\n'),
       ativo: produto.ativo,
+      novidade: produto.novidade,
     })
     setDialogOpen(true)
   }
@@ -160,6 +165,7 @@ export function ProdutosPage() {
             preco: precoNumero,
             imagens,
             ativo: formData.ativo,
+            novidade: formData.novidade,
           }),
         },
       )
@@ -231,7 +237,7 @@ export function ProdutosPage() {
               Ajuste nome, descricao, preco, status e imagens mantendo o catalogo pronto para venda e para o time no mobile.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
             <div className="rounded-2xl border bg-background/82 p-4">
               <p className="text-xs text-muted-foreground">Total</p>
               <p className="mt-1 text-2xl font-bold">{resumo.total}</p>
@@ -243,6 +249,10 @@ export function ProdutosPage() {
             <div className="rounded-2xl border bg-background/82 p-4">
               <p className="text-xs text-muted-foreground">Inativos</p>
               <p className="mt-1 text-2xl font-bold text-secondary">{resumo.inativos}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/82 p-4">
+              <p className="text-xs text-muted-foreground">Novidades</p>
+              <p className="mt-1 text-2xl font-bold text-primary">{resumo.novidades}</p>
             </div>
             <div className="rounded-2xl border bg-background/82 p-4">
               <p className="text-xs text-muted-foreground">Categorias</p>
@@ -342,6 +352,12 @@ export function ProdutosPage() {
                         <Badge variant="outline" className="text-xs">
                           {produto.categoriaNome}
                         </Badge>
+                        {produto.novidade ? (
+                          <Badge className="border-0 bg-primary text-primary-foreground hover:bg-primary">
+                            <Sparkles className="mr-1 h-3.5 w-3.5" />
+                            Novidade
+                          </Badge>
+                        ) : null}
                         {!produto.ativo ? (
                           <Badge className="bg-secondary/15 text-secondary hover:bg-secondary/15" variant="outline">
                             Inativo
@@ -363,12 +379,12 @@ export function ProdutosPage() {
                       <p className="mt-1 font-semibold">{produto.ativo ? 'Ativo' : 'Inativo'}</p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs text-muted-foreground">Imagens</p>
-                      <p className="mt-1 font-semibold">{produto.imagens?.length || (produto.imagemUrl ? 1 : 0)}</p>
+                      <p className="text-xs text-muted-foreground">Menu</p>
+                      <p className="mt-1 font-semibold">{produto.novidade ? 'Em novidades' : 'Padrao'}</p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs text-muted-foreground">Categoria</p>
-                      <p className="mt-1 font-semibold">{produto.categoriaNome}</p>
+                      <p className="text-xs text-muted-foreground">Imagens</p>
+                      <p className="mt-1 font-semibold">{produto.imagens?.length || (produto.imagemUrl ? 1 : 0)}</p>
                     </div>
                   </div>
 
@@ -479,6 +495,15 @@ export function ProdutosPage() {
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, ativo: checked }))}
               />
               <Label htmlFor="ativo">Produto ativo no catalogo</Label>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+              <Switch
+                id="novidade"
+                checked={formData.novidade}
+                onCheckedChange={(checked) => setFormData((p) => ({ ...p, novidade: checked }))}
+              />
+              <Label htmlFor="novidade">Destacar como novidade no menu</Label>
             </div>
 
             <DialogFooter className="gap-2">

@@ -42,6 +42,7 @@ function getDefaultMenuPayload() {
       },
     },
     hasActiveCoupons: false,
+    novidades: [],
     categorias: [],
   }
 }
@@ -121,6 +122,9 @@ export async function GET() {
       })
 
     const hasActiveCoupons = cuponsDisponiveis.some((cupom) => cupom.usos < cupom.maxUsos)
+    const novidades = categoriasComProdutos.flatMap((categoria) =>
+      categoria.produtos.filter((produto) => produto.novidade),
+    )
 
     return NextResponse.json({
       estabelecimento: configuracao.nomeEstabelecimento || 'Brookie Pregiato',
@@ -150,6 +154,7 @@ export async function GET() {
         },
       },
       hasActiveCoupons,
+      novidades,
       categorias: categoriasComProdutos ?? [],
     })
   } catch (error) {

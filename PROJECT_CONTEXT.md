@@ -11,6 +11,7 @@
 - Authentication uses NextAuth credentials.
 - Database uses Prisma over Postgres with production-oriented migration scripts.
 - Local development is expected to run on Node.js `22.22.3`.
+- Products can now be manually marked as `novidade` in admin so the public menu can highlight them in a dedicated section without removing them from their normal categories.
 
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.
@@ -25,6 +26,7 @@
 - `components/`: customer and admin UI.
 - `lib/`: business logic helpers.
 - `prisma/schema.prisma`: source of truth for domain entities.
+- `PROMPTINICIAL.md`: cross-chat continuity prompt, expected working style, and update rule for future conversations.
 - `docs/API.md`: route inventory.
 - `docs/admin-mobile-order-flow-handoff.md`: current admin mobile UX decisions, validation workflow, cleanup notes, and next-chat handoff.
 - `SECURITY_AUTH.md`: auth and invite rules.
@@ -52,6 +54,11 @@
 6. If database structure changed, run PRD migration flow.
 7. Validate PRD after deploy.
 
+## Current Migration Notes
+- The product-highlight feature adds Prisma field `Produto.novidade`.
+- Migration created: `20260715110000_add_produto_novidade_flag`.
+- Before HML/PRD validation or deploy of this feature line, apply the migration and regenerate Prisma Client.
+
 ## Current Exceptions And Defaults
 - `Fluxo de caixa` and `Relatorios` intentionally keep week-based default periods.
 - Generic operational date filters now default to current month start through today.
@@ -62,6 +69,8 @@ Use something like:
 `Leia AGENTS.md, PROJECT_CONTEXT.md e docs/admin-mobile-order-flow-handoff.md. Estamos corrigindo um bug em producao: <descreva o sintoma>.`
 
 That is usually enough to rehydrate context quickly.
+
+For higher continuity across longer workstreams, prefer starting from `PROMPTINICIAL.md`.
 
 ## Commands I'll Commonly Use
 - `rtk npm run dev`

@@ -1,6 +1,6 @@
 # API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-07-13
+Ultima atualizacao: 2026-07-15
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -16,6 +16,7 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: retorna apenas dados operacionais minimos do cadastro, sem historico de pedidos, sem telefone completo de volta no payload e com limitacao de tentativas.
 - GET `/api/menu`
   - Retorna estabelecimento, endereco de retirada, parametros de frete, regras do checkout publico e categorias.
+  - Observacao: agora tambem retorna `novidades`, com os produtos ativos marcados manualmente para destaque no menu.
   - Requer `tenant_slug`.
 - POST `/api/pedidos`
   - Cria pedido.
@@ -61,9 +62,9 @@ Categorias:
 Produtos:
 - GET `/api/admin/produtos`
 - POST `/api/admin/produtos`
-  - Body: `{ nome, descricao?, categoriaId, preco, ativo?, imagemUrl?, imagens? }`
+  - Body: `{ nome, descricao?, categoriaId, preco, ativo?, novidade?, imagemUrl?, imagens? }`
 - PUT `/api/admin/produtos/:id`
-  - Body: `{ nome?, descricao?, categoriaId?, preco?, ativo?, imagemUrl?, imagens?, ordem? }`
+  - Body: `{ nome?, descricao?, categoriaId?, preco?, ativo?, novidade?, imagemUrl?, imagens?, ordem? }`
 - PATCH `/api/admin/produtos/:id/ativo`
   - Body: `{ ativo: boolean }`
 - DELETE `/api/admin/produtos/:id`

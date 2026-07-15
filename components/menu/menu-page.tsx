@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
-import { Store, MapPin } from 'lucide-react'
+import { Store, MapPin, Sparkles } from 'lucide-react'
 import { CategorySection } from './category-section'
 import { CartButton } from './cart-button'
 import { CartSheet } from './cart-sheet'
+import { ProductCard } from './product-card'
 import { RecentOrders } from './recent-orders'
 import { Skeleton } from '@/components/ui/skeleton'
 import { restoreMenuScrollPosition, saveMenuScrollPosition } from '@/lib/customer-session'
@@ -21,6 +22,7 @@ interface MenuData {
   estabelecimentoLat: number
   estabelecimentoLng: number
   isOpen: boolean
+  novidades: Produto[]
   categorias: (Categoria & { produtos: Produto[] })[]
 }
 
@@ -41,6 +43,7 @@ export function MenuPage() {
 
   const { data, isLoading, error } = useSWR<MenuData>('/api/menu', fetcher)
   const categorias = Array.isArray(data?.categorias) ? data.categorias : []
+  const novidades = Array.isArray(data?.novidades) ? data.novidades : []
   const canCheckout = data?.isOpen ?? true
 
   useEffect(() => {
@@ -106,9 +109,17 @@ export function MenuPage() {
       <RecentOrders />
 
       {/* Category Navigation */}
-      {categorias.length > 0 && (
+      {(novidades.length > 0 || categorias.length > 0) && (
         <nav className="bg-card border-b border-border sticky top-[72px] z-30 overflow-x-auto">
           <div className="max-w-2xl mx-auto px-4 py-2 flex gap-2">
+            {novidades.length > 0 ? (
+              <a
+                href="#novidades"
+                className="px-4 py-2 rounded-full text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                Novidades
+              </a>
+            ) : null}
             {categorias.map(cat => (
               <a
                 key={cat.id}
@@ -136,10 +147,31 @@ export function MenuPage() {
               </div>
             ))}
           </div>
-        ) : categorias.length > 0 ? (
-          categorias.map(categoria => (
-            <CategorySection key={categoria.id} categoria={categoria} />
-          ))
+        ) : categorias.length > 0 || novidades.length > 0 ? (
+          <>
+            {novidades.length > 0 ? (
+              <section id="novidades" className="scroll-mt-20 space-y-4">
+                <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/12 via-background to-secondary/12 p-5">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Sparkles className="h-5 w-5" />
+                    <h2 className="text-xl font-bold">Novidades do cardapio</h2>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Veja primeiro o que acabou de entrar no menu.
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  {novidades.map((produto) => (
+                    <ProductCard key={`novidade-${produto.id}`} produto={produto} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {categorias.map(categoria => (
+              <CategorySection key={categoria.id} categoria={categoria} />
+            ))}
+          </>
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground">Nenhuma categoria disponível</p>

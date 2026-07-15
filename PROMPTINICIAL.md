@@ -38,6 +38,7 @@ Use este comando base:
 - O foco atual e seguir evoluindo interfaces e fluxos com atencao especial ao uso mobile no admin
 - As telas de estoque e producao ja receberam uma nova passada mobile-first, alinhando hero, filtros, cards-resumo e blocos de cadastro rapido ao padrao visual novo
 - As telas de clientes, produtos e categorias tambem ja foram aproximadas do mesmo padrao mobile-first, com hierarquia visual mais clara, dialogs melhores no celular e cards operacionais mais consistentes
+- O cadastro de produtos agora precisa preservar tambem a flag manual `novidade`, usada para destacar itens em uma secao dedicada de novidades no menu publico sem tirar o produto da categoria original
 - A lista de clientes foi refinada para uma leitura mais compacta no mobile, com avatar por iniciais, badges de contexto e menos aspecto de card pesado na rolagem
 - As telas de cupons, contas a pagar, contas a receber e fluxo de caixa ja receberam uma nova passada visual/mobile-first, preservando comportamento e priorizando legibilidade no celular
 - Ja existe base tecnica de PWA com `manifest` e registro de `service worker`, mas o `sw.js` atual ainda e propositalmente minimo e nao implementa operacao offline segura
@@ -53,6 +54,7 @@ Use este comando base:
 - Para pagamento com cartao no checkout publico, a interface agora permite expor `credito`, `debito` ou ambos, espelhando melhor o fluxo do pedido manual
 - Nesta passada houve alteracao em `prisma/schema.prisma` e foi criada a migration `20260713113000_add_public_checkout_controls_to_configuracao`
 - Nesta frente de seguranca do checkout publico tambem foi criada a migration `20260713170000_add_public_order_access_token`
+- Nesta frente de menu/produtos tambem foi criada a migration `20260715110000_add_produto_novidade_flag`
 - Antes de validar em HML/PRD ou subir deploy com essa entrega, sera obrigatorio aplicar a migration no banco e regenerar o Prisma Client
 - O prefill publico por telefone agora deve continuar minimalista e com limitacao de tentativas; novas evolucoes nesse fluxo nao devem voltar a expor telefone completo, WhatsApp completo ou historico do cliente
 - O checkout publico nao deve mais sobrescrever automaticamente o cadastro mestre do cliente quando encontra um telefone existente; o pedido pode usar snapshot proprio sem regravar o registro base
