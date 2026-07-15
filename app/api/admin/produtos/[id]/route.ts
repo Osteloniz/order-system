@@ -22,6 +22,7 @@ const produtoUpdateSchema = z.object({
   categoriaId: z.string().uuid().optional(),
   preco: z.number().finite().min(1).max(1_000_000).optional(),
   ativo: z.boolean().optional(),
+  novidade: z.boolean().optional(),
   ordem: z.number().int().min(0).max(10_000).optional(),
   imagemUrl: imageUrlSchema.nullable().optional(),
   imagens: z.array(imageUrlSchema).max(10).optional()
@@ -76,6 +77,7 @@ export async function PUT(
         imagemUrl: body.imagemUrl ?? produto.imagemUrl,
         imagens,
         ativo: body.ativo ?? produto.ativo,
+        novidade: body.novidade ?? produto.novidade,
         ordem: body.ordem ?? produto.ordem
       }
     })

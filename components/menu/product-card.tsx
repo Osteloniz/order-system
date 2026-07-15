@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { Plus, Minus } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -68,7 +69,14 @@ export function ProductCard({ produto }: ProductCardProps) {
 
           <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-foreground truncate">{produto.nome}</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-foreground truncate">{produto.nome}</h3>
+                {produto.novidade ? (
+                  <Badge className="border-0 bg-primary/12 text-primary hover:bg-primary/12">
+                    Novidade
+                  </Badge>
+                ) : null}
+              </div>
               {produto.descricao && (
                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                   {produto.descricao}

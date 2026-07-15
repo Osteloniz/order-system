@@ -1,0 +1,2 @@
+ALTER TABLE "Produto"
+ADD COLUMN "novidade" BOOLEAN NOT NULL DEFAULT false;

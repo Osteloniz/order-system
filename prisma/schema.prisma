@@ -156,6 +156,7 @@ model Produto {
   categoriaId String
   preco       Int      // centavos
   ativo       Boolean  @default(true)
+  novidade    Boolean  @default(false)
   imagemUrl   String?
   imagens     String[] @default([])
   ordem       Int

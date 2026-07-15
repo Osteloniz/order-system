@@ -30,6 +30,7 @@ export const produtos: Produto[] = [
     categoriaId: 'cat-1',
     preco: 1500, // R$ 15,00
     ativo: true,
+    novidade: true,
     imagemUrl: '/BROWNIE.png',
     ordem: 1,
   },
@@ -40,6 +41,7 @@ export const produtos: Produto[] = [
     categoriaId: 'cat-1',
     preco: 1800,
     ativo: true,
+    novidade: false,
     imagemUrl: '/BROOKIE.png',
     ordem: 2,
   },
