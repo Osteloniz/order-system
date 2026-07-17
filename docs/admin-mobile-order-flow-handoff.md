@@ -133,8 +133,105 @@
 - The current direction is still mobile-first, but without changing business rules or introducing new database requirements unless explicitly approved.
 - Clients now use a denser list pattern for mobile scanning instead of oversized stacked cards.
 - Accounts receivable and cash flow now have dedicated mobile card views so the experience does not depend on wide tables.
+- A dedicated `admin/kds` screen now exists as a lighter execution surface for mobile/tablet operation, separate from the full kanban management screen.
 - This continuation did not change `prisma/schema.prisma` or create new migrations.
 - Before opening PR / preparing PRD, the next chat should prioritize final visual QA in local/HML and confirm user approval.
+
+## Later Payment-Flow Continuity Notes
+
+### Asaas Hosted Checkout Consistency
+- The system now depends on Asaas hosted checkout for online payment continuity in both the public confirmation flow and the admin kanban.
+- Hosted checkout generation must always mirror the persisted order total exactly:
+  - item composition
+  - freight
+  - coupon discount
+  - manual promotional discount
+- Do not regress to generating hosted checkout payloads from full product prices only when the saved order total is lower.
+
+### Stock Commitment Rule For Public Availability
+- Common orders now affect public availability before `ENTREGUE` when the commitment is already real.
+- The current commitment rule is:
+  - online common order: reserve stock as soon as payment is approved
+  - cash common order: reserve stock as soon as the store accepts the order
+  - delivered order: perform definitive baixa
+  - `ENCOMENDA`: keep the reservation tied to `PREPARACAO` and `PRONTO_ENTREGA`
+- Payment-driven status changes must use the same stock synchronization path as manual kanban status changes.
+
+### Availability Safety Net
+- Public menu and public order creation now also subtract a shadow map of committed-but-not-yet-reserved orders.
+- This is a defensive layer so older open orders or transitional states do not allow oversell even if their stock timestamps are still stale.
+- If future refactors touch public availability, preserve both layers:
+  - formal reservation in `ProdutoEstoque`
+  - defensive shadow subtraction for unreconciled committed orders
+
+### Admin Edit Behavior For Pending Online Orders
+- When a pending online order is edited in admin and the payment composition changes, the previous local checkout state is intentionally invalidated.
+- This protects the operation from reusing a stale payment link after:
+  - item changes
+  - price composition changes
+  - manual discount changes
+  - freight changes
+  - payment-method changes
+  - relevant payer/contact changes
+- Operationally, the next payment-link action should generate a fresh link with the updated amount.
+
+### Admin Detail Sheet Consistency Fix
+- The payment actions in the kanban detail sheet must keep returning the full order payload, not a partial shape.
+- This specifically avoids frontend regressions where `subtotal` and `total` can appear as `NaN` after payment-link refresh or payment-method actions.
+- Cash orders now also receive a stronger badge/highlight in the kanban card and detail sheet so the team can immediately spot that the stock commitment came from operational acceptance instead of online approval.
+
+### KDS Continuity Notes
+- The KDS must remain a presentation and execution layer on top of the existing order lifecycle, not a second workflow.
+- Current KDS scope:
+  - lanes for `FEITO`, `ACEITO`, `PREPARACAO`, and `PRONTO_ENTREGA`
+  - separate future `ENCOMENDA` agenda
+  - pending-payment attention block
+  - one-tap actions for payment confirmation, advance step, and return step
+- Any future KDS refinement should keep using:
+  - `/api/admin/pedidos/[id]/status`
+  - `/api/admin/pedidos/[id]/pagamento`
+  - the same stock synchronization path used by kanban
+- No migration was created for this KDS phase.
+
+### Validation Already Performed For This Fix
+- `rtk npm --prefix order-system run lint`
+- `rtk powershell -Command "cd 'C:\\SystemOrder\\order-system'; npx tsc --noEmit"`
+- `rtk npm --prefix order-system run build`
+
+### Migration Impact
+- No new migration was created for this continuity fix.
+- No local data reset is needed.
+
+## Later Catalog And Customer CRUD Continuity Notes
+
+### Product Lifecycle Split
+- Product lifecycle is no longer represented by a single public flag.
+- The current intended behavior is:
+  - `ativo = true` and enough stock: normal sale
+  - `ativo = true` with no stock but `disponivelParaEncomenda = true`: only `ENCOMENDA`
+  - `ativo = false` and `descontinuado = false`: stays visible in the public menu as unavailable and blocked
+  - `descontinuado = true`: hidden from the public menu and blocked from new selections, but preserved in history
+- Public menu now has a dedicated `indisponiveis` section instead of simply hiding temporarily unavailable products.
+
+### Admin Order Entry Rule
+- The manual order page must keep showing all non-discontinued products.
+- This includes products blocked in the public catalog.
+- Existing orders being edited must not lose old items only because the linked product was later discontinued.
+
+### Customer CRUD Safety
+- Direct customer creation in admin no longer upserts by phone.
+- If the phone already belongs to an existing customer, the API now returns conflict so the operator edits the current record instead of overwriting it by accident.
+
+### Validation Already Performed For This Continuity
+- `rtk powershell -Command "cd 'C:\\SystemOrder\\order-system'; npx prisma migrate deploy"`
+- `rtk powershell -Command "cd 'C:\\SystemOrder\\order-system'; npx prisma generate --no-engine"`
+- `rtk npm --prefix order-system run lint`
+- `rtk powershell -Command "cd 'C:\\SystemOrder\\order-system'; npx tsc --noEmit"`
+- `rtk npm --prefix order-system run build`
+
+### Migration Impact
+- New migration created: `20260716113000_add_produto_descontinuado_flag`
+- Local migration: applied successfully without reset.
 
 ## Suggested Prompt For The Next Chat
 Use something like:

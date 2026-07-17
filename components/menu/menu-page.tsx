@@ -11,7 +11,7 @@ import { ProductCard } from './product-card'
 import { RecentOrders } from './recent-orders'
 import { Skeleton } from '@/components/ui/skeleton'
 import { restoreMenuScrollPosition, saveMenuScrollPosition } from '@/lib/customer-session'
-import type { Produto, Categoria } from '@/lib/types'
+import type { CheckoutPublicoConfig, Produto, Categoria } from '@/lib/types'
 
 interface MenuData {
   estabelecimento: string
@@ -22,7 +22,9 @@ interface MenuData {
   estabelecimentoLat: number
   estabelecimentoLng: number
   isOpen: boolean
+  checkoutPublico: CheckoutPublicoConfig
   novidades: Produto[]
+  indisponiveis: Produto[]
   categorias: (Categoria & { produtos: Produto[] })[]
 }
 
@@ -44,6 +46,7 @@ export function MenuPage() {
   const { data, isLoading, error } = useSWR<MenuData>('/api/menu', fetcher)
   const categorias = Array.isArray(data?.categorias) ? data.categorias : []
   const novidades = Array.isArray(data?.novidades) ? data.novidades : []
+  const indisponiveis = Array.isArray(data?.indisponiveis) ? data.indisponiveis : []
   const canCheckout = data?.isOpen ?? true
 
   useEffect(() => {
@@ -87,7 +90,7 @@ export function MenuPage() {
                     <Store className="h-5 w-5" />
                     <h1 className="text-xl font-bold">{data?.estabelecimento}</h1>
                   </div>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground dark:text-foreground/76">
                     <MapPin className="h-4 w-4" />
                     <span>{data?.enderecoRetirada}</span>
                   </div>
@@ -109,7 +112,7 @@ export function MenuPage() {
       <RecentOrders />
 
       {/* Category Navigation */}
-      {(novidades.length > 0 || categorias.length > 0) && (
+      {(novidades.length > 0 || categorias.length > 0 || indisponiveis.length > 0) && (
         <nav className="bg-card border-b border-border sticky top-[72px] z-30 overflow-x-auto">
           <div className="max-w-2xl mx-auto px-4 py-2 flex gap-2">
             {novidades.length > 0 ? (
@@ -129,6 +132,14 @@ export function MenuPage() {
                 {cat.nome}
               </a>
             ))}
+            {indisponiveis.length > 0 ? (
+              <a
+                href="#indisponiveis"
+                className="px-4 py-2 rounded-full text-sm font-medium bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors whitespace-nowrap"
+              >
+                Indisponiveis
+              </a>
+            ) : null}
           </div>
         </nav>
       )}
@@ -147,7 +158,7 @@ export function MenuPage() {
               </div>
             ))}
           </div>
-        ) : categorias.length > 0 || novidades.length > 0 ? (
+        ) : categorias.length > 0 || novidades.length > 0 || indisponiveis.length > 0 ? (
           <>
             {novidades.length > 0 ? (
               <section id="novidades" className="scroll-mt-20 space-y-4">
@@ -156,7 +167,7 @@ export function MenuPage() {
                     <Sparkles className="h-5 w-5" />
                     <h2 className="text-xl font-bold">Novidades do cardapio</h2>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 text-sm text-muted-foreground dark:text-foreground/78">
                     Veja primeiro o que acabou de entrar no menu.
                   </p>
                 </div>
@@ -171,6 +182,25 @@ export function MenuPage() {
             {categorias.map(categoria => (
               <CategorySection key={categoria.id} categoria={categoria} />
             ))}
+
+            {indisponiveis.length > 0 ? (
+              <section id="indisponiveis" className="scroll-mt-20 space-y-4">
+                <div className="rounded-3xl border border-destructive/25 bg-destructive/8 p-5">
+                  <div className="flex items-center gap-2 text-destructive">
+                    <Sparkles className="h-5 w-5" />
+                    <h2 className="text-xl font-bold">Indisponiveis no momento</h2>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground dark:text-foreground/78">
+                    Esses sabores continuam no cardapio, mas estao bloqueados para pedido agora.
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  {indisponiveis.map((produto) => (
+                    <ProductCard key={`indisponivel-${produto.id}`} produto={produto} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </>
         ) : (
           <div className="text-center py-12">
@@ -186,6 +216,7 @@ export function MenuPage() {
         onOpenChange={setCartOpen}
         onCheckout={handleCheckout}
         canCheckout={canCheckout}
+        allowEncomendaFallback={data?.checkoutPublico.entregas.encomenda ?? true}
       />
     </div>
   )

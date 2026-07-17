@@ -8,6 +8,7 @@ import {
   ChefHat,
   Flame,
   PackageCheck,
+  Plus,
   ReceiptText,
   RefreshCw,
   Save,
@@ -15,11 +16,19 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { useIsMobile } from '@/components/ui/use-mobile'
 import { formatarMoeda, formatarHora } from '@/lib/calc'
 import { statusPagamentoLabels } from '@/lib/order-display'
 import { cn } from '@/lib/utils'
@@ -107,14 +116,17 @@ const fetcher = async (url: string) => {
 }
 
 export function ProducaoPage() {
-  const isMobile = useIsMobile()
   const today = todayInSaoPaulo()
   const defaultRange = getCurrentMonthRangeInSaoPaulo()
   const [from, setFrom] = useState(defaultRange.from)
   const [to, setTo] = useState(defaultRange.to)
   const [productionDate, setProductionDate] = useState(today)
-  const [productionDrafts, setProductionDrafts] = useState<Record<string, string>>({})
-  const [savingProductionId, setSavingProductionId] = useState<string | null>(null)
+  const [productionDialogOpen, setProductionDialogOpen] = useState(false)
+  const [productionTotal, setProductionTotal] = useState('')
+  const [productionBatchSelected, setProductionBatchSelected] = useState<Record<string, boolean>>({})
+  const [productionBatchDrafts, setProductionBatchDrafts] = useState<Record<string, string>>({})
+  const [productionDialogError, setProductionDialogError] = useState('')
+  const [savingProductionBatch, setSavingProductionBatch] = useState(false)
   const [markingItemId, setMarkingItemId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
@@ -125,10 +137,29 @@ export function ProducaoPage() {
 
   useEffect(() => {
     if (!data?.estoque) return
-    setProductionDrafts((current) =>
+    setProductionBatchSelected((current) =>
+      Object.fromEntries(data.estoque.map((item) => [item.produtoId, current[item.produtoId] ?? false])),
+    )
+    setProductionBatchDrafts((current) =>
       Object.fromEntries(data.estoque.map((item) => [item.produtoId, current[item.produtoId] ?? ''])),
     )
   }, [data?.estoque])
+
+  const resetProductionBatchDrafts = () => {
+    setProductionTotal('')
+    setProductionDialogError('')
+    setProductionBatchSelected(
+      Object.fromEntries((data?.estoque ?? []).map((item) => [item.produtoId, false])),
+    )
+    setProductionBatchDrafts(
+      Object.fromEntries((data?.estoque ?? []).map((item) => [item.produtoId, ''])),
+    )
+  }
+
+  const openProductionDialog = () => {
+    resetProductionBatchDrafts()
+    setProductionDialogOpen(true)
+  }
 
   const encomendas = useMemo(
     () => data?.pedidos.filter((pedido) => pedido.tipoEntrega === 'ENCOMENDA') ?? [],
@@ -174,33 +205,70 @@ export function ProducaoPage() {
     },
   ]
 
-  const recordProduction = async (produtoId: string) => {
-    const quantidade = Number(productionDrafts[produtoId] ?? 0)
-    if (!Number.isFinite(quantidade) || quantidade <= 0) return
+  const productionBatchRows = useMemo(
+    () => (data?.estoque ?? []).map((item) => ({
+      ...item,
+      selecionado: productionBatchSelected[item.produtoId] ?? false,
+      quantidadeDigitada: Number(productionBatchDrafts[item.produtoId] ?? 0) || 0,
+    })),
+    [data?.estoque, productionBatchDrafts, productionBatchSelected],
+  )
+  const productionBatchSum = productionBatchRows.reduce((acc, item) => acc + item.quantidadeDigitada, 0)
 
-    setSavingProductionId(produtoId)
+  const recordProductionBatch = async () => {
+    const totalProduzido = Number(productionTotal)
+    const itens = productionBatchRows
+      .filter((item) => Number.isFinite(item.quantidadeDigitada) && item.quantidadeDigitada > 0)
+      .map((item) => ({
+        produtoId: item.produtoId,
+        quantidade: item.quantidadeDigitada,
+      }))
+
+    if (!Number.isFinite(totalProduzido) || totalProduzido <= 0) {
+      setProductionDialogError('Informe o total produzido do dia.')
+      return
+    }
+
+    if (itens.length === 0) {
+      setProductionDialogError('Informe pelo menos um sabor produzido.')
+      return
+    }
+
+    if (productionBatchSum !== totalProduzido) {
+      setProductionDialogError('A soma dos sabores precisa bater exatamente com o total produzido.')
+      return
+    }
+
+    setSavingProductionBatch(true)
     setMessage('')
+    setProductionDialogError('')
     try {
       const response = await fetch('/api/admin/producao', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'ADD_PRODUCTION',
-          produtoId,
-          quantidade: Math.floor(quantidade),
+          action: 'ADD_PRODUCTION_BATCH',
           dataProducao: productionDate,
+          totalProduzido: Math.floor(totalProduzido),
+          itens: itens.map((item) => ({
+            produtoId: item.produtoId,
+            quantidade: Math.floor(item.quantidade),
+          })),
         }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Erro ao registrar producao')
-      setProductionDrafts((current) => ({ ...current, [produtoId]: '' }))
-      setMessage('Producao registrada e estoque atualizado.')
+      setProductionDialogOpen(false)
+      resetProductionBatchDrafts()
+      setMessage(`Producao registrada com sucesso. Total do lote: ${result.totalProduzido} unidade(s).`)
       await mutate()
       await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao registrar producao')
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao registrar producao'
+      setProductionDialogError(errorMessage)
+      setMessage(errorMessage)
     } finally {
-      setSavingProductionId(null)
+      setSavingProductionBatch(false)
     }
   }
 
@@ -297,11 +365,6 @@ export function ProducaoPage() {
             <p className="mt-3 text-xs text-muted-foreground">
               Use essa data para registrar hoje uma producao que vai contar como {productionDateLabel}.
             </p>
-            {isMobile ? (
-              <div className="mt-3 rounded-2xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                Primeiro confira os faltantes logo abaixo. Depois use os cards por sabor para registrar a entrada no estoque.
-              </div>
-            ) : null}
           </div>
         </div>
       </section>
@@ -425,7 +488,7 @@ export function ProducaoPage() {
         <CardHeader className="space-y-3">
           <CardTitle>Estoque e entrada de producao</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Cada card mostra o saldo livre do sabor e permite registrar producao com menos toques no celular.
+            Confira os saldos por sabor e registre toda a producao do dia em um unico lancamento.
           </p>
         </CardHeader>
         <CardContent>
@@ -437,6 +500,23 @@ export function ProducaoPage() {
             </div>
           ) : data?.estoque.length ? (
             <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-[24px] border border-dashed border-primary/35 bg-primary/8 p-4 shadow-sm lg:col-span-2">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                      <ChefHat className="h-3.5 w-3.5" />
+                      Registro central de producao
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Informe o total produzido em {productionDateLabel} e distribua as quantidades por sabor dentro do modal.
+                    </p>
+                  </div>
+                  <Button type="button" className="h-11 rounded-2xl px-5" onClick={openProductionDialog}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Registrar producao
+                  </Button>
+                </div>
+              </div>
               {data.estoque.map((item) => (
                 <div key={item.produtoId} className="rounded-[24px] border border-border/70 bg-card/98 p-4 shadow-sm">
                   <div className="mb-4 flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -464,45 +544,6 @@ export function ProducaoPage() {
                       <p className="mt-2 text-xl font-bold">{item.quantidadeReservada}</p>
                     </div>
                   </div>
-
-                  <div className="rounded-[22px] border border-border/70 bg-background/80 p-3">
-                    <div className="mb-3 flex items-center gap-2">
-                      <ChefHat className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-medium">Registrar producao</p>
-                    </div>
-                    <p className="mb-3 text-xs text-muted-foreground">
-                      Soma novas unidades ao estoque usando a data operacional {productionDateLabel}.
-                    </p>
-                    <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="Produzidos"
-                        value={productionDrafts[item.produtoId] ?? ''}
-                        onChange={(event) =>
-                          setProductionDrafts((current) => ({
-                            ...current,
-                            [item.produtoId]: event.target.value,
-                          }))
-                        }
-                        className="h-11 rounded-2xl"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-full rounded-2xl sm:w-auto"
-                        onClick={() => recordProduction(item.produtoId)}
-                        disabled={savingProductionId === item.produtoId}
-                      >
-                        {savingProductionId === item.produtoId ? (
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="mr-2 h-4 w-4" />
-                        )}
-                        {isMobile ? 'Registrar' : `Registrar producao de ${productionDateLabel}`}
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
@@ -513,6 +554,151 @@ export function ProducaoPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={productionDialogOpen} onOpenChange={setProductionDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Registrar producao do dia</DialogTitle>
+            <DialogDescription>
+              Informe o total produzido em {productionDateLabel} e distribua as quantidades por sabor. A soma precisa bater exatamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-[200px_minmax(0,1fr)] sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="production-total">Total produzido</Label>
+                <Input
+                  id="production-total"
+                  type="number"
+                  min={0}
+                  value={productionTotal}
+                  onChange={(event) => setProductionTotal(event.target.value)}
+                  className="h-11 rounded-2xl"
+                  placeholder="Ex.: 24"
+                />
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
+                <p className="font-medium">Resumo da conferencia</p>
+                <p className="mt-2 text-muted-foreground">Data operacional: {productionDateLabel}</p>
+                <p className="mt-2 text-muted-foreground">Soma dos sabores lancados: {productionBatchSum}</p>
+                <p className="text-muted-foreground">
+                  {productionTotal
+                    ? Number(productionTotal) >= productionBatchSum
+                      ? `${Number(productionTotal) - productionBatchSum} unidade(s) ainda faltam distribuir.`
+                      : `${productionBatchSum - Number(productionTotal)} unidade(s) acima do total informado.`
+                    : 'Preencha o total e depois distribua entre os sabores produzidos.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Sabores produzidos</p>
+                <p className="text-xs text-muted-foreground">
+                  Marque apenas os sabores feitos hoje para liberar a quantidade.
+                </p>
+              </div>
+              <Badge variant="outline">{productionBatchRows.length} sabores no controle</Badge>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {productionBatchRows.map((item) => (
+                <div
+                  key={item.produtoId}
+                  className={cn(
+                    'rounded-[20px] border border-border/70 bg-card/90 p-3 transition-colors',
+                    item.selecionado ? 'border-primary/40 bg-primary/5' : 'opacity-90',
+                  )}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <label
+                      htmlFor={`production-check-${item.produtoId}`}
+                      className="flex min-w-0 cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id={`production-check-${item.produtoId}`}
+                        checked={item.selecionado}
+                        onCheckedChange={(checked) => {
+                          const ativo = checked === true
+                          setProductionBatchSelected((current) => ({
+                            ...current,
+                            [item.produtoId]: ativo,
+                          }))
+                          if (!ativo) {
+                            setProductionBatchDrafts((current) => ({
+                              ...current,
+                              [item.produtoId]: '',
+                            }))
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium">{item.nomeProduto}</p>
+                        <p className="text-xs text-muted-foreground">{item.categoriaNome}</p>
+                      </div>
+                    </label>
+                    <Badge variant="outline">Livre {item.quantidadeDisponivel}</Badge>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <Label htmlFor={`production-item-${item.produtoId}`}>Quantidade produzida</Label>
+                    <Input
+                      id={`production-item-${item.produtoId}`}
+                      type="number"
+                      min={0}
+                      value={productionBatchDrafts[item.produtoId] ?? ''}
+                      disabled={!item.selecionado}
+                      onChange={(event) =>
+                        setProductionBatchDrafts((current) => ({
+                          ...current,
+                          [item.produtoId]: event.target.value,
+                        }))
+                      }
+                      className="h-11 rounded-2xl"
+                      placeholder={item.selecionado ? '0' : 'Marque para informar'}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {productionDialogError ? (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {productionDialogError}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-2xl"
+              onClick={() => {
+                setProductionDialogOpen(false)
+                setProductionDialogError('')
+              }}
+            >
+              Fechar
+            </Button>
+            <Button
+              type="button"
+              className="h-11 rounded-2xl"
+              onClick={recordProductionBatch}
+              disabled={savingProductionBatch}
+            >
+              {savingProductionBatch ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Salvar producao
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card className="overflow-hidden">
         <CardHeader>

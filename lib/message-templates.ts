@@ -29,6 +29,15 @@ export const defaultStatusMessageTemplates = {
     '',
     'Total = {total}',
   ].join('\n'),
+  PRONTO_ENTREGA: [
+    'Pagamento confirmado e pedido pronto para entrega.',
+    '',
+    'Resumo do pedido:',
+    '{itens}',
+    '',
+    'Total = {total}',
+    'Forma de pagamento: {pagamento}',
+  ].join('\n'),
   ENTREGUE: [
     'Muito obrigado pela sua compra!',
     '',
@@ -40,7 +49,7 @@ export const defaultStatusMessageTemplates = {
     '',
     'Experiencia unica garantida.',
   ].join('\n'),
-} as const satisfies Record<'ACEITO' | 'PREPARACAO' | 'ENTREGUE', string>
+} as const satisfies Record<'ACEITO' | 'PREPARACAO' | 'PRONTO_ENTREGA' | 'ENTREGUE', string>
 
 export const statusMessageTemplateFields = [
   {
@@ -141,6 +150,7 @@ export function buildStatusMessage(pedido: Pedido, status: StatusPedido, config?
   const templateByStatus: Partial<Record<StatusPedido, string>> = {
     ACEITO: hydratedConfig.mensagemStatusAceito,
     PREPARACAO: hydratedConfig.mensagemStatusPreparacao,
+    PRONTO_ENTREGA: defaultStatusMessageTemplates.PRONTO_ENTREGA,
     ENTREGUE: hydratedConfig.mensagemStatusEntregue,
   }
 
@@ -161,7 +171,7 @@ export function buildStatusMessage(pedido: Pedido, status: StatusPedido, config?
   return template.replace(/\{([a-z_]+)\}/g, (fullMatch, key: keyof typeof replacements) => replacements[key] ?? fullMatch).trim()
 }
 
-export function buildPaymentReminderMessage(pedido: Pedido) {
+export function buildPaymentReminderMessage(pedido: Pedido, options?: { paymentLink?: string | null }) {
   const itens = pedido.itens.map(item => `- ${item.quantidade}x ${item.nomeProdutoSnapshot}`).join('\n')
   return [
     `Oi, ${pedido.clienteNome}!`,
@@ -173,6 +183,7 @@ export function buildPaymentReminderMessage(pedido: Pedido) {
     '',
     `Total: ${formatarMoeda(pedido.total)}`,
     `Forma de pagamento: ${getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}`,
+    ...(options?.paymentLink ? ['', `Link para pagamento: ${options.paymentLink}`] : []),
     '',
     'Se precisar, me chama por aqui que eu te ajudo.',
   ].join('\n')

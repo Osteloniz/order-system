@@ -730,6 +730,7 @@ export function RelatoriosPage() {
                   <SelectItem value="FEITO">Novos</SelectItem>
                   <SelectItem value="ACEITO">Aceitos</SelectItem>
                   <SelectItem value="PREPARACAO">Em preparo</SelectItem>
+                  <SelectItem value="PRONTO_ENTREGA">Pronto entrega</SelectItem>
                   <SelectItem value="ENTREGUE">Entregues</SelectItem>
                   <SelectItem value="CANCELADO">Cancelados</SelectItem>
                 </SelectContent>

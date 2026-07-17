@@ -42,8 +42,36 @@ const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
   FEITO: { label: 'Pedido Recebido', color: 'bg-warning text-warning-foreground' },
   ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground' },
   PREPARACAO: { label: 'Em Preparação', color: 'bg-primary text-primary-foreground' },
+  PRONTO_ENTREGA: { label: 'Pronto para Entrega', color: 'bg-success/15 text-success-foreground' },
   ENTREGUE: { label: 'Entregue', color: 'bg-success text-success-foreground' },
   CANCELADO: { label: 'Cancelado', color: 'bg-destructive text-destructive-foreground' }
+}
+
+function getConfirmationStatusMessage(pedido: PedidoPublico) {
+  if (pedido.status === 'FEITO') {
+    return pedido.pagamento !== 'DINHEIRO' && pedido.statusPagamento === 'PENDENTE'
+      ? 'Seu pedido ja entrou na fila da loja. Assim que o pagamento for concluido, seguimos com a liberacao.'
+      : 'Seu pedido ja entrou na fila da loja e sera analisado em breve.'
+  }
+  if (pedido.status === 'ACEITO') {
+    return pedido.tipoEntrega === 'ENCOMENDA'
+      ? 'A loja ja conferiu sua encomenda e vai iniciar a producao conforme o pagamento e a agenda.'
+      : 'A loja ja conferiu seu pedido. Agora falta apenas concluir o atendimento e a entrega ou retirada.'
+  }
+  if (pedido.status === 'PREPARACAO') {
+    return pedido.tipoEntrega === 'ENCOMENDA'
+      ? 'Sua encomenda esta sendo produzida agora.'
+      : 'Seu pedido esta passando por uma etapa interna antes da liberacao.'
+  }
+  if (pedido.status === 'PRONTO_ENTREGA') {
+    return pedido.tipoEntrega === 'ENCOMENDA'
+      ? 'Pagamento confirmado e encomenda pronta. Falta apenas entregar ou retirar.'
+      : 'Pagamento confirmado e pedido pronto. Falta apenas entregar ou retirar.'
+  }
+  if (pedido.status === 'ENTREGUE') {
+    return 'Pedido finalizado com sucesso.'
+  }
+  return 'Esse pedido foi cancelado.'
 }
 
 interface ConfirmationPageProps {
@@ -54,7 +82,9 @@ interface ConfirmationPageProps {
 export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProps) {
   const router = useRouter()
   const [isCancelling, setIsCancelling] = useState(false)
+  const [isRefreshingPayment, setIsRefreshingPayment] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  const [paymentError, setPaymentError] = useState('')
   const [activeAccessToken, setActiveAccessToken] = useState(accessToken || '')
   const { data: pedido, isLoading, error, mutate } = useSWR<PedidoPublico>(
     [`/api/pedidos/${pedidoId}`, activeAccessToken],
@@ -64,14 +94,12 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
 
   useEffect(() => {
     if (pedido) {
-      const resolvedAccessToken = pedido.publicAccessToken || activeAccessToken || null
-
-      if (pedido.publicAccessToken && pedido.publicAccessToken !== activeAccessToken) {
-        setActiveAccessToken(pedido.publicAccessToken)
-        router.replace(`/confirmacao/${pedidoId}?token=${encodeURIComponent(pedido.publicAccessToken)}`)
+      if (activeAccessToken) {
+        setActiveAccessToken('')
+        router.replace(`/confirmacao/${pedidoId}`)
       }
 
-      saveRecentOrder({ ...pedido, accessToken: resolvedAccessToken })
+      saveRecentOrder(pedido)
     }
   }, [activeAccessToken, pedido, pedidoId, router])
 
@@ -104,7 +132,13 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
   if (!pedido) return null
 
   const statusInfo = statusConfig[pedido.status]
-  const canCancelOrder = pedido.status === 'FEITO' && pedido.statusPagamento !== 'APROVADO'
+  const statusMessage = getConfirmationStatusMessage(pedido)
+  const canCancelOrder = pedido.status === 'FEITO' && pedido.statusPagamento !== 'APROVADO' && pedido.pagamento === 'DINHEIRO'
+  const canContinuePayment =
+    pedido.status !== 'CANCELADO' &&
+    pedido.statusPagamento === 'PENDENTE' &&
+    pedido.pagamento !== 'DINHEIRO' &&
+    Boolean(pedido.pagamentoOnline?.checkoutUrl)
 
   const handleCancelOrder = async () => {
     setCancelError('')
@@ -133,6 +167,36 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
     }
   }
 
+  const handleContinuePayment = async (action: 'RESUME' | 'REFRESH_LINK') => {
+    setPaymentError('')
+    setIsRefreshingPayment(true)
+
+    try {
+      const response = await fetch(`/api/pedidos/${pedido.id}/pagamento`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(activeAccessToken ? { [ORDER_ACCESS_HEADER]: activeAccessToken } : {}),
+        },
+        body: JSON.stringify({ action }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Nao foi possivel retomar o pagamento')
+      }
+
+      await mutate()
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+      }
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Nao foi possivel retomar o pagamento')
+    } finally {
+      setIsRefreshingPayment(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background pb-8">
       {/* Success Header */}
@@ -143,7 +207,7 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
             Pedido Confirmado!
           </h1>
           <p className="text-muted-foreground">
-            Seu pedido foi enviado com sucesso
+            {statusMessage}
           </p>
           <div className="mt-4">
             <Badge className={`text-sm px-3 py-1 ${statusInfo.color}`}>
@@ -265,9 +329,19 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
               <span className="text-muted-foreground">Status do pagamento</span>
               <span className="font-medium">{statusPagamentoLabelsLong[pedido.statusPagamento]}</span>
             </div>
+            {pedido.status === 'PRONTO_ENTREGA' && (
+              <p className="text-sm text-muted-foreground">
+                O pagamento ja foi confirmado e o pedido esta liberado para a etapa final de entrega ou retirada.
+              </p>
+            )}
+            {pedido.status === 'PREPARACAO' && pedido.tipoEntrega === 'ENCOMENDA' && (
+              <p className="text-sm text-muted-foreground">
+                Como esta encomenda depende de producao, a loja ainda esta preparando antes de liberar.
+              </p>
+            )}
             {pedido.statusPagamento === 'PENDENTE' && pedido.pagamento !== 'DINHEIRO' && (
               <p className="text-sm text-muted-foreground">
-                A loja vai orientar a confirmação do pagamento diretamente no atendimento.
+                Seu pedido ja foi criado. Finalize o pagamento online para liberar a proxima etapa com mais rapidez.
               </p>
             )}
           </CardContent>
@@ -275,6 +349,33 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
 
         {/* Actions */}
         <div className="space-y-3">
+          {canContinuePayment ? (
+            <>
+              <Button
+                className="w-full h-12"
+                onClick={() => void handleContinuePayment('RESUME')}
+                disabled={isRefreshingPayment}
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                {isRefreshingPayment ? 'Abrindo pagamento...' : 'Pagar agora'}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-12"
+                onClick={() => void handleContinuePayment('REFRESH_LINK')}
+                disabled={isRefreshingPayment}
+              >
+                <Clock className="h-4 w-4 mr-2" />
+                Gerar novo link de pagamento
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Se quiser trocar a forma de pagamento, fale com a loja para ela ajustar seu pedido com seguranca.
+              </p>
+              {paymentError ? (
+                <p className="text-sm text-destructive text-center">{paymentError}</p>
+              ) : null}
+            </>
+          ) : null}
           {canCancelOrder && (
             <>
               <AlertDialog>

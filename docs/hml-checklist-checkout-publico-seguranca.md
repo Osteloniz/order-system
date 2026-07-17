@@ -14,22 +14,24 @@ rtk npm --prefix order-system run dev
 - Abrir `/menu`
 - Adicionar itens
 - Finalizar pedido
-- Confirmar que redireciona para `/confirmacao/{id}?token=...`
+- Confirmar que redireciona para `/confirmacao/{id}` sem expor token na URL
 - Confirmar que a tela abre normalmente
 
 ## 3. Validar protecao do link publico
 
-- Copiar a URL completa da confirmacao e testar em aba anonima: deve abrir
-- Remover o `?token=...` da URL de um pedido novo: nao deve abrir
-- Trocar o token por valor invalido: nao deve abrir
+- Abrir a confirmacao no mesmo navegador usado no checkout: deve abrir normalmente via cookie seguro
+- Copiar apenas a URL limpa `/confirmacao/{id}` para aba anonima: nao deve abrir
+- Acessar um link legado com `?token=...`: deve abrir, gravar o cookie e limpar a URL em seguida
+- Trocar o token legado por valor invalido: nao deve abrir
 - Tentar acessar so com o `id`: nao deve abrir para pedido novo
 
 ## 4. Validar compatibilidade de pedido antigo
 
-- Abrir um pedido ja existente, criado antes dessa mudanca
+- Abrir um pedido criado nessa versao por link legado com `?token=...`
 - Confirmar que a tela de confirmacao abre
-- Confirmar que, apos abrir, a URL passa a ter `?token=...`
-- Recarregar a pagina e confirmar que continua funcionando com o token novo
+- Confirmar que a URL volta para `/confirmacao/{id}` sem token exposto
+- Recarregar a pagina e confirmar que continua funcionando pelo cookie
+- Confirmar que pedidos realmente legados sem `publicAccessTokenHash` nao ganham acesso publico automatico
 
 ## 5. Validar cancelamento publico
 
@@ -67,7 +69,7 @@ rtk npm --prefix order-system run dev
 
 - Apos criar pedido novo, voltar ao menu
 - Confirmar que "ultimos pedidos" aparece
-- Abrir item do historico: deve usar a URL com token e funcionar
+- Abrir item do historico: deve funcionar usando a URL limpa
 - Limpar historico: deve sumir da lista
 
 ## 10. Validar regressao operacional
@@ -94,8 +96,9 @@ rtk npm --prefix order-system run build
 
 ## Criterio de aceite
 
-- Pedido novo so abre confirmacao com token
-- Pedido antigo continua acessivel via transicao
+- Pedido novo so abre confirmacao no navegador que recebeu o cookie seguro
+- Link limpo nao concede acesso em outro navegador sem o cookie
+- Link legado com token ainda funciona apenas como compatibilidade de transicao
 - Cancelamento publico respeita token
 - Prefill continua util, mas sem exposicao excessiva
 - Cliente existente nao e sobrescrito automaticamente

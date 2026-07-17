@@ -107,6 +107,7 @@ export async function GET(request: NextRequest) {
       FEITO: 0,
       ACEITO: 0,
       PREPARACAO: 0,
+      PRONTO_ENTREGA: 0,
       ENTREGUE: 0,
       CANCELADO: 0,
     }

@@ -30,17 +30,17 @@ function RecentOrderCard({ order }: { order: RecentOrderReference }) {
 
   return (
     <Link
-      href={order.accessToken ? `/confirmacao/${pedido.id}?token=${encodeURIComponent(order.accessToken)}` : `/confirmacao/${pedido.id}`}
+      href={`/confirmacao/${pedido.id}`}
       className="block rounded-lg border border-border bg-card px-3 py-3 hover:bg-secondary/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">Pedido #{pedido.id.slice(-8).toUpperCase()}</p>
-          <p className="text-sm text-muted-foreground">{formatarMoeda(pedido.total)}</p>
+          <p className="text-sm text-muted-foreground dark:text-foreground/76">{formatarMoeda(pedido.total)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <Badge variant="outline">{statusPedidoShortLabels[pedido.status]}</Badge>
-          <span className="text-xs text-muted-foreground">{statusPagamentoLabelsLong[pedido.statusPagamento]}</span>
+          <span className="text-xs text-muted-foreground dark:text-foreground/72">{statusPagamentoLabelsLong[pedido.statusPagamento]}</span>
         </div>
       </div>
     </Link>
@@ -63,7 +63,7 @@ export function RecentOrders() {
           <ReceiptText className="h-4 w-4 text-primary" />
           <h2 className="font-semibold">Seus últimos pedidos</h2>
         </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground dark:text-foreground/72">
           <Clock className="h-3 w-3" />
           neste aparelho
         </div>
@@ -76,7 +76,7 @@ export function RecentOrders() {
       <Button
         type="button"
         variant="ghost"
-        className="mt-2 h-8 px-2 text-xs"
+        className="mt-2 h-8 px-2 text-xs text-muted-foreground hover:text-foreground dark:text-foreground/76"
         onClick={() => {
           clearRecentOrdersForCurrentCustomer()
           setOrders([])

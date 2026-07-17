@@ -364,8 +364,8 @@ export function FluxoCaixaPage() {
             <ChartContainer
               className="h-[280px] w-full"
               config={{
-                saldoPrevisto: { label: 'Saldo previsto', color: '#DDA15E' },
-                saldoRealizado: { label: 'Saldo realizado', color: '#7F5539' },
+                saldoPrevisto: { label: 'Saldo previsto', color: '#5B6CFA' },
+                saldoRealizado: { label: 'Saldo realizado', color: '#4556E8' },
               }}
             >
               <AreaChart data={data?.dias ?? []} margin={{ left: 12, right: 12, top: 12, bottom: 8 }}>
@@ -374,10 +374,10 @@ export function FluxoCaixaPage() {
                 <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatarMoeda(Number(value)).replace('R$', 'R$ ')} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatarMoeda(Number(value))} />} />
                 {view !== 'REALIZADO' ? (
-                  <Area type="monotone" dataKey="saldoPrevisto" stroke="#DDA15E" fill="#DDA15E" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="saldoPrevisto" stroke="#5B6CFA" fill="#5B6CFA" fillOpacity={0.18} />
                 ) : null}
                 {view !== 'PREVISTO' ? (
-                  <Area type="monotone" dataKey="saldoRealizado" stroke="#7F5539" fill="#7F5539" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="saldoRealizado" stroke="#4556E8" fill="#4556E8" fillOpacity={0.18} />
                 ) : null}
               </AreaChart>
             </ChartContainer>

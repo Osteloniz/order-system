@@ -16,6 +16,7 @@ enum StatusPedido {
   FEITO
   ACEITO
   PREPARACAO
+  PRONTO_ENTREGA
   ENTREGUE
   CANCELADO
 }
@@ -156,7 +157,9 @@ model Produto {
   categoriaId String
   preco       Int      // centavos
   ativo       Boolean  @default(true)
+  descontinuado Boolean @default(false)
   novidade    Boolean  @default(false)
+  disponivelParaEncomenda Boolean @default(false)
   imagemUrl   String?
   imagens     String[] @default([])
   ordem       Int
@@ -183,6 +186,7 @@ model Pedido {
   estoqueBaixadoEm DateTime?
   publicAccessTokenHash String?
   publicAccessTokenIssuedAt DateTime?
+  asaasReturnTokenHash String?
   clienteNome     String
   clienteTelefone String?
   clienteWhatsapp String?
@@ -196,8 +200,16 @@ model Pedido {
   pagamento       TipoPagamento
   tipoCartao      TipoCartao?
   statusPagamento StatusPagamento @default(NAO_APLICAVEL)
-  mercadoPagoPaymentId String?
-  mercadoPagoPreferenceId String?
+  asaasCheckoutId String?
+  asaasCheckoutUrl String?
+  asaasCheckoutExpiresAt DateTime?
+  asaasPaymentId String?
+  asaasInvoiceUrl String?
+  asaasPixQrCode String?
+  asaasPixCopyPaste String?
+  asaasPaymentStatus String?
+  asaasLastEventId String?
+  asaasLastSyncAt DateTime?
   tipoEntrega     TipoEntrega
   encomendaPara   DateTime?
   enderecoEntrega String?
@@ -213,6 +225,7 @@ model Pedido {
   criadoEm        DateTime      @default(now())
   atualizadoEm    DateTime      @updatedAt
   itens           ItemPedido[]
+  asaasWebhookEvents AsaasWebhookEvent[]
 
   cliente         Cliente? @relation(fields: [clienteId], references: [id])
   cupom           Cupom? @relation(fields: [cupomId], references: [id])
@@ -224,9 +237,28 @@ model Pedido {
   @@index([clienteId])
   @@index([status])
   @@index([statusPagamento])
-  @@index([mercadoPagoPaymentId])
+  @@index([asaasCheckoutId])
+  @@index([asaasPaymentId])
   @@index([criadoEm])
   @@index([encomendaPara])
+}
+
+model AsaasWebhookEvent {
+  id                String   @id
+  event             String
+  paymentId         String?
+  externalReference String?
+  payload           Json
+  processedAt       DateTime @default(now())
+  pedidoId          String?
+  tenantId          String?
+
+  pedido Pedido? @relation(fields: [pedidoId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([paymentId])
+  @@index([externalReference])
+  @@index([tenantId, processedAt])
 }
 
 model Cliente {
@@ -421,6 +453,7 @@ model Tenant {
   fornecedoresFinanceiros FornecedorFinanceiro[]
   userInvites UserInvite[]
   authAuditLogs AuthAuditLog[]
+  asaasWebhookEvents AsaasWebhookEvent[]
 }
 
 model AdminUser {

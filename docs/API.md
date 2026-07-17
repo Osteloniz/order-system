@@ -1,6 +1,6 @@
 # API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-07-15
+Ultima atualizacao: 2026-07-17
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -17,6 +17,11 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
 - GET `/api/menu`
   - Retorna estabelecimento, endereco de retirada, parametros de frete, regras do checkout publico e categorias.
   - Observacao: agora tambem retorna `novidades`, com os produtos ativos marcados manualmente para destaque no menu.
+  - Observacao: agora tambem retorna `indisponiveis`, para manter visiveis os produtos bloqueados temporariamente no cardapio publico.
+  - Observacao: cada produto do menu pode retornar `estoqueDisponivel`, `statusDisponibilidade` e `disponivelParaEncomenda` para o frontend respeitar venda imediata, somente encomenda ou indisponibilidade.
+  - Observacao: `estoqueDisponivel` agora considera tambem um abatimento de seguranca para pedidos ja comprometidos e ainda nao refletidos como reserva formal no estoque.
+  - Observacao: `checkoutPublico` agora tambem informa `pagamentoOnline`, incluindo o gateway ativo e se debito online e suportado.
+  - Observacao: quando o gateway online for Asaas, `pix` so deve aparecer como disponivel se a conta autenticada tiver ao menos uma chave Pix ativa.
   - Requer `tenant_slug`.
 - POST `/api/pedidos`
   - Cria pedido.
@@ -25,17 +30,34 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: os tipos de entrega e pagamento aceitos dependem da configuracao publica do tenant.
   - Observacao: para `ENCOMENDA`, a data pode ser definida pelo cliente ou fixada pelo admin nas configuracoes.
   - Observacao: para pagamento em `CARTAO`, o checkout publico pode exigir a escolha entre `CREDITO` e `DEBITO`, conforme configuracao.
-  - Observacao: pedidos novos retornam um `publicAccessToken`, usado para abrir a confirmacao e cancelar o pedido com seguranca.
+  - Observacao: pedidos novos passam a receber o acesso publico por cookie `HttpOnly` no navegador do cliente; o token nao deve mais aparecer em URL nem depender de armazenamento em `localStorage`.
+  - Observacao: quando o pagamento online Asaas estiver ativo, pedidos com `PIX` ou `CARTAO` criam tambem um checkout hospedado e retornam `pagamentoOnline` com o link de pagamento.
+  - Observacao: o checkout hospedado do Asaas deve refletir o valor final salvo do pedido, incluindo frete e descontos aplicados no proprio pedido, sem divergencia para o preco cheio dos itens.
+  - Observacao: a validacao de disponibilidade agora tambem considera pedidos comprometidos que ainda nao tenham virado reserva formal no estoque, como protecao adicional contra oversell.
+  - Observacao: se a conta Asaas nao tiver chave Pix ativa, pedidos em `PIX` devem ser bloqueados mesmo que a configuracao publica local esteja ligada.
   - Observacao: retorna 403 se o estabelecimento estiver fechado.
 - GET `/api/cupons/validar?codigo=...&subtotal=...`
   - Valida cupom e retorna `descontoValor`.
 - GET `/api/pedidos/:id`
   - Retorna detalhe de um pedido (tenant atual).
-  - Observacao: para pedidos novos, exige o token enviado no header `x-order-access-token` ou na query `?token=...`.
-  - Observacao: pedidos antigos sem token salvo recebem um token novo no primeiro acesso bem-sucedido da confirmacao para manter compatibilidade de transicao.
+  - Observacao: exige o token publico do pedido; o fluxo padrao usa cookie `HttpOnly`, mas header `x-order-access-token` e query `?token=...` seguem aceitos apenas para compatibilidade controlada.
+  - Observacao: pedidos antigos sem `publicAccessTokenHash` nao recebem mais token novo automaticamente no primeiro acesso publico; a transicao agora falha fechada.
+  - Observacao: pode retornar `pagamentoOnline` com o link atual do checkout/pagamento hospedado.
+- POST `/api/pedidos/:id/pagamento`
+  - Retoma ou renova o checkout hospedado de um pedido online.
+  - Body: `{ action: 'RESUME' | 'REFRESH_LINK' }`
+  - Observacao: exige o mesmo token publico de acesso do pedido, preferencialmente via cookie `HttpOnly`.
+  - Observacao: `RESUME` reutiliza o link atual se ele ainda estiver valido; `REFRESH_LINK` so cria um novo checkout quando o atual nao puder mais ser reaproveitado.
+  - Observacao: quando o pedido tiver sido editado e a composicao financeira mudar, o estado local do checkout antigo pode ser limpo para impedir o reaproveitamento de um link com valor stale.
 - PATCH `/api/pedidos/:id`
   - Cancela pedido pelo cliente enquanto ele ainda estiver em `FEITO` e sem pagamento aprovado.
-  - Observacao: exige o mesmo token publico de acesso do pedido.
+  - Observacao: exige o mesmo token publico de acesso do pedido, preferencialmente via cookie `HttpOnly`.
+  - Observacao: pedidos com checkout online Asaas nao aceitam cancelamento publico automatico, para evitar inconsistencias entre pedido e gateway.
+- POST `/api/asaas/webhook`
+  - Recebe eventos de pagamento enviados pelo Asaas.
+  - Observacao: exige validacao do header `asaas-access-token`.
+  - Observacao: processa eventos de forma idempotente pelo `event.id` e atualiza `statusPagamento` do pedido usando `externalReference`.
+  - Observacao: quando o pagamento aprovado chega para um pedido em `PREPARACAO`, o backend pode promover automaticamente o status para `PRONTO_ENTREGA`; se o pagamento deixar de estar aprovado antes da entrega, o pedido pode voltar para `PREPARACAO`.
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
@@ -43,10 +65,27 @@ Autenticacao:
 - As rotas antigas `/api/admin/login`, `/api/admin/logout`, `/api/admin/session` estao desativadas (410).
 
 Pedidos:
-- GET `/api/admin/pedidos?status=FEITO|ACEITO|PREPARACAO|ENTREGUE|CANCELADO`
+- GET `/api/admin/pedidos?status=FEITO|ACEITO|PREPARACAO|PRONTO_ENTREGA|ENTREGUE|CANCELADO`
+- GET `/api/admin/kds?date=YYYY-MM-DD&windowDays=0..7`
+  - Retorna pedidos abertos para o painel KDS operacional.
+  - Observacao: pedidos comuns entram no radar ate o fim do dia de referencia; `ENCOMENDA` aberta entra ate o horizonte configurado em `windowDays`.
+  - Observacao: reaproveita os mesmos status e regras do kanban; o KDS nao cria um fluxo paralelo de negocio.
+- PATCH `/api/admin/pedidos/:id`
+  - Edita pedido em aberto.
+  - Observacao: se o pedido for online e ainda estiver pendente, mudancas em itens, desconto, frete, forma de pagamento ou dados relevantes da cobranca invalidam o checkout local anterior para que o proximo link seja gerado com o valor atualizado.
+- POST `/api/admin/pedidos/:id/pagamento`
+  - Body: `{ action: 'REFRESH_LINK' }` ou `{ action: 'SWITCH_METHOD', pagamento: 'PIX' | 'DINHEIRO' | 'CARTAO', tipoCartao? }`
+  - Observacao: `REFRESH_LINK` reaproveita o checkout atual quando ainda estiver valido e so gera outro quando necessario.
+  - Observacao: a troca de forma de pagamento bloqueia mudancas que possam deixar um checkout online ainda ativo e gerar cobranca duplicada.
+  - Observacao: as respostas dessas acoes retornam o pedido completo para manter subtotal, desconto e total consistentes no painel admin.
+- Observacao operacional: pedidos comuns agora reservam estoque quando o compromisso fica confirmado:
+  - online: `statusPagamento = APROVADO`
+  - dinheiro: a partir de `ACEITO`
+  - entrega: continua sendo o momento da baixa definitiva
 - PATCH `/api/admin/pedidos/:id/status`
   - Body: `{ status: StatusPedido, motivoCancelamento? }`
   - Observacao: para `CANCELADO` o motivo e obrigatorio.
+  - Observacao: `PRONTO_ENTREGA` fica reservado para pedidos com pagamento aprovado e representa o estado pago, pronto e aguardando apenas a entrega/retirada final.
 - DELETE `/api/admin/pedidos/:id`
   - Remove o pedido (somente se estiver CANCELADO).
 
@@ -62,9 +101,9 @@ Categorias:
 Produtos:
 - GET `/api/admin/produtos`
 - POST `/api/admin/produtos`
-  - Body: `{ nome, descricao?, categoriaId, preco, ativo?, novidade?, imagemUrl?, imagens? }`
+  - Body: `{ nome, descricao?, categoriaId, preco, ativo?, descontinuado?, novidade?, disponivelParaEncomenda?, imagemUrl?, imagens? }`
 - PUT `/api/admin/produtos/:id`
-  - Body: `{ nome?, descricao?, categoriaId?, preco?, ativo?, novidade?, imagemUrl?, imagens?, ordem? }`
+  - Body: `{ nome?, descricao?, categoriaId?, preco?, ativo?, descontinuado?, novidade?, disponivelParaEncomenda?, imagemUrl?, imagens?, ordem? }`
 - PATCH `/api/admin/produtos/:id/ativo`
   - Body: `{ ativo: boolean }`
 - DELETE `/api/admin/produtos/:id`
@@ -98,6 +137,7 @@ Clientes:
 - GET `/api/admin/clientes?search=...`
 - GET `/api/admin/clientes/:id`
 - POST `/api/admin/clientes`
+  - Observacao: se o telefone ja pertencer a outro cadastro, retorna conflito em vez de atualizar o cliente existente implicitamente.
 - PATCH `/api/admin/clientes/:id`
 - POST `/api/admin/clientes/:id/mimo`
   - Marca 1 mimo entregue no fidelidade.

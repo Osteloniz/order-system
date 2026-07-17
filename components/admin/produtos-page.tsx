@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  ShoppingBasket,
   Trash2,
   X,
 } from 'lucide-react'
@@ -68,7 +69,7 @@ export function ProdutosPage() {
   const [deletingProduto, setDeletingProduto] = useState<Produto | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ATIVOS' | 'INATIVOS'>('TODOS')
+  const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ATIVOS' | 'INDISPONIVEIS' | 'DESCONTINUADOS'>('TODOS')
   const [message, setMessage] = useState('')
 
   const [formData, setFormData] = useState({
@@ -78,7 +79,9 @@ export function ProdutosPage() {
     preco: '',
     imagensText: '',
     ativo: true,
+    descontinuado: false,
     novidade: false,
+    disponivelParaEncomenda: false,
   })
 
   const produtosFiltrados = useMemo(() => {
@@ -87,8 +90,9 @@ export function ProdutosPage() {
     return lista.filter((produto) => {
       const textoBusca = `${produto.nome} ${produto.categoriaNome} ${produto.descricao || ''}`.toLowerCase()
       if (busca && !textoBusca.includes(busca)) return false
-      if (statusFilter === 'ATIVOS' && !produto.ativo) return false
-      if (statusFilter === 'INATIVOS' && produto.ativo) return false
+      if (statusFilter === 'ATIVOS' && (!produto.ativo || produto.descontinuado)) return false
+      if (statusFilter === 'INDISPONIVEIS' && (produto.ativo || produto.descontinuado)) return false
+      if (statusFilter === 'DESCONTINUADOS' && !produto.descontinuado) return false
       return true
     })
   }, [produtos, search, statusFilter])
@@ -97,8 +101,9 @@ export function ProdutosPage() {
     const lista = produtos ?? []
     return {
       total: lista.length,
-      ativos: lista.filter((produto) => produto.ativo).length,
-      inativos: lista.filter((produto) => !produto.ativo).length,
+      ativos: lista.filter((produto) => produto.ativo && !produto.descontinuado).length,
+      indisponiveis: lista.filter((produto) => !produto.ativo && !produto.descontinuado).length,
+      descontinuados: lista.filter((produto) => produto.descontinuado).length,
       categorias: new Set(lista.map((produto) => produto.categoriaId)).size,
       novidades: lista.filter((produto) => produto.novidade).length,
     }
@@ -114,7 +119,9 @@ export function ProdutosPage() {
       preco: '',
       imagensText: '',
       ativo: true,
+      descontinuado: false,
       novidade: false,
+      disponivelParaEncomenda: false,
     })
     setDialogOpen(true)
   }
@@ -130,7 +137,9 @@ export function ProdutosPage() {
       preco: (produto.preco / 100).toFixed(2).replace('.', ','),
       imagensText: imagens.join('\n'),
       ativo: produto.ativo,
+      descontinuado: produto.descontinuado,
       novidade: produto.novidade,
+      disponivelParaEncomenda: produto.disponivelParaEncomenda,
     })
     setDialogOpen(true)
   }
@@ -165,7 +174,9 @@ export function ProdutosPage() {
             preco: precoNumero,
             imagens,
             ativo: formData.ativo,
+            descontinuado: formData.descontinuado,
             novidade: formData.novidade,
+            disponivelParaEncomenda: formData.disponivelParaEncomenda,
           }),
         },
       )
@@ -214,7 +225,7 @@ export function ProdutosPage() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status do produto')
       await mutate('/api/admin/produtos')
-      setMessage(!produto.ativo ? 'Produto ativado.' : 'Produto desativado.')
+      setMessage(!produto.ativo ? 'Produto liberado no catalogo.' : 'Produto marcado como indisponivel no catalogo.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao atualizar status do produto')
     }
@@ -243,20 +254,24 @@ export function ProdutosPage() {
               <p className="mt-1 text-2xl font-bold">{resumo.total}</p>
             </div>
             <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Ativos</p>
+              <p className="text-xs text-muted-foreground">No catalogo</p>
               <p className="mt-1 text-2xl font-bold text-primary">{resumo.ativos}</p>
             </div>
             <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Inativos</p>
-              <p className="mt-1 text-2xl font-bold text-secondary">{resumo.inativos}</p>
+              <p className="text-xs text-muted-foreground">Indisponiveis</p>
+              <p className="mt-1 text-2xl font-bold text-secondary">{resumo.indisponiveis}</p>
             </div>
             <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Novidades</p>
-              <p className="mt-1 text-2xl font-bold text-primary">{resumo.novidades}</p>
+              <p className="text-xs text-muted-foreground">Descontinuados</p>
+              <p className="mt-1 text-2xl font-bold text-destructive">{resumo.descontinuados}</p>
             </div>
             <div className="rounded-2xl border bg-background/82 p-4">
               <p className="text-xs text-muted-foreground">Categorias</p>
               <p className="mt-1 text-2xl font-bold">{resumo.categorias}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/82 p-4">
+              <p className="text-xs text-muted-foreground">Novidades</p>
+              <p className="mt-1 text-2xl font-bold text-primary">{resumo.novidades}</p>
             </div>
           </div>
         </div>
@@ -286,8 +301,9 @@ export function ProdutosPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="TODOS">Todos</SelectItem>
-                    <SelectItem value="ATIVOS">Somente ativos</SelectItem>
-                    <SelectItem value="INATIVOS">Somente inativos</SelectItem>
+                    <SelectItem value="ATIVOS">Disponiveis no catalogo</SelectItem>
+                    <SelectItem value="INDISPONIVEIS">Indisponiveis no momento</SelectItem>
+                    <SelectItem value="DESCONTINUADOS">Somente descontinuados</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -358,9 +374,19 @@ export function ProdutosPage() {
                             Novidade
                           </Badge>
                         ) : null}
-                        {!produto.ativo ? (
+                        {produto.disponivelParaEncomenda ? (
+                          <Badge className="border-0 bg-warning/20 text-warning-foreground hover:bg-warning/20">
+                            <ShoppingBasket className="mr-1 h-3.5 w-3.5" />
+                            Aceita encomenda
+                          </Badge>
+                        ) : null}
+                        {produto.descontinuado ? (
+                          <Badge className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/10" variant="outline">
+                            Descontinuado
+                          </Badge>
+                        ) : !produto.ativo ? (
                           <Badge className="bg-secondary/15 text-secondary hover:bg-secondary/15" variant="outline">
-                            Inativo
+                            Indisponivel no catalogo
                           </Badge>
                         ) : null}
                       </div>
@@ -376,11 +402,13 @@ export function ProdutosPage() {
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl border border-primary/20 bg-primary/8 p-3">
                       <p className="text-xs text-muted-foreground">Status</p>
-                      <p className="mt-1 font-semibold">{produto.ativo ? 'Ativo' : 'Inativo'}</p>
+                      <p className="mt-1 font-semibold">
+                        {produto.descontinuado ? 'Descontinuado' : produto.ativo ? 'Disponivel no catalogo' : 'Indisponivel no catalogo'}
+                      </p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs text-muted-foreground">Menu</p>
-                      <p className="mt-1 font-semibold">{produto.novidade ? 'Em novidades' : 'Padrao'}</p>
+                      <p className="text-xs text-muted-foreground">Encomenda</p>
+                      <p className="mt-1 font-semibold">{produto.disponivelParaEncomenda ? 'Liberada' : 'Nao liberar'}</p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
                       <p className="text-xs text-muted-foreground">Imagens</p>
@@ -390,8 +418,14 @@ export function ProdutosPage() {
 
                   <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
                     <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 px-3 py-2">
-                      <Switch checked={produto.ativo} onCheckedChange={() => handleToggleAtivo(produto)} />
-                      <span className="text-sm text-muted-foreground">Disponivel no catalogo</span>
+                      <Switch
+                        checked={produto.ativo}
+                        onCheckedChange={() => handleToggleAtivo(produto)}
+                        disabled={produto.descontinuado}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {produto.descontinuado ? 'Produto descontinuado' : 'Disponivel no catalogo'}
+                      </span>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Button variant="outline" className="h-11 rounded-2xl" onClick={() => openEditDialog(produto)}>
@@ -493,8 +527,18 @@ export function ProdutosPage() {
                 id="ativo"
                 checked={formData.ativo}
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, ativo: checked }))}
+                disabled={formData.descontinuado}
               />
-              <Label htmlFor="ativo">Produto ativo no catalogo</Label>
+              <Label htmlFor="ativo">Disponivel no catalogo para o cliente</Label>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+              <Switch
+                id="descontinuado"
+                checked={formData.descontinuado}
+                onCheckedChange={(checked) => setFormData((p) => ({ ...p, descontinuado: checked }))}
+              />
+              <Label htmlFor="descontinuado">Descontinuar produto e esconder de novas selecoes</Label>
             </div>
 
             <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
@@ -504,6 +548,15 @@ export function ProdutosPage() {
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, novidade: checked }))}
               />
               <Label htmlFor="novidade">Destacar como novidade no menu</Label>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+              <Switch
+                id="disponivelParaEncomenda"
+                checked={formData.disponivelParaEncomenda}
+                onCheckedChange={(checked) => setFormData((p) => ({ ...p, disponivelParaEncomenda: checked }))}
+              />
+              <Label htmlFor="disponivelParaEncomenda">Permitir pedido sob encomenda quando faltar estoque</Label>
             </div>
 
             <DialogFooter className="gap-2">
