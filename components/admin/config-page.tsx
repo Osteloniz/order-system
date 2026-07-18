@@ -99,7 +99,7 @@ export function ConfigPage() {
   const publicCatalogUrl = baseUrl || '/'
   const adminLoginUrl = baseUrl ? `${baseUrl}/admin/login` : '/admin/login'
   const permissionLabel = notificationPermission === 'granted' ? 'permitida' : notificationPermission === 'denied' ? 'bloqueada' : notificationPermission === 'default' ? 'pendente' : 'nao suportada'
-  const permissionTone = notificationPermission === 'granted' ? 'border-success/25 bg-success/10 text-success' : notificationPermission === 'denied' ? 'border-destructive/25 bg-destructive/10 text-destructive' : 'border-warning/25 bg-warning/10 text-warning-foreground'
+  const permissionTone = notificationPermission === 'granted' ? 'border-success/25 bg-success/10 text-success dark:bg-success/20 dark:text-white' : notificationPermission === 'denied' ? 'border-destructive/25 bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-white' : 'border-warning/25 bg-warning/10 text-warning-foreground dark:bg-warning/20 dark:text-white'
 
   const copyToClipboard = async (value: string, successMessage: string) => {
     try {
@@ -400,7 +400,7 @@ export function ConfigPage() {
                       <p className="font-medium">Estado atual da loja</p>
                       <p className="mt-1 text-muted-foreground">{isOpen ? 'Checkout liberado para clientes.' : 'Checkout bloqueado ate reabrir a loja.'}</p>
                     </div>
-                    <Badge variant="outline" className={isOpen ? 'border-success/25 bg-success/10 text-success' : 'border-warning/25 bg-warning/10 text-warning-foreground'}>
+                    <Badge variant="outline" className={isOpen ? 'border-success/25 bg-success/10 text-success dark:bg-success/20 dark:text-white' : 'border-warning/25 bg-warning/10 text-warning-foreground dark:bg-warning/20 dark:text-white'}>
                       {isOpen ? 'Aberta' : 'Fechada'}
                     </Badge>
                   </div>

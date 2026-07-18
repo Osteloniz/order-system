@@ -2,12 +2,18 @@ import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
+import { serializeHostedPagamentoOnline } from '@/lib/hosted-payment'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import {
   getPublicOrderAccessToken,
   isValidPublicOrderAccessToken,
   setPublicOrderAccessCookie,
 } from '@/lib/public-order-access'
+import {
+  doesPublicCustomerAccessMatchOrder,
+  getPublicCustomerAccessPhone,
+  setPublicCustomerAccessCookie,
+} from '@/lib/public-customer-access'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { releaseReservedToAvailableStock } from '@/lib/stock'
 
@@ -95,16 +101,7 @@ function serializePublicPedido(
     cupomCodigoSnapshot: pedido.cupomCodigoSnapshot,
     itens: pedido.itens,
     publicAccessToken: publicAccessToken ?? null,
-    pagamentoOnline: pedido.pagamento === 'DINHEIRO'
-      ? null
-      : {
-          gateway: 'ASAAS' as const,
-          checkoutUrl: pedido.asaasCheckoutUrl,
-          invoiceUrl: pedido.asaasInvoiceUrl,
-          pixQrCode: pedido.asaasPixQrCode,
-          pixCopyPaste: pedido.asaasPixCopyPaste,
-          expiresAt: pedido.asaasCheckoutExpiresAt,
-        },
+    pagamentoOnline: serializeHostedPagamentoOnline(pedido),
   }
 }
 
@@ -121,6 +118,7 @@ export async function GET(
     }
 
     const accessToken = getPublicOrderAccessToken(request, id)
+    const customerAccessPhone = getPublicCustomerAccessPhone(request, tenant.id)
     const pedido = await prisma.pedido.findFirst({
       where: { id, tenantId: tenant.id },
       select: publicPedidoSelect,
@@ -130,12 +128,22 @@ export async function GET(
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
-    if (!pedido.publicAccessTokenHash || !isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
+    const hasOrderTokenAccess = Boolean(
+      pedido.publicAccessTokenHash && isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash),
+    )
+    const hasCustomerPhoneAccess = doesPublicCustomerAccessMatchOrder(customerAccessPhone, pedido)
+
+    if (!hasOrderTokenAccess && !hasCustomerPhoneAccess) {
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
     const response = NextResponse.json(serializePublicPedido(pedido))
-    setPublicOrderAccessCookie(response, pedido.id, accessToken)
+    if (hasOrderTokenAccess) {
+      setPublicOrderAccessCookie(response, pedido.id, accessToken)
+    }
+    if (hasCustomerPhoneAccess) {
+      setPublicCustomerAccessCookie(response, tenant.id, customerAccessPhone)
+    }
     return response
   } catch (error) {
     return handleApiError('api/pedidos/[id] GET', error, 'Erro ao carregar pedido')
@@ -155,6 +163,7 @@ export async function PATCH(
     }
 
     const accessToken = getPublicOrderAccessToken(request, id)
+    const customerAccessPhone = getPublicCustomerAccessPhone(request, tenant.id)
     const pedido = await prisma.pedido.findFirst({
       where: { id, tenantId: tenant.id },
       include: {
@@ -172,7 +181,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
-    if (!pedido.publicAccessTokenHash || !isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
+    const hasOrderTokenAccess = Boolean(
+      pedido.publicAccessTokenHash && isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash),
+    )
+    const hasCustomerPhoneAccess = doesPublicCustomerAccessMatchOrder(customerAccessPhone, pedido)
+
+    if (!hasOrderTokenAccess && !hasCustomerPhoneAccess) {
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
@@ -245,7 +259,14 @@ export async function PATCH(
       return atualizado
     })
 
-    return NextResponse.json(serializePublicPedido(pedidoAtualizado))
+    const response = NextResponse.json(serializePublicPedido(pedidoAtualizado))
+    if (hasOrderTokenAccess) {
+      setPublicOrderAccessCookie(response, pedido.id, accessToken)
+    }
+    if (hasCustomerPhoneAccess) {
+      setPublicCustomerAccessCookie(response, tenant.id, customerAccessPhone)
+    }
+    return response
   } catch (error) {
     return handleApiError('api/pedidos/[id] PATCH', error, 'Erro ao cancelar pedido')
   }

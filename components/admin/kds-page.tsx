@@ -625,7 +625,7 @@ export function KdsPage() {
           className={cn(
             'border-border/70',
             feedback.tone === 'success'
-              ? 'border-success/35 bg-success/10 text-success-foreground'
+              ? 'border-success/35 bg-success/10 text-success dark:bg-success/20 dark:text-white'
               : 'border-destructive/35 bg-destructive/10 text-destructive'
           )}
         >

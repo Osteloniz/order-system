@@ -28,6 +28,8 @@ Use este comando base:
 - `C:\SystemOrder\AGENTS.md`
 - `C:\SystemOrder\order-system\PROJECT_CONTEXT.md`
 - `C:\SystemOrder\order-system\docs\admin-mobile-order-flow-handoff.md`
+- `C:\SystemOrder\order-system\docs\prd-go-live-asaas-dominio-checklist.md`
+- `C:\SystemOrder\order-system\docs\hml-mercado-pago-checkout-pro.md`
 - `C:\SystemOrder\order-system\SECURITY_AUTH.md`
 - `C:\SystemOrder\order-system\docs\API.md`
 
@@ -62,31 +64,39 @@ Use este comando base:
 - Nesta frente de menu/produtos tambem foi criada a migration `20260715110000_add_produto_novidade_flag`
 - Nesta frente de estoque/menu tambem foi criada a migration `20260715143000_add_produto_disponivel_para_encomenda`
 - Nesta frente de pagamento online tambem foi criada a migration `20260715193000_add_asaas_checkout_integration`
-- O legado de Mercado Pago nao deve mais ser reutilizado; a continuidade dessa frente deve considerar apenas os campos e rotas do Asaas
+- O legado antigo de Mercado Pago nao deve ser reutilizado, mas agora existe uma nova integracao de Mercado Pago Checkout Pro sobre a camada atual de checkout hospedado e ela passou a ser o gateway padrao da operacao quando `ONLINE_PAYMENT_GATEWAY="MERCADO_PAGO"`
 - O retorno do gateway nao deve expor diretamente o token publico do pedido para terceiros; a integracao agora usa um token separado de retorno do Asaas e depois reemite o token publico normal na confirmacao
 - Pedidos antigos sem `publicAccessTokenHash` nao devem mais receber bootstrap automatico de token no primeiro acesso anonimo; essa brecha foi fechada e qualquer compatibilidade futura precisa ser pensada de forma explicita e segura
 - Para validar Asaas localmente em sandbox, `APP_URL` nao pode ficar em `localhost`; o checkout rejeita callbacks locais, entao testes fim a fim precisam de uma URL publica temporaria e do webhook sincronizado para ela
 - Existe agora um fluxo auxiliar para isso com `scripts/asaas-sandbox-webhook.mjs`, `scripts/asaas-checkout-smoke.mjs` e `scripts/asaas-pix-key.mjs`, e a chave do Asaas no `.env` local precisa ficar escapada como `\$...` quando comecar com `$`
 - O checkout publico deve esconder e bloquear Pix quando a conta Asaas autenticada nao tiver chave Pix ativa; cartao online continua liberado se o restante da configuracao estiver habilitado
+- Agora existe tambem uma camada configuravel de gateway online: `ONLINE_PAYMENT_GATEWAY` pode usar `ASAAS` ou `MERCADO_PAGO`, sem migration nova nesta fase, e neste momento o padrao operacional esta apontado para Mercado Pago
+- A integracao nova do Mercado Pago nao deve reaproveitar o legado antigo; ela foi reconstruida na camada atual de checkout hospedado, apenas reutilizando temporariamente os campos persistidos ja existentes para evitar mudanca de schema agora
 - A tela publica de confirmacao agora deve permitir retomar o checkout online pelo mesmo link quando ele ainda estiver valido e pedir renovacao do link quando necessario, sem criar checkout duplicado sem necessidade
 - O kanban agora tambem precisa tratar cobranca de forma mais operacional: copiar link, validar/renovar link e reenviar cobranca por WhatsApp usando o checkout atual ou um novo apenas quando o anterior nao puder mais ser reaproveitado
+- O painel agora tambem identifica visualmente qual gateway gerou a cobranca online atual (`Asaas` ou `Mercado Pago`), tanto no card quanto no detalhe do pedido, e ganhou um resumo admin-only de checkout online para leitura rapida da operacao
 - Agora tambem existe uma tela dedicada `admin/kds` para execucao operacional mobile/tablet-first, com filas rapidas por etapa, agenda separada de encomendas futuras e acoes de um toque para confirmar pagamento, avancar e retornar status usando exatamente as mesmas regras do kanban
 - A troca de forma de pagamento em pedidos online agora segue uma trava de seguranca: se ainda existir um checkout online ativo, a troca deve ser bloqueada para evitar duplicidade de cobranca
 - O checkout hospedado do Asaas agora precisa sempre refletir o valor final salvo do pedido, incluindo frete, cupom e valor promocional manual; nao devemos voltar a gerar checkout online com preco cheio dos itens quando houver desconto no pedido
 - Quando um pedido online pendente for editado no admin e isso mudar composicao financeira ou dados relevantes da cobranca, o estado local do checkout antigo deve ser invalidado para forcar a proxima geracao de link com o valor novo, evitando reaproveitar um link stale
+- Excecao importante da fase HML Mercado Pago: para evitar divergencia de cobranca com uma preferencia antiga ainda valida, pedidos com link pendente ativo do Mercado Pago agora bloqueiam edicao de valor, itens e dados relevantes de cobranca em vez de simplesmente invalidar o estado local
 - O kanban de pedidos agora tambem tem o status intermediario `PRONTO_ENTREGA`, ligado ao pagamento: pedidos com estoque podem ir direto para esse estado assim que o pagamento for aprovado, enquanto `PREPARACAO` passou a representar principalmente a etapa real de producao de `ENCOMENDA`; se o pagamento deixar de estar aprovado antes da entrega, pedido comum volta para `ACEITO` e `ENCOMENDA` volta para `PREPARACAO`
 - A regra de reserva de estoque para pedidos comuns ficou mais rigida: pedido online reserva assim que o pagamento e aprovado, pedido em dinheiro reserva assim que a loja o aceita, e a baixa definitiva continua acontecendo apenas em `ENTREGUE`
 - Mudancas de pagamento que alteram o compromisso do pedido agora tambem precisam sincronizar estoque: webhook do Asaas, confirmacao manual de pagamento no kanban e troca de forma de pagamento nao podem mais mexer so no status sem reservar ou liberar saldo
+- O webhook do Asaas foi endurecido para priorizar o `payment.status` real da cobranca ao decidir `statusPagamento` e mover o pedido automaticamente, em vez de confiar apenas no nome do evento recebido
 - O menu publico e a validacao do checkout agora tambem usam uma camada de seguranca para descontar pedidos comprometidos que ainda nao viraram reserva formal no estoque, evitando oversell em pedidos antigos ou estados intermediarios
 - No kanban, pedidos em `DINHEIRO` agora precisam ficar visualmente destacados para o time identificar rapido que o compromisso de estoque veio do aceite operacional e nao de pagamento online
 - Antes de validar em HML/PRD ou subir deploy com essa entrega, sera obrigatorio aplicar a migration no banco e regenerar o Prisma Client
 - Nesta frente do kanban/pagamento tambem foi criada a migration `20260715213000_add_pedido_pronto_entrega_status`
-- O prefill publico por telefone agora deve continuar minimalista e com limitacao de tentativas; novas evolucoes nesse fluxo nao devem voltar a expor telefone completo, WhatsApp completo ou historico do cliente
+- O prefill publico por telefone agora deve continuar minimalista e com limitacao de tentativas; a unica excecao atual e a recuperacao de ultimos pedidos por numero, que deve continuar limitada, rate-limited e sem abrir dados extras do cadastro alem do necessario para acompanhar o pedido
 - O checkout publico nao deve mais sobrescrever automaticamente o cadastro mestre do cliente quando encontra um telefone existente; o pedido pode usar snapshot proprio sem regravar o registro base
+- A faixa `Seus ultimos pedidos` do menu publico agora prioriza busca por telefone no servidor em vez de depender do aparelho; ela precisa continuar compativel com uma evolucao futura de autenticacao mais forte, como codigo de confirmacao via WhatsApp
 - O cadastro de produtos agora tambem precisa separar `indisponivel no catalogo` de `descontinuado`: produto indisponivel continua aparecendo no menu publico em secao propria e bloqueado para selecao, enquanto `descontinuado` some do menu e de novas selecoes sem apagar historico
 - O pedido manual no admin agora deve continuar listando todos os produtos operacionais, inclusive os marcados como indisponiveis no catalogo publico; a unica trava real para novas selecoes passou a ser `descontinuado`
 - O CRUD direto de clientes no admin agora nao deve mais sobrescrever silenciosamente um cadastro existente quando um novo cliente e criado com o mesmo telefone; nesse caso o backend deve retornar conflito explicito e orientar a editar o cadastro existente
 - Nesta frente de catalogo/produtos tambem foi criada a migration `20260716113000_add_produto_descontinuado_flag`
+- Existe agora um checklist operacional dedicado em `docs/prd-go-live-asaas-dominio-checklist.md` para a subida segura desta frente em PRD com dominio customizado, Vercel, migrations e configuracao do Asaas
+- Existe agora tambem `docs/hml-mercado-pago-checkout-pro.md` para a validacao gradual do Mercado Pago em HML/local, incluindo variaveis de ambiente, webhook e a observacao de que nao ha migration nova nesta etapa
 - O fluxo do kanban apos a criacao do pedido deve continuar sendo preservado; esta frente mexe no checkout e nas configuracoes, nao no pipeline central de status
 - O proximo passo natural, se quisermos continuar essa frente, e revisar detalhes finais do checkout publico e depois entrar nos ajustes pontuais do kanban sem alterar sua logica principal
 - Na camada de tenant, ausencia de cookie ainda pode usar o tenant padrao no cenario atual de marca unica, mas cookie invalido nao deve mais cair silenciosamente no tenant default

@@ -76,6 +76,18 @@ function getFirstEnabledPagamento(config?: CheckoutPublicoConfig): TipoPagamento
   return 'DINHEIRO'
 }
 
+function getHostedPaymentDescription(gateway: CheckoutPublicoConfig['pagamentoOnline']['gateway']) {
+  if (!gateway) {
+    return 'Referencia operacional para o atendimento.'
+  }
+
+  if (gateway === 'MERCADO_PAGO') {
+    return 'Pedido criado no sistema e pagamento finalizado no checkout seguro do Mercado Pago.'
+  }
+
+  return 'Pedido criado no sistema e pagamento finalizado no checkout seguro da loja.'
+}
+
 export function CheckoutPage() {
   const router = useRouter()
   const { itens, subtotal, limparCarrinho } = useCart()
@@ -252,22 +264,22 @@ export function CheckoutPage() {
     switch (lookupState) {
       case 'loading':
         return {
-          tone: 'border-border/70 bg-muted/20 text-muted-foreground',
+          tone: 'border-border/70 bg-muted/20 text-muted-foreground dark:text-white/80',
           text: 'Estamos procurando seu cadastro para agilizar o preenchimento.',
         }
       case 'found':
         return {
-          tone: 'border-success/25 bg-success/10 text-success',
+          tone: 'border-success/25 bg-success/10 text-success dark:text-white',
           text: 'Cadastro encontrado. Preenchemos seus dados e protegemos o nome para manter seu histórico consistente.',
         }
       case 'not-found':
         return {
-          tone: 'border-primary/20 bg-primary/[0.06] text-muted-foreground',
+          tone: 'border-primary/20 bg-primary/[0.06] text-muted-foreground dark:text-white/80',
           text: 'Ainda não encontramos esse número. Continue preenchendo normalmente e salvaremos seu cadastro ao concluir o pedido.',
         }
       case 'error':
         return {
-          tone: 'border-border/70 bg-muted/20 text-muted-foreground',
+          tone: 'border-border/70 bg-muted/20 text-muted-foreground dark:text-white/80',
           text: 'Não foi possível consultar o cadastro agora, mas você pode concluir o pedido normalmente.',
         }
       default:
@@ -772,7 +784,7 @@ export function CheckoutPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-2xl border border-border/70 bg-muted/15 p-4 text-sm text-muted-foreground">
-                Informe apenas o método usado como referência. A combinação e a efetivação do pagamento acontecem fora do site.
+                Pix e cartao seguem para um checkout online seguro depois que o pedido for criado. Dinheiro continua combinado direto com a loja.
               </div>
 
               <RadioGroup
@@ -809,7 +821,7 @@ export function CheckoutPage() {
                     <QrCode className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">PIX</p>
-                      <p className="text-sm text-muted-foreground">{pagamentoOnlineGateway === 'ASAAS' ? 'Voce recebe o pedido e segue para pagar online com QR Code ou copia e cola.' : 'Referencia operacional para o atendimento.'}</p>
+                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway)}</p>
                     </div>
                   </label>
                 ) : null}
@@ -844,7 +856,7 @@ export function CheckoutPage() {
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">Cartão crédito</p>
-                      <p className="text-sm text-muted-foreground">Usado apenas como identificação da forma de pagamento.</p>
+                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway)}</p>
                     </div>
                   </label>
                 ) : null}
@@ -863,7 +875,7 @@ export function CheckoutPage() {
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">Cartão débito</p>
-                      <p className="text-sm text-muted-foreground">Usado apenas como identificação da forma de pagamento.</p>
+                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway)}</p>
                     </div>
                   </label>
                 ) : null}

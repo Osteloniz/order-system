@@ -641,7 +641,7 @@ export function RelatoriosPage() {
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
                       <Badge variant="outline">{statusPedidoReportLabels[pedido.status]}</Badge>
-                      <Badge className="border-warning/30 bg-warning/15 text-warning-foreground hover:bg-warning/15">Pagamento pendente</Badge>
+                      <Badge className="border-warning/30 bg-warning/15 text-warning-foreground hover:bg-warning/15 dark:bg-warning/20 dark:text-white">Pagamento pendente</Badge>
                       <Badge>{formatarMoeda(pedido.total)}</Badge>
                     </div>
                   </div>

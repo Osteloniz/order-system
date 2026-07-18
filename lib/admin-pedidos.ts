@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
+import { inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { shouldReserveCommonOrderStock } from '@/lib/order-stock'
 import { isStatusPedidoReservadoEncomenda } from '@/lib/order-status'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
@@ -478,10 +479,22 @@ export async function atualizarPedidoAdmin(
   const calculado = await calcularPedidoAdmin(tx, tenantId, payload, pedidoAtual.cupomId)
   const pedidoNumero = numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id
   const hostedCheckoutNeedsReset = shouldResetHostedCheckoutAfterEdit(pedidoAtual, calculado)
-  const shouldClearHostedPaymentState = calculado.pagamento === 'DINHEIRO' || hostedCheckoutNeedsReset
+  const currentHostedGateway = inferHostedCheckoutGateway(pedidoAtual.asaasCheckoutUrl)
+  const shouldBlockMercadoPagoEdit =
+    currentHostedGateway === 'MERCADO_PAGO' &&
+    Boolean(pedidoAtual.asaasCheckoutUrl?.trim()) &&
+    pedidoAtual.statusPagamento === 'PENDENTE' &&
+    hostedCheckoutNeedsReset
+  const shouldClearHostedPaymentState =
+    calculado.pagamento === 'DINHEIRO' ||
+    (hostedCheckoutNeedsReset && currentHostedGateway !== 'MERCADO_PAGO')
 
   if (pedidoAtual.status === 'CANCELADO' || pedidoAtual.status === 'ENTREGUE' || pedidoAtual.status === 'PRONTO_ENTREGA') {
     throw new Error('Somente pedidos em aberto podem ser editados')
+  }
+
+  if (shouldBlockMercadoPagoEdit) {
+    throw new Error('Esse pedido ja tem um link ativo do Mercado Pago. Para evitar divergencia de cobranca, finalize ou troque o pagamento atual antes de editar valor, itens ou contato.')
   }
 
   await ajustarUsoCupom(tx, pedidoAtual.cupomId, calculado.cupomId)

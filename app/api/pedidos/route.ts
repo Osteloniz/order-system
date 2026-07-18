@@ -1,14 +1,24 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createAsaasCheckout, hasActiveAsaasPixKey, isAsaasApiError, isAsaasConfigured, normalizeAsaasPhone } from '@/lib/asaas'
-import { getAppUrl } from '@/lib/app-url'
+import { createAsaasCheckout, hasActiveAsaasPixKey, isAsaasApiError, normalizeAsaasPhone } from '@/lib/asaas'
 import { appLogger } from '@/lib/app-logger'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
 import { prisma } from '@/lib/db'
+import {
+  buildHostedReturnUrl,
+  serializeHostedPagamentoOnline,
+  type OnlinePaymentGateway,
+} from '@/lib/hosted-payment'
+import {
+  createMercadoPagoPreference,
+  getMercadoPagoLocalReuseExpiryDate,
+  getMercadoPagoWebhookUrl,
+  isMercadoPagoApiError,
+} from '@/lib/mercado-pago'
 import { loadShadowCommittedQuantityMap } from '@/lib/order-stock'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
-import { resolvePublicCardAvailability } from '@/lib/payment-gateway'
+import { getOnlinePaymentGateway, resolvePublicCardAvailability } from '@/lib/payment-gateway'
 import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
 import { resolveProductOrderMode } from '@/lib/product-availability'
 import {
@@ -18,7 +28,12 @@ import {
   hashPublicOrderAccessToken,
   setPublicOrderAccessCookie,
 } from '@/lib/public-order-access'
-import { buildHostedCheckoutItemsFromOrder } from '@/lib/order-payment'
+import { setPublicCustomerAccessCookie } from '@/lib/public-customer-access'
+import {
+  buildHostedCheckoutItemsFromOrder,
+  buildHostedCheckoutLinesFromOrder,
+  buildMercadoPagoHostedCheckoutItemsFromOrder,
+} from '@/lib/order-payment'
 import { getTenantFromCookie } from '@/lib/tenant'
 import type { CriarPedidoPayload } from '@/lib/types'
 
@@ -59,15 +74,6 @@ const pedidoSchema = z.object({
     }
   }
 })
-
-function buildAsaasReturnUrl(orderId: string, status: 'success' | 'cancel' | 'expired', returnToken: string) {
-  return `${getAppUrl()}/pagamento/asaas/${encodeURIComponent(orderId)}?status=${status}&token=${encodeURIComponent(returnToken)}`
-}
-
-function getCheckoutExpiryDate(minutes?: number) {
-  const expiryMinutes = Number.isFinite(minutes) && minutes ? minutes : 60
-  return new Date(Date.now() + expiryMinutes * 60 * 1000)
-}
 
 function serializePublicPedido(
   pedido: {
@@ -154,16 +160,7 @@ function serializePublicPedido(
     cupomCodigoSnapshot: pedido.cupomCodigoSnapshot,
     itens: pedido.itens,
     publicAccessToken: publicAccessToken ?? null,
-    pagamentoOnline: pedido.pagamento === 'DINHEIRO'
-      ? null
-      : {
-          gateway: 'ASAAS' as const,
-          checkoutUrl: pedido.asaasCheckoutUrl,
-          invoiceUrl: pedido.asaasInvoiceUrl,
-          pixQrCode: pedido.asaasPixQrCode,
-          pixCopyPaste: pedido.asaasPixCopyPaste,
-          expiresAt: pedido.asaasCheckoutExpiresAt,
-        },
+    pagamentoOnline: serializeHostedPagamentoOnline(pedido),
   }
 }
 
@@ -217,6 +214,7 @@ export async function POST(request: NextRequest) {
     const pagamentoCartaoDisponivel = cardAvailability.cartao
     const cartaoCreditoDisponivel = cardAvailability.cartaoCredito
     const cartaoDebitoDisponivel = cardAvailability.cartaoDebito
+    const onlineGateway = getOnlinePaymentGateway().gateway
 
     const itens: ItemPedidoCreate[] = []
     const itemIds = Array.from(new Set(body.itens.map((item) => item.produtoId)))
@@ -344,7 +342,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if ((body.pagamento === 'PIX' || body.pagamento === 'CARTAO') && !isAsaasConfigured()) {
+    if ((body.pagamento === 'PIX' || body.pagamento === 'CARTAO') && !onlineGateway) {
       return NextResponse.json(
         { error: 'O pagamento online ainda nao foi configurado. Tente outra forma de pagamento ou avise a loja.' },
         { status: 503 },
@@ -406,28 +404,32 @@ export async function POST(request: NextRequest) {
     const clienteNomePedido = existingCliente?.nome?.trim() || body.clienteNome.trim()
     const clienteWhatsappPedido = existingCliente?.whatsapp || whatsappLimpo || telefoneLimpo
     const publicAccessToken = generatePublicOrderAccessToken()
-    const asaasReturnToken = generateAsaasReturnToken()
     const pedidoId = randomUUID()
-
-    let asaasCheckout:
+    let hostedCheckoutGateway: OnlinePaymentGateway | null = null
+    let hostedCheckoutReturnToken: string | null = null
+    let hostedCheckout:
       | {
           id: string
           link: string
-          minutesToExpire?: number
-          status?: string
+          expiresAt: Date
+          status: string | null
         }
       | null = null
 
     if (body.pagamento === 'PIX' || body.pagamento === 'CARTAO') {
-      const checkoutItems = buildHostedCheckoutItemsFromOrder({
+      hostedCheckoutGateway = onlineGateway
+      const returnToken = generateAsaasReturnToken()
+      hostedCheckoutReturnToken = returnToken
+      const pedidoCheckout = {
         frete,
         subtotal,
         total: Math.max(0, total),
         descontoValor: descontoValor > 0 ? descontoValor : null,
         itens,
-      })
+      }
 
-      if (checkoutItems.length === 0) {
+      const checkoutLines = buildHostedCheckoutLinesFromOrder(pedidoCheckout)
+      if (checkoutLines.length === 0) {
         return NextResponse.json(
           { error: 'Esse pedido nao possui valor valido para pagamento online. Ajuste o total ou escolha pagamento manual.' },
           { status: 400 },
@@ -435,19 +437,56 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        asaasCheckout = await createAsaasCheckout({
-          externalReference: pedidoId,
-          customerName: clienteNomePedido,
-          customerPhone: normalizeAsaasPhone(clienteWhatsappPedido || telefoneLimpo),
-          billingTypes: body.pagamento === 'PIX' ? ['PIX'] : ['CREDIT_CARD'],
-          items: checkoutItems,
-          successUrl: buildAsaasReturnUrl(pedidoId, 'success', asaasReturnToken),
-          cancelUrl: buildAsaasReturnUrl(pedidoId, 'cancel', asaasReturnToken),
-          expiredUrl: buildAsaasReturnUrl(pedidoId, 'expired', asaasReturnToken),
-        })
+        if (hostedCheckoutGateway === 'ASAAS') {
+          const checkoutItems = buildHostedCheckoutItemsFromOrder(pedidoCheckout)
+          const asaasCheckout = await createAsaasCheckout({
+            externalReference: pedidoId,
+            customerName: clienteNomePedido,
+            customerPhone: normalizeAsaasPhone(clienteWhatsappPedido || telefoneLimpo),
+            billingTypes: body.pagamento === 'PIX' ? ['PIX'] : ['CREDIT_CARD'],
+            items: checkoutItems,
+            successUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
+            cancelUrl: buildHostedReturnUrl(pedidoId, 'cancel', returnToken, hostedCheckoutGateway),
+            expiredUrl: buildHostedReturnUrl(pedidoId, 'expired', returnToken, hostedCheckoutGateway),
+          })
+
+          const expiryMinutes = Number.isFinite(asaasCheckout.minutesToExpire) && asaasCheckout.minutesToExpire
+            ? asaasCheckout.minutesToExpire
+            : 60
+
+          hostedCheckout = {
+            id: asaasCheckout.id,
+            link: asaasCheckout.link,
+            expiresAt: new Date(Date.now() + expiryMinutes * 60 * 1000),
+            status: asaasCheckout.status ?? null,
+          }
+        } else if (hostedCheckoutGateway === 'MERCADO_PAGO') {
+          const checkoutItems = buildMercadoPagoHostedCheckoutItemsFromOrder(pedidoCheckout)
+          const mercadoPagoCheckout = await createMercadoPagoPreference({
+            externalReference: `${pedidoId}:${returnToken}`,
+            customerName: clienteNomePedido,
+            items: checkoutItems,
+            pagamento: body.pagamento,
+            tipoCartao: body.pagamento === 'CARTAO' ? tipoCartaoPedido : null,
+            successUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
+            failureUrl: buildHostedReturnUrl(pedidoId, 'cancel', returnToken, hostedCheckoutGateway),
+            pendingUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
+            notificationUrl: getMercadoPagoWebhookUrl(),
+          })
+
+          hostedCheckout = {
+            id: mercadoPagoCheckout.id,
+            link: mercadoPagoCheckout.link,
+            expiresAt: getMercadoPagoLocalReuseExpiryDate(),
+            status: 'PREFERENCE_CREATED',
+          }
+        }
       } catch (error) {
-        appLogger.error('[api/pedidos] Falha ao criar checkout Asaas', error)
-        if (isAsaasApiError(error) && error.status < 500) {
+        appLogger.error('[api/pedidos] Falha ao criar checkout hospedado', error)
+        if (
+          (isAsaasApiError(error) && error.status < 500) ||
+          (isMercadoPagoApiError(error) && error.status < 500)
+        ) {
           return NextResponse.json(
             { error: 'Nao foi possivel iniciar o pagamento online agora. Confira os dados e tente novamente.' },
             { status: 502 },
@@ -483,7 +522,7 @@ export async function POST(request: NextRequest) {
           status: 'FEITO',
           publicAccessTokenHash: hashPublicOrderAccessToken(publicAccessToken),
           publicAccessTokenIssuedAt: new Date(),
-          asaasReturnTokenHash: asaasCheckout ? hashAsaasReturnToken(asaasReturnToken) : null,
+          asaasReturnTokenHash: hostedCheckout && hostedCheckoutReturnToken ? hashAsaasReturnToken(hostedCheckoutReturnToken) : null,
           clienteNome: clienteNomePedido,
           clienteTelefone: telefoneLimpo,
           clienteWhatsapp: clienteWhatsappPedido || null,
@@ -492,10 +531,10 @@ export async function POST(request: NextRequest) {
           pagamento: body.pagamento,
           tipoCartao: tipoCartaoPedido,
           statusPagamento: body.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
-          asaasCheckoutId: asaasCheckout?.id ?? null,
-          asaasCheckoutUrl: asaasCheckout?.link ?? null,
-          asaasCheckoutExpiresAt: asaasCheckout ? getCheckoutExpiryDate(asaasCheckout.minutesToExpire) : null,
-          asaasPaymentStatus: asaasCheckout?.status ?? null,
+          asaasCheckoutId: hostedCheckout?.id ?? null,
+          asaasCheckoutUrl: hostedCheckout?.link ?? null,
+          asaasCheckoutExpiresAt: hostedCheckout?.expiresAt ?? null,
+          asaasPaymentStatus: hostedCheckout?.status ?? null,
           tipoEntrega: body.tipoEntrega,
           encomendaPara: encomendaParaPedido,
           enderecoEntrega: null,
@@ -542,7 +581,7 @@ export async function POST(request: NextRequest) {
           tipoEntrega: pedido.tipoEntrega,
           tipoCartao: pedido.tipoCartao,
           statusPagamento: pedido.statusPagamento,
-          gatewayPagamento: asaasCheckout ? 'ASAAS' : 'MANUAL',
+          gatewayPagamento: hostedCheckoutGateway ?? 'MANUAL',
         },
       })
 
@@ -553,6 +592,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json(serializePublicPedido(novoPedido), { status: 201 })
     setPublicOrderAccessCookie(response, novoPedido.id, publicAccessToken)
+    setPublicCustomerAccessCookie(response, tenant.id, clienteWhatsappPedido || telefoneLimpo)
     return response
   } catch (error) {
     console.error('[v0] Erro ao criar pedido:', error)

@@ -47,6 +47,10 @@ export function rateLimitPublicPrefill(ip: string, tenantId: string) {
   return checkRateLimit(`prefill:${tenantId}:${ip}`, publicStore, 60 * 1000, 12, 5 * 60 * 1000)
 }
 
+export function rateLimitPublicOrderLookup(ip: string, tenantId: string, phone: string) {
+  return checkRateLimit(`public-orders:${tenantId}:${ip}:${phone.trim()}`, publicStore, 60 * 1000, 8, 10 * 60 * 1000)
+}
+
 export function resetRateLimitByIp(ip: string) {
   store.delete(`ip:${ip}`)
 }

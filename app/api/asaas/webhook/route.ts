@@ -14,6 +14,7 @@ const webhookSchema = z.object({
   event: z.string().min(1),
   payment: z.object({
     id: z.string().min(1),
+    status: z.string().optional(),
   }).optional(),
 }).passthrough()
 
@@ -51,6 +52,53 @@ function mapAsaasEventToPaymentStatus(event: string) {
   }
 
   return 'PENDENTE' as const
+}
+
+function mapAsaasPaymentStatus(status?: string | null) {
+  const normalized = status?.trim().toUpperCase() || ''
+
+  if (
+    normalized === 'RECEIVED' ||
+    normalized === 'CONFIRMED' ||
+    normalized === 'RECEIVED_IN_CASH' ||
+    normalized === 'AUTHORIZED' ||
+    normalized === 'PAID'
+  ) {
+    return 'APROVADO' as const
+  }
+
+  if (
+    normalized === 'REFUNDED' ||
+    normalized === 'PARTIALLY_REFUNDED' ||
+    normalized === 'RECEIVED_IN_CASH_UNDONE'
+  ) {
+    return 'REEMBOLSADO' as const
+  }
+
+  if (
+    normalized === 'REFUSED' ||
+    normalized === 'FAILED' ||
+    normalized === 'OVERDUE'
+  ) {
+    return 'RECUSADO' as const
+  }
+
+  if (
+    normalized === 'CANCELLED' ||
+    normalized === 'DELETED'
+  ) {
+    return 'CANCELADO' as const
+  }
+
+  if (
+    normalized === 'PENDING' ||
+    normalized === 'BANK_PROCESSING' ||
+    normalized === 'AWAITING_CHECKOUT_RISK_ANALYSIS_REQUEST'
+  ) {
+    return 'PENDENTE' as const
+  }
+
+  return null
 }
 
 function resolveNextStatusPagamento(current: string, next: ReturnType<typeof mapAsaasEventToPaymentStatus>) {
@@ -126,7 +174,9 @@ export async function POST(request: NextRequest) {
 
     if (!pedido) return
 
-    const mappedStatus = mapAsaasEventToPaymentStatus(parsed.data.event)
+    const mappedStatus =
+      mapAsaasPaymentStatus(payment?.status ?? parsed.data.payment?.status) ??
+      mapAsaasEventToPaymentStatus(parsed.data.event)
     const statusPagamento = resolveNextStatusPagamento(pedido.statusPagamento, mappedStatus)
     const nextStatus = resolveStatusAfterPaymentChange(pedido.status, statusPagamento, pedido.tipoEntrega)
     const estoqueControle = pedido.tenantId

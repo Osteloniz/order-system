@@ -74,7 +74,7 @@ export const statusPedidoReportStyles: Record<StatusPedido, string> = {
   FEITO: 'border-warning/45 bg-warning/15 text-warning-foreground',
   ACEITO: 'border-accent/45 bg-accent/45 text-accent-foreground',
   PREPARACAO: 'border-primary/35 bg-primary/12 text-primary',
-  PRONTO_ENTREGA: 'border-success/35 bg-success/10 text-success-foreground',
+  PRONTO_ENTREGA: 'border-success/35 bg-success/10 text-success dark:bg-success/20 dark:text-white',
   ENTREGUE: 'border-secondary/35 bg-secondary/12 text-secondary-foreground',
   CANCELADO: 'border-destructive/35 bg-destructive/10 text-destructive',
 }

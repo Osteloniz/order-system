@@ -74,12 +74,12 @@ export function CartSheet({
                         {item.produto.nome}
                       </h4>
                       {item.statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? (
-                        <Badge className="border border-warning/35 bg-warning/15 text-warning hover:bg-warning/15">
+                        <Badge className="border border-warning/35 bg-warning/15 text-warning hover:bg-warning/15 dark:border-warning/35 dark:bg-warning/20 dark:text-white">
                           Sob encomenda
                         </Badge>
                       ) : null}
                       {item.statusDisponibilidade === 'INDISPONIVEL' ? (
-                        <Badge variant="outline" className="border-destructive/35 bg-destructive/10 text-destructive">
+                        <Badge variant="outline" className="border-destructive/35 bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-white">
                           Indisponivel
                         </Badge>
                       ) : null}
@@ -141,12 +141,12 @@ export function CartSheet({
                   </p>
                 )}
                 {forceEncomenda && !possuiIndisponivel && (
-                  <p className="text-sm text-warning">
+                  <p className="text-sm text-warning dark:text-white/90">
                     Esse carrinho sera fechado como encomenda por causa de itens sem estoque imediato.
                   </p>
                 )}
                 {possuiIndisponivel && (
-                  <p className="text-sm text-destructive">
+                  <p className="text-sm text-destructive dark:text-white/90">
                     Existem itens sem estoque e sem opcao de encomenda. Ajuste o carrinho para continuar.
                   </p>
                 )}
