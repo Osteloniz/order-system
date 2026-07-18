@@ -1,12 +1,12 @@
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import {
-  generatePublicOrderAccessToken,
-  hashPublicOrderAccessToken,
+  getPublicOrderAccessToken,
   isValidPublicOrderAccessToken,
-  ORDER_ACCESS_HEADER,
+  setPublicOrderAccessCookie,
 } from '@/lib/public-order-access'
 import { getTenantFromCookie } from '@/lib/tenant'
 import { releaseReservedToAvailableStock } from '@/lib/stock'
@@ -18,6 +18,16 @@ const publicPedidoSelect = {
   clienteId: true,
   status: true,
   statusPagamento: true,
+  asaasCheckoutId: true,
+  asaasCheckoutUrl: true,
+  asaasCheckoutExpiresAt: true,
+  asaasPaymentId: true,
+  asaasInvoiceUrl: true,
+  asaasPixQrCode: true,
+  asaasPixCopyPaste: true,
+  asaasPaymentStatus: true,
+  asaasLastEventId: true,
+  asaasLastSyncAt: true,
   clienteNome: true,
   clienteTelefone: true,
   clienteWhatsapp: true,
@@ -41,12 +51,10 @@ const publicPedidoSelect = {
   itens: true,
 } as const
 
-function getOrderAccessToken(request: NextRequest) {
-  return request.headers.get(ORDER_ACCESS_HEADER)?.trim() || request.nextUrl.searchParams.get('token')?.trim() || ''
-}
+type PublicPedido = Prisma.PedidoGetPayload<{ select: typeof publicPedidoSelect }>
 
 function serializePublicPedido(
-  pedido: Awaited<ReturnType<typeof prisma.pedido.findFirst>>,
+  pedido: PublicPedido | null,
   publicAccessToken?: string | null
 ) {
   if (!pedido) return null
@@ -56,6 +64,16 @@ function serializePublicPedido(
     clienteId: pedido.clienteId,
     status: pedido.status,
     statusPagamento: pedido.statusPagamento,
+    asaasCheckoutId: pedido.asaasCheckoutId,
+    asaasCheckoutUrl: pedido.asaasCheckoutUrl,
+    asaasCheckoutExpiresAt: pedido.asaasCheckoutExpiresAt,
+    asaasPaymentId: pedido.asaasPaymentId,
+    asaasInvoiceUrl: pedido.asaasInvoiceUrl,
+    asaasPixQrCode: pedido.asaasPixQrCode,
+    asaasPixCopyPaste: pedido.asaasPixCopyPaste,
+    asaasPaymentStatus: pedido.asaasPaymentStatus,
+    asaasLastEventId: pedido.asaasLastEventId,
+    asaasLastSyncAt: pedido.asaasLastSyncAt,
     clienteNome: pedido.clienteNome,
     clienteTelefone: pedido.clienteTelefone,
     clienteWhatsapp: pedido.clienteWhatsapp,
@@ -77,6 +95,16 @@ function serializePublicPedido(
     cupomCodigoSnapshot: pedido.cupomCodigoSnapshot,
     itens: pedido.itens,
     publicAccessToken: publicAccessToken ?? null,
+    pagamentoOnline: pedido.pagamento === 'DINHEIRO'
+      ? null
+      : {
+          gateway: 'ASAAS' as const,
+          checkoutUrl: pedido.asaasCheckoutUrl,
+          invoiceUrl: pedido.asaasInvoiceUrl,
+          pixQrCode: pedido.asaasPixQrCode,
+          pixCopyPaste: pedido.asaasPixCopyPaste,
+          expiresAt: pedido.asaasCheckoutExpiresAt,
+        },
   }
 }
 
@@ -92,7 +120,7 @@ export async function GET(
       return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
 
-    const accessToken = getOrderAccessToken(request)
+    const accessToken = getPublicOrderAccessToken(request, id)
     const pedido = await prisma.pedido.findFirst({
       where: { id, tenantId: tenant.id },
       select: publicPedidoSelect,
@@ -102,24 +130,13 @@ export async function GET(
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
-    if (pedido.publicAccessTokenHash) {
-      if (!isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
-        return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
-      }
-
-      return NextResponse.json(serializePublicPedido(pedido))
+    if (!pedido.publicAccessTokenHash || !isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
+      return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 
-    const legacyAccessToken = generatePublicOrderAccessToken()
-    await prisma.pedido.update({
-      where: { id: pedido.id },
-      data: {
-        publicAccessTokenHash: hashPublicOrderAccessToken(legacyAccessToken),
-        publicAccessTokenIssuedAt: new Date(),
-      },
-    })
-
-    return NextResponse.json(serializePublicPedido(pedido, legacyAccessToken))
+    const response = NextResponse.json(serializePublicPedido(pedido))
+    setPublicOrderAccessCookie(response, pedido.id, accessToken)
+    return response
   } catch (error) {
     return handleApiError('api/pedidos/[id] GET', error, 'Erro ao carregar pedido')
   }
@@ -137,7 +154,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
 
-    const accessToken = getOrderAccessToken(request)
+    const accessToken = getPublicOrderAccessToken(request, id)
     const pedido = await prisma.pedido.findFirst({
       where: { id, tenantId: tenant.id },
       include: {
@@ -170,6 +187,13 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'Pedido pago nao pode ser cancelado pelo cliente.' },
         { status: 400 }
+      )
+    }
+
+    if (pedido.pagamento !== 'DINHEIRO' && pedido.asaasCheckoutId) {
+      return NextResponse.json(
+        { error: 'Pedidos com pagamento online devem ser cancelados pela loja para evitar inconsistencias no gateway.' },
+        { status: 400 },
       )
     }
 
@@ -221,7 +245,7 @@ export async function PATCH(
       return atualizado
     })
 
-    return NextResponse.json(pedidoAtualizado)
+    return NextResponse.json(serializePublicPedido(pedidoAtualizado))
   } catch (error) {
     return handleApiError('api/pedidos/[id] PATCH', error, 'Erro ao cancelar pedido')
   }

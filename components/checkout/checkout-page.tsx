@@ -31,6 +31,7 @@ import { useCart } from '@/contexts/cart-context'
 import { formatarMoeda } from '@/lib/calc'
 import { getCustomerProfile, saveCustomerProfile, saveRecentOrder } from '@/lib/customer-session'
 import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
+import { resolveProductOrderMode } from '@/lib/product-availability'
 import type { CheckoutPublicoConfig, CriarPedidoPayload, PedidoPublico, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 interface MenuData {
@@ -112,13 +113,34 @@ export function CheckoutPage() {
   const pagamentoCartaoDisponivel = checkoutConfig?.pagamentos.cartao ?? true
   const cartaoCreditoDisponivel = checkoutConfig?.pagamentos.cartaoCredito ?? true
   const cartaoDebitoDisponivel = checkoutConfig?.pagamentos.cartaoDebito ?? true
+  const pagamentoOnlineGateway = checkoutConfig?.pagamentoOnline.gateway ?? null
   const pagamentoUiValue =
     pagamento === 'CARTAO'
       ? (tipoCartao === 'DEBITO' ? 'CARTAO_DEBITO' : 'CARTAO_CREDITO')
       : pagamento
+  const itensComDisponibilidade = itens.map((item) => ({
+    ...item,
+    statusDisponibilidade: resolveProductOrderMode({
+      requestedQty: item.quantidade,
+      ativoNoCatalogo: item.produto.ativo,
+      estoqueDisponivel: item.produto.estoqueDisponivel ?? 0,
+      disponivelParaEncomenda: item.produto.disponivelParaEncomenda,
+      encomendaHabilitada: entregaEncomendaDisponivel,
+    }),
+  }))
+  const itensSomenteEncomenda = itensComDisponibilidade.filter((item) => item.statusDisponibilidade === 'SOMENTE_ENCOMENDA')
+  const itensIndisponiveis = itensComDisponibilidade.filter((item) => item.statusDisponibilidade === 'INDISPONIVEL')
+  const forceEncomenda = itensSomenteEncomenda.length > 0 && itensIndisponiveis.length === 0
 
   useEffect(() => {
     if (!checkoutConfig) return
+
+    if (forceEncomenda) {
+      if (tipoEntrega !== 'ENCOMENDA') {
+        setTipoEntrega('ENCOMENDA')
+      }
+      return
+    }
 
     const entregaAtualHabilitada =
       (tipoEntrega === 'RESERVA_PAULISTANO' && checkoutConfig.entregas.reservaPaulistano) ||
@@ -145,7 +167,7 @@ export function CheckoutPage() {
         setTipoCartao('CREDITO')
       }
     }
-  }, [checkoutConfig, pagamento, tipoEntrega])
+  }, [checkoutConfig, forceEncomenda, pagamento, tipoEntrega])
 
   useEffect(() => {
     const telefoneNormalizado = normalizePhone(telefone)
@@ -307,6 +329,14 @@ export function CheckoutPage() {
       setError('Seu carrinho esta vazio')
       return
     }
+    if (itensIndisponiveis.length > 0) {
+      setError(`Alguns itens ficaram indisponiveis no momento: ${itensIndisponiveis.map((item) => item.produto.nome).join(', ')}.`)
+      return
+    }
+    if (forceEncomenda && tipoEntrega !== 'ENCOMENDA') {
+      setError('Esse carrinho possui itens disponiveis apenas por encomenda.')
+      return
+    }
 
     setIsSubmitting(true)
 
@@ -352,12 +382,9 @@ export function CheckoutPage() {
       }
 
       const pedido = (await response.json()) as PedidoPublico
-      saveRecentOrder({ ...pedido, accessToken: pedido.publicAccessToken || null })
+      saveRecentOrder(pedido)
       limparCarrinho()
-      const confirmationUrl = pedido.publicAccessToken
-        ? `/confirmacao/${pedido.id}?token=${encodeURIComponent(pedido.publicAccessToken)}`
-        : `/confirmacao/${pedido.id}`
-      router.push(confirmationUrl)
+      router.push(`/confirmacao/${pedido.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar pedido')
     } finally {
@@ -424,10 +451,15 @@ export function CheckoutPage() {
             <CardTitle className="text-base">Resumo do pedido</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {itens.map((item) => (
+            {itensComDisponibilidade.map((item) => (
               <div key={item.produto.id} className="flex items-start justify-between gap-3 text-sm">
                 <span className="min-w-0 break-words">
                   {item.quantidade}x {item.produto.nome}
+                  {item.statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? (
+                    <span className="ml-2 inline-flex rounded-full border border-warning/35 bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
+                      Sob encomenda
+                    </span>
+                  ) : null}
                 </span>
                 <span className="shrink-0 font-medium">{formatarMoeda(item.produto.preco * item.quantidade)}</span>
               </div>
@@ -451,6 +483,18 @@ export function CheckoutPage() {
         </Card>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {forceEncomenda ? (
+            <div className="rounded-2xl border border-warning/35 bg-warning/15 p-4 text-sm text-warning">
+              Este carrinho tem item(ns) disponivel(is) somente sob encomenda. Por isso, o checkout foi travado em
+              <strong className="ml-1">Encomenda</strong>.
+            </div>
+          ) : null}
+
+          {itensIndisponiveis.length > 0 ? (
+            <div className="rounded-2xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
+              Alguns itens do seu carrinho ficaram indisponiveis sem opcao de encomenda: {itensIndisponiveis.map((item) => item.produto.nome).join(', ')}.
+            </div>
+          ) : null}
           <Card className="border-border/70 bg-card/95">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -588,11 +632,13 @@ export function CheckoutPage() {
                 {entregaReservaDisponivel ? (
                   <label
                     htmlFor="reserva"
-                    className={`flex cursor-pointer items-center gap-3 rounded-[22px] border p-4 transition-colors ${
+                    className={`flex items-center gap-3 rounded-[22px] border p-4 transition-colors ${
+                      forceEncomenda ? 'cursor-not-allowed border-border/70 bg-muted/25 opacity-55' : 'cursor-pointer'
+                    } ${
                       tipoEntrega === 'RESERVA_PAULISTANO' ? 'border-primary/80 bg-primary/[0.08] shadow-sm' : 'border-border/90 bg-card hover:border-primary/30'
                     }`}
                   >
-                    <RadioGroupItem value="RESERVA_PAULISTANO" id="reserva" />
+                    <RadioGroupItem value="RESERVA_PAULISTANO" id="reserva" disabled={forceEncomenda} />
                     <Truck className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">Reserva Paulistano</p>
@@ -604,11 +650,13 @@ export function CheckoutPage() {
                 {entregaRetiradaDisponivel ? (
                   <label
                     htmlFor="retirada"
-                    className={`flex cursor-pointer items-center gap-3 rounded-[22px] border p-4 transition-colors ${
+                    className={`flex items-center gap-3 rounded-[22px] border p-4 transition-colors ${
+                      forceEncomenda ? 'cursor-not-allowed border-border/70 bg-muted/25 opacity-55' : 'cursor-pointer'
+                    } ${
                       tipoEntrega === 'RETIRADA' ? 'border-primary/80 bg-primary/[0.08] shadow-sm' : 'border-border/90 bg-card hover:border-primary/30'
                     }`}
                   >
-                    <RadioGroupItem value="RETIRADA" id="retirada" />
+                    <RadioGroupItem value="RETIRADA" id="retirada" disabled={forceEncomenda} />
                     <Store className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">Retirada</p>
@@ -719,7 +767,7 @@ export function CheckoutPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <UserRound className="h-5 w-5 text-primary" />
-                Pagamento para controle
+                Pagamento
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -761,7 +809,7 @@ export function CheckoutPage() {
                     <QrCode className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">PIX</p>
-                      <p className="text-sm text-muted-foreground">Referencia operacional para o atendimento.</p>
+                      <p className="text-sm text-muted-foreground">{pagamentoOnlineGateway === 'ASAAS' ? 'Voce recebe o pedido e segue para pagar online com QR Code ou copia e cola.' : 'Referencia operacional para o atendimento.'}</p>
                     </div>
                   </label>
                 ) : null}
@@ -852,7 +900,7 @@ export function CheckoutPage() {
             </div>
           ) : null}
 
-          <Button type="submit" className="h-14 w-full rounded-2xl text-base" disabled={isSubmitting}>
+          <Button type="submit" className="h-14 w-full rounded-2xl text-base" disabled={isSubmitting || itensIndisponiveis.length > 0}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />

@@ -22,7 +22,9 @@ const produtoSchema = z.object({
   categoriaId: z.string().uuid(),
   preco: z.number().finite().min(1).max(1_000_000),
   ativo: z.boolean().optional(),
+  descontinuado: z.boolean().optional(),
   novidade: z.boolean().optional(),
+  disponivelParaEncomenda: z.boolean().optional(),
   imagemUrl: imageUrlSchema.optional(),
   imagens: z.array(imageUrlSchema).max(10).optional()
 }).strict()
@@ -80,7 +82,9 @@ export async function POST(request: NextRequest) {
         categoriaId: body.categoriaId,
         preco: Math.round(body.preco),
         ativo: body.ativo ?? true,
+        descontinuado: body.descontinuado ?? false,
         novidade: body.novidade ?? false,
+        disponivelParaEncomenda: body.disponivelParaEncomenda ?? false,
         imagemUrl: body.imagemUrl,
         imagens,
         ordem,

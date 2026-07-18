@@ -28,6 +28,11 @@ export function todayInSaoPaulo() {
   }).format(new Date())
 }
 
+export function getDateKeyInSaoPaulo(value: Date) {
+  const { year, month, day } = getDatePartsInSaoPaulo(value)
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 export function getCurrentMonthRangeInSaoPaulo() {
   const now = new Date()
   const { year, month, day } = getDatePartsInSaoPaulo(now)

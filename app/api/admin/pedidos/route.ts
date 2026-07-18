@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { calcularPedidoAdmin } from '@/lib/admin-pedidos'
+import { OPEN_ORDER_STATUSES } from '@/lib/order-status'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 
@@ -129,11 +130,11 @@ export async function GET(request: NextRequest) {
         },
         {
           tipoEntrega: 'ENCOMENDA',
-          status: { in: ['FEITO', 'ACEITO', 'PREPARACAO'] },
+          status: { in: [...OPEN_ORDER_STATUSES] },
           criadoEm: { lt: end },
         },
         ...(carryoverNovos ? [{
-          status: { in: ['FEITO', 'ACEITO', 'PREPARACAO'] },
+          status: { in: [...OPEN_ORDER_STATUSES] },
           criadoEm: { lt: start },
         }] : []),
       ],

@@ -153,7 +153,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   const [selectedCategoria, setSelectedCategoria] = useState('TODAS')
   const clientesUrl = `/api/admin/clientes?search=${encodeURIComponent(searchCliente.trim())}&take=12`
   const { data: clientes, isLoading: isLoadingClientes, mutate: mutateClientes } = useSWR<ClienteLookupItem[]>(clienteModalOpen ? clientesUrl : null, fetcher)
-  const produtosAtivos = useMemo(() => (produtos || []).filter((produto) => produto.ativo), [produtos])
+  const produtosAtivos = useMemo(() => (produtos || []).filter((produto) => !produto.descontinuado), [produtos])
+  const produtosLookup = useMemo(() => new Map((produtos || []).map((produto) => [produto.id, produto])), [produtos])
 
   const [clienteId, setClienteId] = useState('')
   const [nome, setNome] = useState('')
@@ -199,7 +200,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   })
 
   useEffect(() => {
-    if (!initialPedido || !produtosAtivos.length || initializedEditState) return
+    if (!initialPedido || !produtos?.length || initializedEditState) return
 
     setClienteId(initialPedido.clienteId || '')
     setNome(initialPedido.clienteNome || '')
@@ -271,16 +272,24 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     }
 
     const itemMap = new Map(initialPedido.itens.map((item) => [item.produtoId, item.quantidade]))
-    const initialItems = produtosAtivos
-      .filter((produto) => itemMap.has(produto.id))
-      .map((produto) => ({ produto, quantidade: itemMap.get(produto.id) ?? 1 }))
+    const initialItems = initialPedido.itens
+      .map((item) => {
+        const produto = produtosLookup.get(item.produtoId)
+        if (!produto) return null
+
+        return {
+          produto,
+          quantidade: itemMap.get(item.produtoId) ?? item.quantidade,
+        }
+      })
+      .filter((item): item is CartItem => item !== null)
 
     setItems(initialItems)
     if (Array.isArray(initialPedido.separacaoResponsavel) && initialPedido.separacaoResponsavel.length > 0) {
       setSeparacaoResponsavel(normalizeSeparacaoResponsavel(initialPedido.separacaoResponsavel, initialItems))
     }
     setInitializedEditState(true)
-  }, [initialPedido, produtosAtivos, initializedEditState])
+  }, [initialPedido, produtos, produtosLookup, initializedEditState])
 
   useEffect(() => {
     if (!temResponsavel) return
@@ -404,7 +413,8 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   }
 
   const changeQuantity = (produtoId: string, delta: number) => {
-    const produto = produtosAtivos.find((item) => item.id === produtoId)
+    const produto = items.find((item) => item.produto.id === produtoId)?.produto
+      || produtosAtivos.find((item) => item.id === produtoId)
     if (!produto) return
     setProductQuantity(produto, getQuantidadeProduto(produtoId) + delta)
   }
@@ -1032,7 +1042,10 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
               <div key={item.produto.id} className="rounded-2xl border border-border/70 bg-muted/[0.12] p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="break-words font-medium">{item.produto.nome}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="break-words font-medium">{item.produto.nome}</p>
+                      {item.produto.descontinuado ? <Badge variant="outline">Descontinuado</Badge> : null}
+                    </div>
                     <p className="text-sm text-muted-foreground">{formatarMoeda(item.produto.preco)} por unidade</p>
                   </div>
                   <Badge>{item.quantidade}x</Badge>
@@ -1160,7 +1173,11 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium">{produto.nome}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{produto.nome}</p>
+                        {!produto.ativo ? <Badge variant="outline">Indisponivel no catalogo</Badge> : null}
+                        {produto.disponivelParaEncomenda ? <Badge variant="outline">Aceita encomenda</Badge> : null}
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {produto.categoriaNome || 'Sem categoria'} • {formatarMoeda(produto.preco)}
                       </p>

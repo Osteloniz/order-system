@@ -1,5 +1,5 @@
-import { ProducaoPage } from '@/components/admin/producao-page'
+import { redirect } from 'next/navigation'
 
 export default function AdminProducaoPage() {
-  return <ProducaoPage />
+  redirect('/admin/estoque')
 }

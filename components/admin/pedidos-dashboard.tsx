@@ -22,24 +22,27 @@ import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import { buildPaymentReminderMessage, buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
 import { entregaLabels, getPagamentoLabel, statusPagamentoColors, statusPagamentoLabels } from '@/lib/order-display'
+import { getNextOperationalStatus, getPreviousOperationalStatus, shouldUsePreparacaoStage } from '@/lib/order-status'
 import { buildWhatsappUrl } from '@/lib/phone'
 import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
-import type { Configuracao, Pedido, StatusPedido } from '@/lib/types'
+import type { Configuracao, Pedido, StatusPedido, TipoCartao, TipoPagamento } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-const statusConfig: Record<StatusPedido, { label: string; color: string; columnClass: string; icon: typeof Clock; nextStatus?: StatusPedido; nextLabel?: string }> = {
-  FEITO: { label: 'Novo', color: 'bg-warning text-warning-foreground', columnClass: 'border-warning/40 bg-warning/5', icon: Clock, nextStatus: 'ACEITO', nextLabel: 'Aceitar Pedido' },
-  ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground', columnClass: 'border-accent/40 bg-accent/5', icon: Check, nextStatus: 'PREPARACAO', nextLabel: 'Iniciar Preparo' },
-  PREPARACAO: { label: 'Preparando', color: 'bg-primary text-primary-foreground', columnClass: 'border-primary/40 bg-primary/5', icon: ChefHat, nextStatus: 'ENTREGUE', nextLabel: 'Marcar Entregue' },
+const statusConfig: Record<StatusPedido, { label: string; color: string; columnClass: string; icon: typeof Clock }> = {
+  FEITO: { label: 'Novo', color: 'bg-warning text-warning-foreground', columnClass: 'border-warning/40 bg-warning/5', icon: Clock },
+  ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground', columnClass: 'border-accent/40 bg-accent/5', icon: Check },
+  PREPARACAO: { label: 'Preparando', color: 'bg-primary text-primary-foreground', columnClass: 'border-primary/40 bg-primary/5', icon: ChefHat },
+  PRONTO_ENTREGA: { label: 'Pronto para entregar', color: 'bg-success/15 text-success-foreground', columnClass: 'border-success/40 bg-success/5', icon: Package },
   ENTREGUE: { label: 'Entregue', color: 'bg-success text-success-foreground', columnClass: 'border-success/40 bg-success/5', icon: Truck },
   CANCELADO: { label: 'Cancelado', color: 'bg-destructive text-destructive-foreground', columnClass: 'border-destructive/40 bg-destructive/5', icon: X }
 }
 
 const kanbanColumns: { status: StatusPedido; title: string; hint: string }[] = [
-  { status: 'FEITO', title: 'Novos', hint: 'Aguardando aceite' },
-  { status: 'ACEITO', title: 'Aceitos', hint: 'Aguardando preparo' },
-  { status: 'PREPARACAO', title: 'Em preparo', hint: 'Producao em andamento' },
+  { status: 'FEITO', title: 'Novos', hint: 'Entraram agora no painel' },
+  { status: 'ACEITO', title: 'Aceitos', hint: 'Pedido conferido pela loja' },
+  { status: 'PREPARACAO', title: 'Em preparo', hint: 'Etapa usada principalmente para encomendas' },
+  { status: 'PRONTO_ENTREGA', title: 'Prontos', hint: 'Separados, pagos ou liberados para sair' },
   { status: 'ENTREGUE', title: 'Entregues', hint: 'Finalizados' },
   { status: 'CANCELADO', title: 'Cancelados', hint: 'Somente consulta' },
 ]
@@ -76,7 +79,18 @@ function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido, config?: Conf
 }
 
 function canMovePedido(pedido: Pedido, targetStatus: StatusPedido) {
-  return pedido.status !== targetStatus
+  if (pedido.status === targetStatus) return false
+  if (targetStatus === 'PRONTO_ENTREGA') {
+    if (pedido.statusPagamento !== 'APROVADO') return false
+    if (shouldUsePreparacaoStage(pedido)) {
+      return pedido.status === 'PREPARACAO' || pedido.status === 'ENTREGUE'
+    }
+    return pedido.status !== 'CANCELADO' && pedido.status !== 'PRONTO_ENTREGA'
+  }
+  if (targetStatus === 'PREPARACAO' && !shouldUsePreparacaoStage(pedido)) {
+    return false
+  }
+  return true
 }
 
 function getPedidoPrimaryDateLabel(pedido: Pedido) {
@@ -89,18 +103,42 @@ function getPedidoPrimaryDateLabel(pedido: Pedido) {
   return `Criado em ${formatDateTimeInSaoPaulo(pedido.criadoEm)}`
 }
 
-function getNextStatus(status: StatusPedido) {
-  if (status === 'FEITO') return 'ACEITO' as const
-  if (status === 'ACEITO') return 'PREPARACAO' as const
-  if (status === 'PREPARACAO') return 'ENTREGUE' as const
-  return null
+function getNextStatusLabel(pedido: Pedido, nextStatus: StatusPedido | null) {
+  if (!nextStatus) return null
+  if (pedido.status === 'FEITO') return 'Aceitar pedido'
+  if (pedido.status === 'ACEITO' && nextStatus === 'PREPARACAO') return 'Iniciar preparo da encomenda'
+  if (pedido.status === 'ACEITO' && nextStatus === 'PRONTO_ENTREGA') return 'Marcar pronto para entrega'
+  if (pedido.status === 'ACEITO' && nextStatus === 'ENTREGUE') return 'Marcar entregue'
+  if (pedido.status === 'PREPARACAO' && nextStatus === 'PRONTO_ENTREGA') return 'Marcar pronto para entregar'
+  if (pedido.status === 'PREPARACAO' && nextStatus === 'ENTREGUE') return 'Marcar entregue'
+  if (pedido.status === 'PRONTO_ENTREGA') return 'Marcar entregue'
+  return 'Avancar etapa'
 }
 
-function getPreviousStatus(status: StatusPedido) {
-  if (status === 'ACEITO') return 'FEITO' as const
-  if (status === 'PREPARACAO') return 'ACEITO' as const
-  if (status === 'ENTREGUE') return 'PREPARACAO' as const
-  return null
+function getKanbanSupportText(pedido: Pedido) {
+  if (pedido.status === 'PREPARACAO') {
+    return shouldUsePreparacaoStage(pedido)
+      ? 'Use esta etapa para encomendas que ainda precisam ser produzidas antes da liberacao.'
+      : 'Este pedido entrou em preparo manualmente.'
+  }
+  if (pedido.status === 'PRONTO_ENTREGA') {
+    return shouldUsePreparacaoStage(pedido)
+      ? 'Encomenda produzida e pagamento liberado. Falta apenas a entrega ou retirada.'
+      : 'Pedido com estoque ja liberado para sair. Falta apenas concluir a entrega ou retirada.'
+  }
+  if (pedido.status === 'ACEITO') {
+    return shouldUsePreparacaoStage(pedido)
+      ? 'Pedido conferido. Quando o pagamento for confirmado, ele segue para preparo.'
+      : 'Pedido conferido. Se o pagamento for aprovado, pode ir direto para pronto para entrega.'
+  }
+  return 'Use este bloco para tocar o pedido adiante sem repetir passos.'
+}
+
+function getPaymentMethodBadgeClass(pedido: Pedido) {
+  if (pedido.pagamento === 'DINHEIRO') {
+    return 'border-amber-500/35 bg-amber-500/15 text-amber-100'
+  }
+  return 'border-border/70 bg-background/70 text-foreground'
 }
 
 export function PedidosDashboard() {
@@ -111,6 +149,7 @@ export function PedidosDashboard() {
   const [isCancelling, setIsCancelling] = useState(false)
   const [deletingPedidoId, setDeletingPedidoId] = useState<string | null>(null)
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null)
+  const [paymentActionPedidoId, setPaymentActionPedidoId] = useState<string | null>(null)
   const [bulkActionLoading, setBulkActionLoading] = useState<'deliver' | 'payment' | 'advance' | 'return' | null>(null)
   const [alertsEnabled, setAlertsEnabled] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission)
@@ -123,6 +162,8 @@ export function PedidosDashboard() {
   const [dateFilter, setDateFilter] = useState(todayInSaoPaulo)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [editingPedido, setEditingPedido] = useState<Pedido | null>(null)
+  const [paymentMethodDialogPedido, setPaymentMethodDialogPedido] = useState<Pedido | null>(null)
+  const [paymentMethodValue, setPaymentMethodValue] = useState<'PIX' | 'DINHEIRO' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO'>('DINHEIRO')
   const [stockLookupOpen, setStockLookupOpen] = useState(false)
   const [stockSearch, setStockSearch] = useState('')
   const [soundUnlocked, setSoundUnlocked] = useState(false)
@@ -141,6 +182,7 @@ export function PedidosDashboard() {
     novos: pedidos?.filter(p => p.status === 'FEITO').length || 0,
     aceitos: pedidos?.filter(p => p.status === 'ACEITO').length || 0,
     preparando: pedidos?.filter(p => p.status === 'PREPARACAO').length || 0,
+    prontosEntrega: pedidos?.filter(p => p.status === 'PRONTO_ENTREGA').length || 0,
     entregues: pedidos?.filter(p => p.status === 'ENTREGUE').length || 0,
     cancelados: pedidos?.filter(p => p.status === 'CANCELADO').length || 0,
     todos: pedidos?.length || 0
@@ -150,6 +192,7 @@ export function PedidosDashboard() {
     { key: 'novos', label: 'Novos', value: contadores.novos },
     { key: 'aceitos', label: 'Aceitos', value: contadores.aceitos },
     { key: 'preparando', label: 'Em preparo', value: contadores.preparando },
+    { key: 'prontos', label: 'Prontos', value: contadores.prontosEntrega },
     { key: 'entregues', label: 'Entregues', value: contadores.entregues },
     { key: 'total', label: 'Total', value: contadores.todos },
   ]
@@ -194,12 +237,12 @@ export function PedidosDashboard() {
   )
 
   const selectedPedidosAvancaveis = useMemo(
-    () => selectedPedidos.filter((pedido) => !!getNextStatus(pedido.status)),
+    () => selectedPedidos.filter((pedido) => !!getNextOperationalStatus(pedido)),
     [selectedPedidos]
   )
 
   const selectedPedidosRetornaveis = useMemo(
-    () => selectedPedidos.filter((pedido) => !!getPreviousStatus(pedido.status)),
+    () => selectedPedidos.filter((pedido) => !!getPreviousOperationalStatus(pedido)),
     [selectedPedidos]
   )
 
@@ -352,6 +395,23 @@ export function PedidosDashboard() {
     }
   }
 
+  const postPedidoPagamentoAction = async (
+    pedidoId: string,
+    body: Record<string, unknown>,
+  ) => {
+    const response = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await response.json().catch(() => null)
+    return {
+      ok: response.ok,
+      data,
+      error: data?.error || 'Nao foi possivel atualizar o pagamento.',
+    }
+  }
+
   const handleEnableAlerts = async () => {
     await unlockAlertSound()
     let permission = getNotificationPermission()
@@ -401,7 +461,11 @@ export function PedidosDashboard() {
 
   const handleMovePedido = async (pedido: Pedido, targetStatus: StatusPedido) => {
     if (!canMovePedido(pedido, targetStatus)) {
-      setLastAlertMessage(`Movimento não permitido: ${statusConfig[pedido.status].label} para ${statusConfig[targetStatus].label}.`)
+      setLastAlertMessage(
+        targetStatus === 'PRONTO_ENTREGA'
+          ? 'Pronto para entregar fica disponivel apenas para pedidos pagos e depois do preparo.'
+          : `Movimento não permitido: ${statusConfig[pedido.status].label} para ${statusConfig[targetStatus].label}.`
+      )
       return
     }
     await handleUpdateStatus(pedido, targetStatus)
@@ -466,11 +530,104 @@ export function PedidosDashboard() {
         setLastAlertMessage(result.error)
         return
       }
-      const pedidoAtualizado = result.data
-      mutate(pedidosUrl)
+      const pedidoAtualizado = result.data as Pedido
+      await mutate(
+        pedidosUrl,
+        (current?: Pedido[]) => current?.map((pedido) => pedido.id === pedidoId ? pedidoAtualizado : pedido),
+        false,
+      )
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
+      await mutate(pedidosUrl)
     } finally {
       setConfirmingPaymentId(null)
+    }
+  }
+
+  const handleRefreshPaymentLink = async (pedido: Pedido) => {
+    if (pedido.pagamento === 'DINHEIRO') {
+      setLastAlertMessage('Esse pedido nao possui link de pagamento online.')
+      return null
+    }
+
+    setPaymentActionPedidoId(pedido.id)
+    try {
+      const result = await postPedidoPagamentoAction(pedido.id, { action: 'REFRESH_LINK' })
+      if (!result.ok) {
+        setLastAlertMessage(result.error)
+        return null
+      }
+
+      const pedidoAtualizado = result.data?.pedido as Pedido | undefined
+      if (!pedidoAtualizado?.asaasCheckoutUrl) {
+        setLastAlertMessage('Nao foi possivel obter um link de pagamento para esse pedido.')
+        return null
+      }
+
+      await mutate(pedidosUrl)
+      if (selectedPedido?.id === pedido.id) setSelectedPedido(pedidoAtualizado)
+      setLastAlertMessage(result.data?.reused ? 'Link atual ainda estava valido e foi reaproveitado.' : 'Novo link de pagamento gerado com sucesso.')
+      return pedidoAtualizado
+    } finally {
+      setPaymentActionPedidoId(null)
+    }
+  }
+
+  const handleCopyPaymentLink = async (pedido: Pedido) => {
+    const pedidoComLink =
+      pedido.pagamento !== 'DINHEIRO' && pedido.statusPagamento === 'PENDENTE'
+        ? await handleRefreshPaymentLink(pedido)
+        : pedido
+
+    const link = pedidoComLink?.asaasCheckoutUrl
+    if (!link) return
+
+    try {
+      await navigator.clipboard.writeText(link)
+      setLastAlertMessage('Link de pagamento copiado.')
+    } catch {
+      setLastAlertMessage('Nao foi possivel copiar o link agora.')
+    }
+  }
+
+  const handleSwitchPaymentMethod = async () => {
+    if (!paymentMethodDialogPedido) return
+
+    const pagamento: TipoPagamento =
+      paymentMethodValue === 'PIX'
+        ? 'PIX'
+        : paymentMethodValue === 'DINHEIRO'
+          ? 'DINHEIRO'
+          : 'CARTAO'
+    const tipoCartao: TipoCartao | null =
+      paymentMethodValue === 'CARTAO_CREDITO'
+        ? 'CREDITO'
+        : paymentMethodValue === 'CARTAO_DEBITO'
+          ? 'DEBITO'
+          : null
+
+    setPaymentActionPedidoId(paymentMethodDialogPedido.id)
+    try {
+      const result = await postPedidoPagamentoAction(paymentMethodDialogPedido.id, {
+        action: 'SWITCH_METHOD',
+        pagamento,
+        tipoCartao: tipoCartao ?? undefined,
+      })
+
+      if (!result.ok) {
+        setLastAlertMessage(result.error)
+        return
+      }
+
+      const pedidoAtualizado = result.data?.pedido as Pedido | undefined
+      if (pedidoAtualizado) {
+        await mutate(pedidosUrl)
+        if (selectedPedido?.id === pedidoAtualizado.id) setSelectedPedido(pedidoAtualizado)
+      }
+
+      setPaymentMethodDialogPedido(null)
+      setLastAlertMessage('Forma de pagamento atualizada com sucesso.')
+    } finally {
+      setPaymentActionPedidoId(null)
     }
   }
 
@@ -558,7 +715,7 @@ export function PedidosDashboard() {
     let pedidoAtualizadoSelecionado: Pedido | null = null
     try {
       for (const pedido of selectedPedidosAvancaveis) {
-        const nextStatus = getNextStatus(pedido.status)
+        const nextStatus = getNextOperationalStatus(pedido)
         if (!nextStatus) continue
         const result = await patchPedidoStatus(pedido.id, nextStatus)
         if (!result.ok) {
@@ -588,7 +745,7 @@ export function PedidosDashboard() {
     let pedidoAtualizadoSelecionado: Pedido | null = null
     try {
       for (const pedido of selectedPedidosRetornaveis) {
-        const previousStatus = getPreviousStatus(pedido.status)
+        const previousStatus = getPreviousOperationalStatus(pedido)
         if (!previousStatus) continue
         const result = await patchPedidoStatus(pedido.id, previousStatus)
         if (!result.ok) {
@@ -611,8 +768,20 @@ export function PedidosDashboard() {
     }
   }
 
-  const handleSendPaymentReminder = (pedido: Pedido) => {
-    const url = buildWhatsappUrl(getPedidoWhatsapp(pedido), buildPaymentReminderMessage(pedido))
+  const handleSendPaymentReminder = async (pedido: Pedido) => {
+    let pedidoBase = pedido
+
+    if (pedido.pagamento !== 'DINHEIRO' && pedido.statusPagamento === 'PENDENTE') {
+      const pedidoAtualizado = await handleRefreshPaymentLink(pedido)
+      if (pedidoAtualizado) {
+        pedidoBase = pedidoAtualizado
+      }
+    }
+
+    const url = buildWhatsappUrl(
+      getPedidoWhatsapp(pedidoBase),
+      buildPaymentReminderMessage(pedidoBase, { paymentLink: pedidoBase.asaasCheckoutUrl }),
+    )
     if (!url) {
       setLastAlertMessage('Esse pedido não possui WhatsApp válido para cobrança.')
       return
@@ -666,6 +835,14 @@ export function PedidosDashboard() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="text-xs">{entregaLabels[pedido.tipoEntrega]}</Badge>
             {pedido.encomendaPara && <Badge variant="secondary" className="text-xs">{new Date(pedido.encomendaPara).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Badge>}
+            {pedido.tipoEntrega === 'ENCOMENDA' ? (
+              <Badge variant="outline" className="text-xs">Produzir</Badge>
+            ) : pedido.status === 'PRONTO_ENTREGA' ? (
+              <Badge variant="outline" className="text-xs">Sai com estoque</Badge>
+            ) : null}
+            <Badge variant="outline" className={`text-xs ${getPaymentMethodBadgeClass(pedido)}`}>
+              {pedido.pagamento === 'DINHEIRO' ? 'Dinheiro' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
+            </Badge>
             <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
           </div>
           <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} {formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
@@ -677,14 +854,17 @@ export function PedidosDashboard() {
 
   const renderSelectedPedidoSheet = (pedido: Pedido) => {
     const status = statusConfig[pedido.status]
-    const canEdit = pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO'
+    const canEdit = pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO' && pedido.status !== 'PRONTO_ENTREGA'
     const canResendStatus = pedido.status !== 'FEITO' && pedido.status !== 'CANCELADO'
     const canConfirmPayment = pedido.statusPagamento !== 'APROVADO' && pedido.status !== 'CANCELADO'
     const canCancel = pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO'
     const canDelete = pedido.statusPagamento !== 'APROVADO' || pedido.status === 'CANCELADO'
-    const nextStatus = status.nextStatus
+    const nextStatus = getNextOperationalStatus(pedido)
+    const nextStatusLabel = getNextStatusLabel(pedido, nextStatus)
     const paymentStatusLabel = statusPagamentoLabels[pedido.statusPagamento]
     const whatsappDisponivel = Boolean(getPedidoWhatsapp(pedido))
+    const onlinePaymentAvailable = pedido.pagamento !== 'DINHEIRO' && pedido.status !== 'CANCELADO'
+    const paymentActionLoading = paymentActionPedidoId === pedido.id
 
     return (
       <>
@@ -699,6 +879,9 @@ export function PedidosDashboard() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
+              <Badge variant="outline" className={getPaymentMethodBadgeClass(pedido)}>
+                {pedido.pagamento === 'DINHEIRO' ? 'Dinheiro no recebimento' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
+              </Badge>
               <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{paymentStatusLabel}</Badge>
               {pedido.tipoEntrega === 'ENCOMENDA' ? <Badge variant="outline">Agendado</Badge> : null}
             </div>
@@ -755,14 +938,14 @@ export function PedidosDashboard() {
           <Card className="border-border/70">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Progresso e ações</CardTitle>
-              <CardDescription>Use este bloco para tocar o pedido adiante sem repetir passos.</CardDescription>
+              <CardDescription>{getKanbanSupportText(pedido)}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {nextStatus ? (
                 <div className="space-y-2">
                   <Button className="h-11 w-full rounded-2xl" onClick={() => handleUpdateStatus(pedido, nextStatus)} disabled={updatingStatus === pedido.id}>
                     {updatingStatus === pedido.id ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {status.nextLabel}
+                    {nextStatusLabel}
                   </Button>
                   <p className="text-center text-xs text-muted-foreground">Atualiza o status e pode abrir o WhatsApp automaticamente.</p>
                 </div>
@@ -783,11 +966,57 @@ export function PedidosDashboard() {
                 ) : null}
               </div>
 
+              {onlinePaymentAvailable ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Link de pagamento</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-2xl"
+                      onClick={() => handleCopyPaymentLink(pedido)}
+                      disabled={paymentActionLoading}
+                    >
+                      {paymentActionLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                      Copiar link
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-2xl"
+                      onClick={() => void handleRefreshPaymentLink(pedido)}
+                      disabled={paymentActionLoading}
+                    >
+                      {paymentActionLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Gerar ou validar link
+                    </Button>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-2xl"
+                    onClick={() => {
+                      setPaymentMethodDialogPedido(pedido)
+                      setPaymentMethodValue(
+                        pedido.pagamento === 'PIX'
+                          ? 'PIX'
+                          : pedido.pagamento === 'DINHEIRO'
+                            ? 'DINHEIRO'
+                            : pedido.tipoCartao === 'DEBITO'
+                              ? 'CARTAO_DEBITO'
+                              : 'CARTAO_CREDITO',
+                      )
+                    }}
+                    disabled={paymentActionLoading || pedido.statusPagamento === 'APROVADO'}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Trocar forma de pagamento
+                  </Button>
+                </div>
+              ) : null}
+
               <div className="space-y-2">
                 <p className="text-sm font-medium">Mover manualmente</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {kanbanColumns
-                    .filter((column) => column.status !== pedido.status)
+                    .filter((column) => column.status !== pedido.status && canMovePedido(pedido, column.status))
                     .map((column) => (
                       <Button
                         key={column.status}
@@ -1049,7 +1278,7 @@ export function PedidosDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {resumoCards.map((card) => (
           <Card key={card.key} className={`border-border/70 bg-card/95 ${card.key === 'total' ? 'col-span-2 md:col-span-1' : ''}`}>
             <CardContent className="p-4">
@@ -1108,6 +1337,7 @@ export function PedidosDashboard() {
                   <SelectItem value="FEITO">Novos</SelectItem>
                   <SelectItem value="ACEITO">Aceitos</SelectItem>
                   <SelectItem value="PREPARACAO">Em preparo</SelectItem>
+                  <SelectItem value="PRONTO_ENTREGA">Pronto entrega</SelectItem>
                   <SelectItem value="ENTREGUE">Entregues</SelectItem>
                   <SelectItem value="CANCELADO">Cancelados</SelectItem>
                 </SelectContent>
@@ -1206,7 +1436,7 @@ export function PedidosDashboard() {
 
       {isLoading ? (
         <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-max gap-4">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-96 w-[280px] sm:w-[320px]" />)}</div>
+          <div className="flex min-w-max gap-4">{[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-96 w-[280px] sm:w-[320px]" />)}</div>
         </div>
       ) : (
         <div className="overflow-x-auto pb-2">
@@ -1215,7 +1445,7 @@ export function PedidosDashboard() {
             const columnPedidos = pedidosPorStatus[column.status] ?? []
             const StatusIcon = statusConfig[column.status].icon
             return (
-              <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[360px] w-[85vw] max-w-[320px] shrink-0 snap-start rounded-2xl border p-3 sm:w-[320px] xl:w-[calc((100vw-24rem)/5)] xl:min-w-[220px] ${statusConfig[column.status].columnClass}`}>
+              <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[360px] w-[85vw] max-w-[320px] shrink-0 snap-start rounded-2xl border p-3 sm:w-[320px] xl:w-[calc((100vw-24rem)/6)] xl:min-w-[220px] ${statusConfig[column.status].columnClass}`}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2"><div className={`rounded-full p-2 ${statusConfig[column.status].color}`}><StatusIcon className="h-4 w-4" /></div><div><h2 className="font-semibold">{column.title}</h2><p className="text-xs text-muted-foreground">{column.hint}</p></div></div>
                   <Badge variant="secondary">{columnPedidos.length}</Badge>
@@ -1319,6 +1549,58 @@ export function PedidosDashboard() {
                 Nenhum sabor encontrado para essa busca.
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!paymentMethodDialogPedido} onOpenChange={(open) => { if (!open) setPaymentMethodDialogPedido(null) }}>
+        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-md p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Trocar forma de pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Para evitar cobranca duplicada, a troca online so acontece quando o link anterior nao esta mais ativo.
+            </p>
+
+            <div className="space-y-2">
+              <Label>Novo pagamento</Label>
+              <Select value={paymentMethodValue} onValueChange={(value) => setPaymentMethodValue(value as typeof paymentMethodValue)}>
+                <SelectTrigger className="w-full rounded-2xl bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                  <SelectItem value="PIX">Pix</SelectItem>
+                  <SelectItem value="CARTAO_CREDITO">Cartao credito</SelectItem>
+                  <SelectItem value="CARTAO_DEBITO">Cartao debito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-2xl"
+                onClick={() => setPaymentMethodDialogPedido(null)}
+              >
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 rounded-2xl"
+                onClick={() => void handleSwitchPaymentMethod()}
+                disabled={!paymentMethodDialogPedido || paymentActionPedidoId === paymentMethodDialogPedido.id}
+              >
+                {paymentMethodDialogPedido && paymentActionPedidoId === paymentMethodDialogPedido.id ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="mr-2 h-4 w-4" />
+                )}
+                Salvar pagamento
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

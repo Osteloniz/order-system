@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
+import { shouldReserveCommonOrderStock } from '@/lib/order-stock'
+import { isStatusPedidoReservadoEncomenda } from '@/lib/order-status'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { normalizePhone } from '@/lib/phone'
 import type { PedidoAdminPayload, SeparacaoResponsavelPessoa } from '@/lib/types'
@@ -62,7 +64,7 @@ export async function buildPedidoItens(tx: Tx, tenantId: string, itens: PedidoAd
 
   for (const item of itens) {
     const produto = await tx.produto.findFirst({
-      where: { id: item.produtoId, ativo: true, tenantId },
+      where: { id: item.produtoId, descontinuado: false, tenantId },
       select: { id: true, nome: true, preco: true },
     })
 
@@ -275,6 +277,47 @@ export async function calcularPedidoAdmin(
   } satisfies PedidoCalculado
 }
 
+function hasPedidoItensChanged(atual: PedidoComItens['itens'], proximo: PedidoCalculado['itens']) {
+  if (atual.length !== proximo.length) return true
+
+  const atualOrdenado = [...atual].sort((a, b) => a.produtoId.localeCompare(b.produtoId) || a.id.localeCompare(b.id))
+  const proximoOrdenado = [...proximo].sort((a, b) => a.produtoId.localeCompare(b.produtoId) || a.nomeProdutoSnapshot.localeCompare(b.nomeProdutoSnapshot))
+
+  return atualOrdenado.some((itemAtual, index) => {
+    const itemProximo = proximoOrdenado[index]
+    if (!itemProximo) return true
+
+    return (
+      itemAtual.produtoId !== itemProximo.produtoId ||
+      itemAtual.quantidade !== itemProximo.quantidade ||
+      itemAtual.precoUnitarioSnapshot !== itemProximo.precoUnitarioSnapshot ||
+      itemAtual.totalItem !== itemProximo.totalItem ||
+      itemAtual.nomeProdutoSnapshot !== itemProximo.nomeProdutoSnapshot
+    )
+  })
+}
+
+function shouldResetHostedCheckoutAfterEdit(pedidoAtual: PedidoComItens, calculado: PedidoCalculado) {
+  const pagamentoAtual = pedidoAtual.pagamento
+  const pagamentoProximo = calculado.pagamento
+
+  if (pagamentoAtual === 'DINHEIRO' && pagamentoProximo === 'DINHEIRO') return false
+  if (pedidoAtual.statusPagamento === 'APROVADO') return false
+
+  if (pagamentoAtual !== pagamentoProximo) return true
+  if ((pedidoAtual.tipoCartao ?? null) !== (calculado.tipoCartao ?? null)) return true
+  if ((pedidoAtual.clienteNome || '').trim() !== calculado.clienteNome.trim()) return true
+  if ((pedidoAtual.clienteTelefone ?? '') !== (calculado.clienteTelefone ?? '')) return true
+  if ((pedidoAtual.clienteWhatsapp ?? '') !== (calculado.clienteWhatsapp ?? '')) return true
+  if (pedidoAtual.frete !== calculado.frete) return true
+  if (pedidoAtual.subtotal !== calculado.subtotal) return true
+  if (pedidoAtual.total !== calculado.total) return true
+  if ((pedidoAtual.descontoValor ?? 0) !== calculado.descontoValor) return true
+  if (hasPedidoItensChanged(pedidoAtual.itens, calculado.itens)) return true
+
+  return false
+}
+
 function agruparQuantidadePorProduto<T extends { produtoId: string; quantidade: number }>(itens: T[]) {
   const mapa = new Map<string, number>()
   for (const item of itens) {
@@ -387,7 +430,7 @@ async function sincronizarEstoqueEncomenda(
   const novoMap = agruparQuantidadePorProduto(proximo.itens)
   const pedidoNumero = numeroPedidoCurto(atual.id) ?? atual.id
 
-  if (atual.status === 'PREPARACAO') {
+  if (isStatusPedidoReservadoEncomenda(atual.status)) {
     for (const [produtoId, quantidade] of novoMap.entries()) {
       reservadoDesejado.set(produtoId, quantidade)
     }
@@ -434,8 +477,10 @@ export async function atualizarPedidoAdmin(
 ) {
   const calculado = await calcularPedidoAdmin(tx, tenantId, payload, pedidoAtual.cupomId)
   const pedidoNumero = numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id
+  const hostedCheckoutNeedsReset = shouldResetHostedCheckoutAfterEdit(pedidoAtual, calculado)
+  const shouldClearHostedPaymentState = calculado.pagamento === 'DINHEIRO' || hostedCheckoutNeedsReset
 
-  if (pedidoAtual.status === 'CANCELADO' || pedidoAtual.status === 'ENTREGUE') {
+  if (pedidoAtual.status === 'CANCELADO' || pedidoAtual.status === 'ENTREGUE' || pedidoAtual.status === 'PRONTO_ENTREGA') {
     throw new Error('Somente pedidos em aberto podem ser editados')
   }
 
@@ -445,11 +490,12 @@ export async function atualizarPedidoAdmin(
     await sincronizarEstoqueEncomenda(tx, tenantId, pedidoAtual, calculado, actorNome)
   } else {
     await sincronizarEstoquePedidoComum(tx, tenantId, pedidoAtual, calculado, actorNome)
+    const precisaManterReservaComum = shouldReserveCommonOrderStock(pedidoAtual)
 
     const precisaCriarReservaLegada = (
       !pedidoAtual.estoqueBaixadoEm &&
       !pedidoAtual.estoqueReservadoEm &&
-      (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')
+      precisaManterReservaComum
     )
 
     if (precisaCriarReservaLegada) {
@@ -501,6 +547,17 @@ export async function atualizarPedidoAdmin(
       tipoCartao: calculado.tipoCartao,
       tipoEntrega: calculado.tipoEntrega,
       encomendaPara: calculado.encomendaPara,
+      asaasReturnTokenHash: shouldClearHostedPaymentState ? null : pedidoAtual.asaasReturnTokenHash,
+      asaasCheckoutId: shouldClearHostedPaymentState ? null : pedidoAtual.asaasCheckoutId,
+      asaasCheckoutUrl: shouldClearHostedPaymentState ? null : pedidoAtual.asaasCheckoutUrl,
+      asaasCheckoutExpiresAt: shouldClearHostedPaymentState ? null : pedidoAtual.asaasCheckoutExpiresAt,
+      asaasPaymentId: shouldClearHostedPaymentState ? null : pedidoAtual.asaasPaymentId,
+      asaasInvoiceUrl: shouldClearHostedPaymentState ? null : pedidoAtual.asaasInvoiceUrl,
+      asaasPixQrCode: shouldClearHostedPaymentState ? null : pedidoAtual.asaasPixQrCode,
+      asaasPixCopyPaste: shouldClearHostedPaymentState ? null : pedidoAtual.asaasPixCopyPaste,
+      asaasPaymentStatus: shouldClearHostedPaymentState ? null : pedidoAtual.asaasPaymentStatus,
+      asaasLastEventId: shouldClearHostedPaymentState ? null : pedidoAtual.asaasLastEventId,
+      asaasLastSyncAt: shouldClearHostedPaymentState ? null : pedidoAtual.asaasLastSyncAt,
       enderecoEntrega: null,
       enderecoRetirada: configuracao?.enderecoRetirada ?? '',
       subtotal: calculado.subtotal,
@@ -510,7 +567,7 @@ export async function atualizarPedidoAdmin(
       descontoValor: calculado.descontoValor > 0 ? calculado.descontoValor : null,
       cupomCodigoSnapshot: calculado.cupomCodigoSnapshot,
       cupomId: calculado.cupomId,
-      estoqueReservadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' && !pedidoAtual.estoqueBaixadoEm && (pedidoAtual.status === 'ACEITO' || pedidoAtual.status === 'PREPARACAO')
+      estoqueReservadoEm: pedidoAtual.tipoEntrega !== 'ENCOMENDA' && !pedidoAtual.estoqueBaixadoEm && shouldReserveCommonOrderStock(pedidoAtual)
         ? (pedidoAtual.estoqueReservadoEm ?? new Date())
         : pedidoAtual.estoqueReservadoEm,
       itens: {
@@ -555,7 +612,7 @@ function calcularReservadoDesejadoPorProduto(atual: PedidoComItens, proximo: Ped
   const novoMap = agruparQuantidadePorProduto(proximo.itens)
   const reservadoDesejado = new Map<string, number>()
 
-  if (atual.status === 'PREPARACAO') {
+  if (isStatusPedidoReservadoEncomenda(atual.status)) {
     for (const [produtoId, quantidade] of novoMap.entries()) {
       reservadoDesejado.set(produtoId, quantidade)
     }

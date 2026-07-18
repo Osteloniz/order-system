@@ -1,0 +1,2 @@
+ALTER TABLE "Produto"
+ADD COLUMN "descontinuado" BOOLEAN NOT NULL DEFAULT false;

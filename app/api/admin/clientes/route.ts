@@ -152,38 +152,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'WhatsApp invalido' }, { status: 400 })
     }
 
-    const cliente = telefone
-      ? await prisma.cliente.upsert({
-          where: { tenantId_telefone: { tenantId: admin.tenantId, telefone } },
-          create: {
-            tenantId: admin.tenantId,
-            nome: body.nome.trim(),
-            telefone,
-            whatsapp: whatsapp || null,
-            clienteBloco: body.clienteBloco?.trim() || null,
-            clienteApartamento: body.clienteApartamento?.trim() || null,
-            observacoes: body.observacoes?.trim() || null,
-          },
-          update: {
-            nome: body.nome.trim(),
-            whatsapp: whatsapp || null,
-            clienteBloco: body.clienteBloco?.trim() || null,
-            clienteApartamento: body.clienteApartamento?.trim() || null,
-            observacoes: body.observacoes?.trim() || null,
-          },
-          include: {
-            pedidos: {
-              include: { itens: true },
-              orderBy: { criadoEm: 'desc' },
-              take: 20,
-            },
-          },
-        })
-      : await prisma.cliente.create({
+    if (telefone) {
+      const clienteExistente = await prisma.cliente.findFirst({
+        where: { tenantId: admin.tenantId, telefone },
+        select: { id: true, nome: true },
+      })
+
+      if (clienteExistente) {
+        return NextResponse.json(
+          { error: `Ja existe um cliente com esse telefone: ${clienteExistente.nome}. Abra o cadastro existente para editar.` },
+          { status: 409 },
+        )
+      }
+    }
+
+    const cliente = await prisma.cliente.create({
           data: {
             tenantId: admin.tenantId,
             nome: body.nome.trim(),
-            telefone: null,
+            telefone: telefone || null,
             whatsapp: whatsapp || null,
             clienteBloco: body.clienteBloco?.trim() || null,
             clienteApartamento: body.clienteApartamento?.trim() || null,

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Archive, ArrowDownCircle, ArrowUpCircle, BarChart3, BadgePercent, ChefHat, ChevronDown, ChevronLeft, ClipboardList, FileClock, Landmark, LogOut, Menu, Package, Settings, Store, Tags, Users, X, type LucideIcon } from 'lucide-react'
+import { Archive, ArrowDownCircle, ArrowUpCircle, BarChart3, BadgePercent, ChevronDown, ChevronLeft, ClipboardList, FileClock, Landmark, LayoutPanelTop, LogOut, Menu, Package, Settings, Store, Tags, Users, X, type LucideIcon } from 'lucide-react'
 import useSWR from 'swr'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 
 const coreMenuItems = [
   { href: '/admin', label: 'Pedidos', icon: ClipboardList },
+  { href: '/admin/kds', label: 'KDS operacional', icon: LayoutPanelTop },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
 ]
 
@@ -29,8 +30,7 @@ const cadastroMenuItems = [
   { href: '/admin/categorias', label: 'Categorias de produtos', icon: Tags },
   { href: '/admin/categorias-financeiras', label: 'Categorias financeiras', icon: Landmark },
   { href: '/admin/cupons', label: 'Cupons', icon: BadgePercent },
-  { href: '/admin/estoque', label: 'Estoque', icon: Archive },
-  { href: '/admin/producao', label: 'Producao', icon: ChefHat },
+  { href: '/admin/estoque', label: 'Estoque e producao', icon: Archive },
 ]
 
 const settingsMenuItem = { href: '/admin/config', label: 'Configuracoes', icon: Settings }

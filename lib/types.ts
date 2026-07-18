@@ -1,6 +1,6 @@
 // Tipos do sistema de pedidos
 
-export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
+export type StatusPedido = 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'PRONTO_ENTREGA' | 'ENTREGUE' | 'CANCELADO'
 export type StatusPagamento = 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
 export type TipoPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 export type TipoCartao = 'CREDITO' | 'DEBITO'
@@ -9,6 +9,7 @@ export type ModoEncomendaCheckout = 'CLIENTE_DEFINE' | 'FIXO'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 export type StatusContaPagar = 'PENDENTE' | 'PAGO' | 'CANCELADO'
 export type EscopoCategoriaFinanceira = 'PAGAR' | 'RECEBER' | 'AMBOS'
+export type StatusDisponibilidadeProduto = 'DISPONIVEL' | 'SOMENTE_ENCOMENDA' | 'INDISPONIVEL'
 
 export interface Categoria {
   id: string
@@ -23,10 +24,14 @@ export interface Produto {
   categoriaId: string
   preco: number // centavos
   ativo: boolean
+  descontinuado: boolean
   novidade: boolean
+  disponivelParaEncomenda: boolean
   imagemUrl?: string
   imagens?: string[]
   ordem: number
+  estoqueDisponivel?: number
+  statusDisponibilidade?: StatusDisponibilidadeProduto
 }
 
 export interface ItemPedido {
@@ -57,8 +62,16 @@ export interface Pedido {
   clienteId?: string | null
   status: StatusPedido
   statusPagamento: StatusPagamento
-  mercadoPagoPaymentId?: string | null
-  mercadoPagoPreferenceId?: string | null
+  asaasCheckoutId?: string | null
+  asaasCheckoutUrl?: string | null
+  asaasCheckoutExpiresAt?: string | null
+  asaasPaymentId?: string | null
+  asaasInvoiceUrl?: string | null
+  asaasPixQrCode?: string | null
+  asaasPixCopyPaste?: string | null
+  asaasPaymentStatus?: string | null
+  asaasLastEventId?: string | null
+  asaasLastSyncAt?: string | null
   clienteNome: string
   clienteTelefone?: string | null
   clienteWhatsapp?: string | null
@@ -89,6 +102,14 @@ export interface Pedido {
 
 export interface PedidoPublico extends Pedido {
   publicAccessToken?: string | null
+  pagamentoOnline?: {
+    gateway: 'ASAAS'
+    checkoutUrl?: string | null
+    invoiceUrl?: string | null
+    pixQrCode?: string | null
+    pixCopyPaste?: string | null
+    expiresAt?: string | null
+  } | null
 }
 
 export interface Cliente {
@@ -161,6 +182,10 @@ export interface CheckoutPublicoConfig {
     cartao: boolean
     cartaoCredito: boolean
     cartaoDebito: boolean
+  }
+  pagamentoOnline: {
+    gateway: 'ASAAS' | null
+    cartaoDebitoSuportado: boolean
   }
 }
 

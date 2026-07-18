@@ -1,12 +1,25 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createAsaasCheckout, hasActiveAsaasPixKey, isAsaasApiError, isAsaasConfigured, normalizeAsaasPhone } from '@/lib/asaas'
+import { getAppUrl } from '@/lib/app-url'
 import { appLogger } from '@/lib/app-logger'
+import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
 import { prisma } from '@/lib/db'
-import { getTenantFromCookie } from '@/lib/tenant'
-import { generatePublicOrderAccessToken, hashPublicOrderAccessToken } from '@/lib/public-order-access'
-import { calcularTotalItem, calcularSubtotal, calcularTotal } from '@/lib/calc'
-import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
+import { loadShadowCommittedQuantityMap } from '@/lib/order-stock'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
+import { resolvePublicCardAvailability } from '@/lib/payment-gateway'
+import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
+import { resolveProductOrderMode } from '@/lib/product-availability'
+import {
+  generateAsaasReturnToken,
+  generatePublicOrderAccessToken,
+  hashAsaasReturnToken,
+  hashPublicOrderAccessToken,
+  setPublicOrderAccessCookie,
+} from '@/lib/public-order-access'
+import { buildHostedCheckoutItemsFromOrder } from '@/lib/order-payment'
+import { getTenantFromCookie } from '@/lib/tenant'
 import type { CriarPedidoPayload } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -34,8 +47,8 @@ const pedidoSchema = z.object({
   cupomCodigo: z.string().trim().max(40).optional(),
   itens: z.array(z.object({
     produtoId: z.string().uuid(),
-    quantidade: z.number().int().min(1).max(99)
-  })).min(1).max(50)
+    quantidade: z.number().int().min(1).max(99),
+  })).min(1).max(50),
 }).strict().superRefine((data, ctx) => {
   if (data.tipoEntrega === 'RESERVA_PAULISTANO') {
     if (!data.clienteBloco?.trim()) {
@@ -47,12 +60,31 @@ const pedidoSchema = z.object({
   }
 })
 
+function buildAsaasReturnUrl(orderId: string, status: 'success' | 'cancel' | 'expired', returnToken: string) {
+  return `${getAppUrl()}/pagamento/asaas/${encodeURIComponent(orderId)}?status=${status}&token=${encodeURIComponent(returnToken)}`
+}
+
+function getCheckoutExpiryDate(minutes?: number) {
+  const expiryMinutes = Number.isFinite(minutes) && minutes ? minutes : 60
+  return new Date(Date.now() + expiryMinutes * 60 * 1000)
+}
+
 function serializePublicPedido(
   pedido: {
     id: string
     clienteId: string | null
-    status: 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'ENTREGUE' | 'CANCELADO'
+    status: 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'PRONTO_ENTREGA' | 'ENTREGUE' | 'CANCELADO'
     statusPagamento: 'NAO_APLICAVEL' | 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
+    asaasCheckoutId: string | null
+    asaasCheckoutUrl: string | null
+    asaasCheckoutExpiresAt: Date | null
+    asaasPaymentId: string | null
+    asaasInvoiceUrl: string | null
+    asaasPixQrCode: string | null
+    asaasPixCopyPaste: string | null
+    asaasPaymentStatus: string | null
+    asaasLastEventId: string | null
+    asaasLastSyncAt: Date | null
     clienteNome: string
     clienteTelefone: string | null
     clienteWhatsapp: string | null
@@ -84,13 +116,23 @@ function serializePublicPedido(
       preparadoEm: Date | null
     }>
   },
-  publicAccessToken?: string | null
+  publicAccessToken?: string | null,
 ) {
   return {
     id: pedido.id,
     clienteId: pedido.clienteId,
     status: pedido.status,
     statusPagamento: pedido.statusPagamento,
+    asaasCheckoutId: pedido.asaasCheckoutId,
+    asaasCheckoutUrl: pedido.asaasCheckoutUrl,
+    asaasCheckoutExpiresAt: pedido.asaasCheckoutExpiresAt,
+    asaasPaymentId: pedido.asaasPaymentId,
+    asaasInvoiceUrl: pedido.asaasInvoiceUrl,
+    asaasPixQrCode: pedido.asaasPixQrCode,
+    asaasPixCopyPaste: pedido.asaasPixCopyPaste,
+    asaasPaymentStatus: pedido.asaasPaymentStatus,
+    asaasLastEventId: pedido.asaasLastEventId,
+    asaasLastSyncAt: pedido.asaasLastSyncAt,
     clienteNome: pedido.clienteNome,
     clienteTelefone: pedido.clienteTelefone,
     clienteWhatsapp: pedido.clienteWhatsapp,
@@ -112,10 +154,19 @@ function serializePublicPedido(
     cupomCodigoSnapshot: pedido.cupomCodigoSnapshot,
     itens: pedido.itens,
     publicAccessToken: publicAccessToken ?? null,
+    pagamentoOnline: pedido.pagamento === 'DINHEIRO'
+      ? null
+      : {
+          gateway: 'ASAAS' as const,
+          checkoutUrl: pedido.asaasCheckoutUrl,
+          invoiceUrl: pedido.asaasInvoiceUrl,
+          pixQrCode: pedido.asaasPixQrCode,
+          pixCopyPaste: pedido.asaasPixCopyPaste,
+          expiresAt: pedido.asaasCheckoutExpiresAt,
+        },
   }
 }
 
-// POST /api/pedidos - Cria um novo pedido
 export async function POST(request: NextRequest) {
   try {
     const parsed = pedidoSchema.safeParse(await request.json())
@@ -128,6 +179,7 @@ export async function POST(request: NextRequest) {
     const whatsappLimpo = body.clienteWhatsapp ? normalizePhone(body.clienteWhatsapp) : ''
     const telefoneCandidates = getPhoneLookupCandidates(body.clienteTelefone)
     const whatsappCandidates = getPhoneLookupCandidates(body.clienteWhatsapp)
+
     if (!isValidPhone(telefoneLimpo)) {
       return NextResponse.json({ error: 'Telefone invalido' }, { status: 400 })
     }
@@ -143,44 +195,102 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Estabelecimento fechado' }, { status: 403 })
     }
 
-    const itens: ItemPedidoCreate[] = []
+    const configuracao = await prisma.configuracao.findFirst({
+      where: { tenantId: tenant.id },
+    })
+    const frete = 0
 
-    // Criar itens do pedido com snapshot
+    const entregaReservaDisponivel = configuracao?.checkoutPublicoEntregaReservaPaulistano ?? true
+    const entregaRetiradaDisponivel = configuracao?.checkoutPublicoEntregaRetirada ?? true
+    const entregaEncomendaDisponivel = configuracao?.checkoutPublicoEntregaEncomenda ?? true
+    const cardAvailability = resolvePublicCardAvailability({
+      cartaoHabilitado: configuracao?.checkoutPublicoPagamentoCartao ?? true,
+      cartaoCreditoHabilitado: configuracao?.checkoutPublicoPagamentoCartaoCredito ?? true,
+      cartaoDebitoHabilitado: configuracao?.checkoutPublicoPagamentoCartaoDebito ?? true,
+    })
+    const pixGatewayDisponivel =
+      cardAvailability.gateway.gateway === 'ASAAS'
+        ? await hasActiveAsaasPixKey()
+        : true
+    const pagamentoPixDisponivel = (configuracao?.checkoutPublicoPagamentoPix ?? true) && pixGatewayDisponivel
+    const pagamentoDinheiroDisponivel = configuracao?.checkoutPublicoPagamentoDinheiro ?? true
+    const pagamentoCartaoDisponivel = cardAvailability.cartao
+    const cartaoCreditoDisponivel = cardAvailability.cartaoCredito
+    const cartaoDebitoDisponivel = cardAvailability.cartaoDebito
+
+    const itens: ItemPedidoCreate[] = []
+    const itemIds = Array.from(new Set(body.itens.map((item) => item.produtoId)))
+    const produtos = await prisma.produto.findMany({
+      where: {
+        id: { in: itemIds },
+        descontinuado: false,
+        tenantId: tenant.id,
+      },
+      select: {
+        id: true,
+        nome: true,
+        preco: true,
+        ativo: true,
+        disponivelParaEncomenda: true,
+        estoqueProdutos: {
+          where: { tenantId: tenant.id },
+          select: { quantidadeDisponivel: true },
+          take: 1,
+        },
+      },
+    })
+    const shadowCommittedMap = await loadShadowCommittedQuantityMap(tenant.id)
+    const produtosMap = new Map(produtos.map((produto) => [produto.id, produto]))
+    const itensSomenteEncomenda = new Set<string>()
+
     for (const item of body.itens) {
-      const produto = await prisma.produto.findFirst({
-        where: { id: item.produtoId, ativo: true, tenantId: tenant.id }
-      })
+      const produto = produtosMap.get(item.produtoId)
       if (!produto) {
         return NextResponse.json(
           { error: `Produto nao encontrado ou indisponivel: ${item.produtoId}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
 
-      const totalItem = calcularTotalItem(produto.preco, item.quantidade)
+      const estoqueDisponivel = Math.max(
+        0,
+        (produto.estoqueProdutos[0]?.quantidadeDisponivel ?? 0) - (shadowCommittedMap.get(produto.id) ?? 0),
+      )
+      const statusDisponibilidade = resolveProductOrderMode({
+        requestedQty: item.quantidade,
+        ativoNoCatalogo: produto.ativo,
+        estoqueDisponivel,
+        disponivelParaEncomenda: produto.disponivelParaEncomenda,
+        encomendaHabilitada: entregaEncomendaDisponivel,
+      })
+
+      if (statusDisponibilidade === 'INDISPONIVEL') {
+        return NextResponse.json({ error: `${produto.nome} nao esta disponivel no momento.` }, { status: 400 })
+      }
+
+      if (statusDisponibilidade === 'SOMENTE_ENCOMENDA') {
+        itensSomenteEncomenda.add(produto.nome)
+      }
 
       itens.push({
         produtoId: produto.id,
         nomeProdutoSnapshot: produto.nome,
         precoUnitarioSnapshot: produto.preco,
         quantidade: item.quantidade,
-        totalItem
+        totalItem: calcularTotalItem(produto.preco, item.quantidade),
       })
     }
 
+    if (itensSomenteEncomenda.size > 0 && body.tipoEntrega !== 'ENCOMENDA') {
+      return NextResponse.json(
+        {
+          error: `Alguns itens do carrinho estao disponiveis apenas por encomenda: ${Array.from(itensSomenteEncomenda).join(', ')}.`,
+        },
+        { status: 400 },
+      )
+    }
+
     const subtotal = calcularSubtotal(itens)
-    const configuracao = await prisma.configuracao.findFirst({
-      where: { tenantId: tenant.id }
-    })
-    const frete = 0 // Sem taxa de entrega agora
-    const entregaReservaDisponivel = configuracao?.checkoutPublicoEntregaReservaPaulistano ?? true
-    const entregaRetiradaDisponivel = configuracao?.checkoutPublicoEntregaRetirada ?? true
-    const entregaEncomendaDisponivel = configuracao?.checkoutPublicoEntregaEncomenda ?? true
-    const pagamentoPixDisponivel = configuracao?.checkoutPublicoPagamentoPix ?? true
-    const pagamentoDinheiroDisponivel = configuracao?.checkoutPublicoPagamentoDinheiro ?? true
-    const pagamentoCartaoDisponivel = configuracao?.checkoutPublicoPagamentoCartao ?? true
-    const cartaoCreditoDisponivel = configuracao?.checkoutPublicoPagamentoCartaoCredito ?? true
-    const cartaoDebitoDisponivel = configuracao?.checkoutPublicoPagamentoCartaoDebito ?? true
 
     if (
       (body.tipoEntrega === 'RESERVA_PAULISTANO' && !entregaReservaDisponivel) ||
@@ -234,6 +344,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if ((body.pagamento === 'PIX' || body.pagamento === 'CARTAO') && !isAsaasConfigured()) {
+      return NextResponse.json(
+        { error: 'O pagamento online ainda nao foi configurado. Tente outra forma de pagamento ou avise a loja.' },
+        { status: 503 },
+      )
+    }
+
     let cupomId: string | undefined
     let cupomCodigoSnapshot: string | undefined
     let descontoValor = 0
@@ -241,7 +358,7 @@ export async function POST(request: NextRequest) {
     if (body.cupomCodigo) {
       const codigo = body.cupomCodigo.trim().toUpperCase()
       const cupom = await prisma.cupom.findFirst({
-        where: { codigo, tenantId: tenant.id }
+        where: { codigo, tenantId: tenant.id },
       })
 
       const agora = new Date()
@@ -255,11 +372,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Cupom esgotado' }, { status: 400 })
       }
 
-      if (cupom.tipo === 'PERCENTUAL') {
-        descontoValor = Math.round(subtotal * (cupom.valor / 100))
-      } else {
-        descontoValor = cupom.valor
-      }
+      descontoValor = cupom.tipo === 'PERCENTUAL'
+        ? Math.round(subtotal * (cupom.valor / 100))
+        : cupom.valor
       descontoValor = Math.min(descontoValor, subtotal)
       cupomId = cupom.id
       cupomCodigoSnapshot = cupom.codigo
@@ -288,6 +403,63 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const clienteNomePedido = existingCliente?.nome?.trim() || body.clienteNome.trim()
+    const clienteWhatsappPedido = existingCliente?.whatsapp || whatsappLimpo || telefoneLimpo
+    const publicAccessToken = generatePublicOrderAccessToken()
+    const asaasReturnToken = generateAsaasReturnToken()
+    const pedidoId = randomUUID()
+
+    let asaasCheckout:
+      | {
+          id: string
+          link: string
+          minutesToExpire?: number
+          status?: string
+        }
+      | null = null
+
+    if (body.pagamento === 'PIX' || body.pagamento === 'CARTAO') {
+      const checkoutItems = buildHostedCheckoutItemsFromOrder({
+        frete,
+        subtotal,
+        total: Math.max(0, total),
+        descontoValor: descontoValor > 0 ? descontoValor : null,
+        itens,
+      })
+
+      if (checkoutItems.length === 0) {
+        return NextResponse.json(
+          { error: 'Esse pedido nao possui valor valido para pagamento online. Ajuste o total ou escolha pagamento manual.' },
+          { status: 400 },
+        )
+      }
+
+      try {
+        asaasCheckout = await createAsaasCheckout({
+          externalReference: pedidoId,
+          customerName: clienteNomePedido,
+          customerPhone: normalizeAsaasPhone(clienteWhatsappPedido || telefoneLimpo),
+          billingTypes: body.pagamento === 'PIX' ? ['PIX'] : ['CREDIT_CARD'],
+          items: checkoutItems,
+          successUrl: buildAsaasReturnUrl(pedidoId, 'success', asaasReturnToken),
+          cancelUrl: buildAsaasReturnUrl(pedidoId, 'cancel', asaasReturnToken),
+          expiredUrl: buildAsaasReturnUrl(pedidoId, 'expired', asaasReturnToken),
+        })
+      } catch (error) {
+        appLogger.error('[api/pedidos] Falha ao criar checkout Asaas', error)
+        if (isAsaasApiError(error) && error.status < 500) {
+          return NextResponse.json(
+            { error: 'Nao foi possivel iniciar o pagamento online agora. Confira os dados e tente novamente.' },
+            { status: 502 },
+          )
+        }
+        return NextResponse.json(
+          { error: 'Pagamento online indisponivel no momento. Tente novamente em instantes.' },
+          { status: 502 },
+        )
+      }
+    }
+
     const cliente = existingCliente
       ? { id: existingCliente.id }
       : await prisma.cliente.create({
@@ -303,17 +475,15 @@ export async function POST(request: NextRequest) {
           select: { id: true },
         })
 
-    const clienteNomePedido = existingCliente?.nome?.trim() || body.clienteNome.trim()
-    const clienteWhatsappPedido = existingCliente?.whatsapp || whatsappLimpo || telefoneLimpo
-    const publicAccessToken = generatePublicOrderAccessToken()
-
     const novoPedido = await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
         data: {
+          id: pedidoId,
           clienteId: cliente.id,
           status: 'FEITO',
           publicAccessTokenHash: hashPublicOrderAccessToken(publicAccessToken),
           publicAccessTokenIssuedAt: new Date(),
+          asaasReturnTokenHash: asaasCheckout ? hashAsaasReturnToken(asaasReturnToken) : null,
           clienteNome: clienteNomePedido,
           clienteTelefone: telefoneLimpo,
           clienteWhatsapp: clienteWhatsappPedido || null,
@@ -321,6 +491,11 @@ export async function POST(request: NextRequest) {
           clienteApartamento: body.clienteApartamento?.trim() ?? null,
           pagamento: body.pagamento,
           tipoCartao: tipoCartaoPedido,
+          statusPagamento: body.pagamento === 'DINHEIRO' ? 'NAO_APLICAVEL' : 'PENDENTE',
+          asaasCheckoutId: asaasCheckout?.id ?? null,
+          asaasCheckoutUrl: asaasCheckout?.link ?? null,
+          asaasCheckoutExpiresAt: asaasCheckout ? getCheckoutExpiryDate(asaasCheckout.minutesToExpire) : null,
+          asaasPaymentStatus: asaasCheckout?.status ?? null,
           tipoEntrega: body.tipoEntrega,
           encomendaPara: encomendaParaPedido,
           enderecoEntrega: null,
@@ -329,29 +504,28 @@ export async function POST(request: NextRequest) {
           subtotal,
           total: Math.max(0, total),
           motivoCancelamento: null,
-          statusPagamento: body.pagamento === 'PIX' || body.pagamento === 'CARTAO' ? 'PENDENTE' : 'NAO_APLICAVEL',
           distanciaKm: null,
           descontoValor: descontoValor > 0 ? descontoValor : null,
           cupomCodigoSnapshot: cupomCodigoSnapshot ?? null,
           cupomId: cupomId ?? null,
           tenantId: tenant.id,
           itens: {
-            create: itens.map(item => ({
+            create: itens.map((item) => ({
               produtoId: item.produtoId,
               nomeProdutoSnapshot: item.nomeProdutoSnapshot,
               precoUnitarioSnapshot: item.precoUnitarioSnapshot,
               quantidade: item.quantidade,
-              totalItem: item.totalItem
-            }))
-          }
+              totalItem: item.totalItem,
+            })),
+          },
         },
-        include: { itens: true }
+        include: { itens: true },
       })
 
       if (cupomId) {
         await tx.cupom.update({
           where: { id: cupomId },
-          data: { usos: { increment: 1 } }
+          data: { usos: { increment: 1 } },
         })
       }
 
@@ -364,29 +538,28 @@ export async function POST(request: NextRequest) {
         pedidoNumero: numeroPedidoCurto(pedido.id),
         quantidade: pedido.itens.reduce((acc, item) => acc + item.quantidade, 0),
         metadata: {
-            origem: 'CHECKOUT',
-            tipoEntrega: pedido.tipoEntrega,
-            tipoCartao: pedido.tipoCartao,
-            statusPagamento: pedido.statusPagamento,
-          },
+          origem: 'CHECKOUT',
+          tipoEntrega: pedido.tipoEntrega,
+          tipoCartao: pedido.tipoCartao,
+          statusPagamento: pedido.statusPagamento,
+          gatewayPagamento: asaasCheckout ? 'ASAAS' : 'MANUAL',
+        },
       })
 
       return pedido
     })
 
-    appLogger.info(`[api/pedidos] Novo pedido criado: ${novoPedido.id}`)
+    appLogger.info('[api/pedidos] Novo pedido criado: %s', novoPedido.id)
 
-    return NextResponse.json(serializePublicPedido(novoPedido, publicAccessToken), { status: 201 })
+    const response = NextResponse.json(serializePublicPedido(novoPedido), { status: 201 })
+    setPublicOrderAccessCookie(response, novoPedido.id, publicAccessToken)
+    return response
   } catch (error) {
     console.error('[v0] Erro ao criar pedido:', error)
-    return NextResponse.json(
-      { error: 'Erro interno ao processar pedido' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro interno ao processar pedido' }, { status: 500 })
   }
 }
 
-// Historico por telefone foi desativado para evitar exposicao de dados pessoais.
 export async function GET() {
   return NextResponse.json({ error: 'Metodo nao permitido' }, { status: 405 })
 }

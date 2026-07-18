@@ -56,6 +56,7 @@ export const statusPedidoShortLabels: Record<StatusPedido, string> = {
   FEITO: 'Recebido',
   ACEITO: 'Aceito',
   PREPARACAO: 'Preparando',
+  PRONTO_ENTREGA: 'Pronto entrega',
   ENTREGUE: 'Entregue',
   CANCELADO: 'Cancelado',
 }
@@ -64,6 +65,7 @@ export const statusPedidoReportLabels: Record<StatusPedido, string> = {
   FEITO: 'Novos',
   ACEITO: 'Aceitos',
   PREPARACAO: 'Em preparo',
+  PRONTO_ENTREGA: 'Pronto entrega',
   ENTREGUE: 'Entregues',
   CANCELADO: 'Cancelados',
 }
@@ -72,6 +74,7 @@ export const statusPedidoReportStyles: Record<StatusPedido, string> = {
   FEITO: 'border-warning/45 bg-warning/15 text-warning-foreground',
   ACEITO: 'border-accent/45 bg-accent/45 text-accent-foreground',
   PREPARACAO: 'border-primary/35 bg-primary/12 text-primary',
+  PRONTO_ENTREGA: 'border-success/35 bg-success/10 text-success-foreground',
   ENTREGUE: 'border-secondary/35 bg-secondary/12 text-secondary-foreground',
   CANCELADO: 'border-destructive/35 bg-destructive/10 text-destructive',
 }

@@ -23,6 +23,8 @@ interface ProductCardProps {
 export function ProductCard({ produto }: ProductCardProps) {
   const { adicionarItem, atualizarQuantidade, getQuantidadeProduto } = useCart()
   const quantidade = getQuantidadeProduto(produto.id)
+  const statusDisponibilidade = produto.statusDisponibilidade ?? 'DISPONIVEL'
+  const bloqueado = statusDisponibilidade === 'INDISPONIVEL'
   const imagens = produto.imagens?.length
     ? produto.imagens
     : produto.imagemUrl
@@ -72,16 +74,36 @@ export function ProductCard({ produto }: ProductCardProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-semibold text-foreground truncate">{produto.nome}</h3>
                 {produto.novidade ? (
-                  <Badge className="border-0 bg-primary/12 text-primary hover:bg-primary/12">
+                  <Badge className="border border-primary/25 bg-primary/14 text-primary hover:bg-primary/14">
                     Novidade
+                  </Badge>
+                ) : null}
+                {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? (
+                  <Badge className="border border-warning/35 bg-warning/15 text-warning hover:bg-warning/15">
+                    Somente encomenda
+                  </Badge>
+                ) : null}
+                {statusDisponibilidade === 'INDISPONIVEL' ? (
+                  <Badge variant="outline" className="border-destructive/35 bg-destructive/10 text-destructive">
+                    Indisponivel hoje
                   </Badge>
                 ) : null}
               </div>
               {produto.descricao && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground dark:text-foreground/82">
                   {produto.descricao}
                 </p>
               )}
+              {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? (
+                <p className="mt-2 text-xs font-medium uppercase tracking-wide text-warning">
+                  Esse sabor entra apenas em pedidos de encomenda.
+                </p>
+              ) : null}
+              {statusDisponibilidade === 'INDISPONIVEL' ? (
+                <p className="mt-2 text-xs font-medium uppercase tracking-wide text-destructive">
+                  Sem estoque e sem liberacao para encomenda agora.
+                </p>
+              ) : null}
               <p className="text-primary font-bold mt-2">
                 {formatarMoeda(produto.preco)}
               </p>
@@ -93,9 +115,10 @@ export function ProductCard({ produto }: ProductCardProps) {
                   size="sm"
                   onClick={() => adicionarItem(produto)}
                   className="gap-1"
+                  disabled={bloqueado}
                 >
                   <Plus className="h-4 w-4" />
-                  Adicionar
+                  {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? 'Adicionar encomenda' : 'Adicionar'}
                 </Button>
               ) : (
                 <div className="flex items-center gap-2">
@@ -112,6 +135,7 @@ export function ProductCard({ produto }: ProductCardProps) {
                     size="icon"
                     variant="outline"
                     className="h-8 w-8 bg-transparent"
+                    disabled={bloqueado}
                     onClick={() => atualizarQuantidade(produto.id, quantidade + 1)}
                   >
                     <Plus className="h-4 w-4" />

@@ -18,7 +18,7 @@ const MAX_RECENT_ORDERS = 5
 function isRecentOrderReference(value: unknown): value is RecentOrderReference {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
-  return typeof candidate.id === 'string'
+  return typeof candidate.id === 'string' && (candidate.accessToken == null || typeof candidate.accessToken === 'string')
 }
 
 function normalizeContact(value?: string | null) {
@@ -71,14 +71,18 @@ export function getRecentOrders() {
     const items = raw ? JSON.parse(raw) : []
     if (!Array.isArray(items)) return [] as RecentOrderReference[]
 
-    return items
-      .map((item) => {
-        if (typeof item === 'string') {
-          return { id: item, accessToken: null }
-        }
-        return isRecentOrderReference(item) ? { id: item.id, accessToken: item.accessToken?.toString() || null } : null
-      })
-      .filter((item): item is RecentOrderReference => Boolean(item))
+    const normalizedItems: RecentOrderReference[] = []
+    for (const item of items) {
+      if (typeof item === 'string') {
+        normalizedItems.push({ id: item, accessToken: null })
+        continue
+      }
+      if (isRecentOrderReference(item)) {
+        normalizedItems.push({ id: item.id, accessToken: item.accessToken?.toString() || null })
+      }
+    }
+
+    return normalizedItems
   } catch {
     return [] as RecentOrderReference[]
   }
@@ -96,7 +100,7 @@ export function saveRecentOrder(
   const orders = getRecentOrders().filter((item) => item.id !== pedido.id)
   window.localStorage.setItem(
     storageKey,
-    JSON.stringify([{ id: pedido.id, accessToken: pedido.accessToken || null }, ...orders].slice(0, MAX_RECENT_ORDERS))
+    JSON.stringify([{ id: pedido.id }, ...orders.map((item) => ({ id: item.id }))].slice(0, MAX_RECENT_ORDERS))
   )
 }
 

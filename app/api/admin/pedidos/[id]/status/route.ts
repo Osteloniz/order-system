@@ -1,317 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
 import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { syncOrderStockForTransition } from '@/lib/order-stock'
+import { canUseReadyToDeliverStatus, shouldUsePreparacaoStage } from '@/lib/order-status'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
-import { addAvailableStock, consumeAvailableStock, consumeReservedStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
-const statusValidos: StatusPedido[] = ['FEITO', 'ACEITO', 'PREPARACAO', 'ENTREGUE', 'CANCELADO']
-type Tx = Prisma.TransactionClient
-type PedidoComItens = Prisma.PedidoGetPayload<{ include: { itens: true } }>
-
-function classificarEstadoPedidoComum(pedido: Pick<PedidoComItens, 'estoqueReservadoEm' | 'estoqueBaixadoEm'>) {
-  if (pedido.estoqueBaixadoEm) return 'CONSUMIDO' as const
-  if (pedido.estoqueReservadoEm) return 'RESERVADO' as const
-  return 'LIVRE' as const
-}
-
-function classificarEstadoPedidoComumDestino(status: StatusPedido) {
-  if (status === 'ACEITO' || status === 'PREPARACAO') return 'RESERVADO' as const
-  if (status === 'ENTREGUE') return 'CONSUMIDO' as const
-  return 'LIVRE' as const
-}
-
-function classificarEstadoEncomenda(status: StatusPedido) {
-  if (status === 'PREPARACAO') return 'RESERVADO' as const
-  if (status === 'ENTREGUE') return 'CONSUMIDO' as const
-  return 'LIVRE' as const
-}
-
-async function sincronizarPedidoComum(params: {
-  tx: Tx
-  tenantId: string
-  pedidoAtual: PedidoComItens
-  targetStatus: StatusPedido
-  actorNome?: string | null
-  pedidoNumero: string
-}) {
-  const { tx, tenantId, pedidoAtual, targetStatus, actorNome, pedidoNumero } = params
-  const estadoAtual = classificarEstadoPedidoComum(pedidoAtual)
-  const estadoDestino = classificarEstadoPedidoComumDestino(targetStatus)
-
-  if (estadoAtual === estadoDestino) {
-    return {
-      estoqueReservadoEm: pedidoAtual.estoqueReservadoEm,
-      estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm,
-    }
-  }
-
-  if (estadoAtual === 'LIVRE' && estadoDestino === 'RESERVADO') {
-    for (const item of pedidoAtual.itens) {
-      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
-        tipo: 'RESERVA_ENCOMENDA',
-        descricao: `Reserva operacional do pedido #${pedidoNumero}.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus, origem: 'PEDIDO_COMUM' },
-      })
-    }
-    return {
-      estoqueReservadoEm: pedidoAtual.estoqueReservadoEm ?? new Date(),
-      estoqueBaixadoEm: null,
-    }
-  }
-
-  if (estadoAtual === 'LIVRE' && estadoDestino === 'CONSUMIDO') {
-    for (const item of pedidoAtual.itens) {
-      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
-        tipo: 'BAIXA_ESTOQUE_ENTREGA',
-        descricao: `Baixa por entrega do pedido #${pedidoNumero}.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
-      })
-    }
-    return {
-      estoqueReservadoEm: null,
-      estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm ?? new Date(),
-    }
-  }
-
-  if (estadoAtual === 'RESERVADO' && estadoDestino === 'LIVRE') {
-    for (const item of pedidoAtual.itens) {
-      await releaseReservedToAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
-        tipo: 'LIBERACAO_RESERVA',
-        descricao: `Liberacao da reserva do pedido #${pedidoNumero}.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        nomeProduto: item.nomeProdutoSnapshot,
-        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
-      })
-    }
-    return {
-      estoqueReservadoEm: null,
-      estoqueBaixadoEm: null,
-    }
-  }
-
-  if (estadoAtual === 'RESERVADO' && estadoDestino === 'CONSUMIDO') {
-    for (const item of pedidoAtual.itens) {
-      await consumeReservedStock(tx, tenantId, item.produtoId, item.quantidade, {
-        tipo: 'BAIXA_ESTOQUE_ENTREGA',
-        descricao: `Baixa efetiva do pedido #${pedidoNumero} ao entregar o que estava reservado.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        nomeProduto: item.nomeProdutoSnapshot,
-        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus, origem: 'PEDIDO_COMUM' },
-      })
-    }
-    return {
-      estoqueReservadoEm: pedidoAtual.estoqueReservadoEm ?? new Date(),
-      estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm ?? new Date(),
-    }
-  }
-
-  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'LIVRE') {
-    for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
-        tipo: 'ESTORNO_ESTOQUE',
-        descricao: `Estorno da baixa do pedido #${pedidoNumero} ao sair de Entregue.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        nomeProduto: item.nomeProdutoSnapshot,
-        metadata: { deStatus: pedidoAtual.status, paraStatus: targetStatus },
-      })
-    }
-    return {
-      estoqueReservadoEm: null,
-      estoqueBaixadoEm: null,
-    }
-  }
-
-  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'RESERVADO') {
-    for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
-        tipo: 'ESTORNO_ESTOQUE',
-        descricao: `Estorno temporario do pedido #${pedidoNumero} para voltar ao estado reservado.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        nomeProduto: item.nomeProdutoSnapshot,
-      })
-      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
-        tipo: 'RESERVA_ENCOMENDA',
-        descricao: `Nova reserva operacional do pedido #${pedidoNumero} apos retorno de status.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        metadata: { origem: 'PEDIDO_COMUM' },
-      })
-    }
-    return {
-      estoqueReservadoEm: new Date(),
-      estoqueBaixadoEm: null,
-    }
-  }
-
-  return {
-    estoqueReservadoEm: pedidoAtual.estoqueReservadoEm,
-    estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm,
-  }
-}
-
-async function sincronizarPedidoEncomenda(params: {
-  tx: Tx
-  tenantId: string
-  pedidoAtual: PedidoComItens
-  targetStatus: StatusPedido
-  actorNome?: string | null
-  pedidoNumero: string
-}) {
-  const { tx, tenantId, pedidoAtual, targetStatus, actorNome, pedidoNumero } = params
-  const estadoAtual = classificarEstadoEncomenda(pedidoAtual.status)
-  const estadoDestino = classificarEstadoEncomenda(targetStatus)
-
-  if (estadoAtual === estadoDestino) {
-    return
-  }
-
-  if (estadoAtual === 'LIVRE' && estadoDestino === 'RESERVADO') {
-    for (const item of pedidoAtual.itens) {
-      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
-        tipo: 'RESERVA_ENCOMENDA',
-        descricao: `Reserva para encomenda do pedido #${pedidoNumero}.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-      })
-      await tx.itemPedido.update({
-        where: { id: item.id },
-        data: {
-          quantidadePreparada: item.quantidade,
-          preparadoEm: item.preparadoEm ?? new Date(),
-        },
-      })
-    }
-    return
-  }
-
-  if (estadoAtual === 'LIVRE' && estadoDestino === 'CONSUMIDO') {
-    for (const item of pedidoAtual.itens) {
-      await consumeAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
-        tipo: 'BAIXA_ESTOQUE_ENTREGA',
-        descricao: `Baixa direta da encomenda do pedido #${pedidoNumero} entregue sem reserva previa.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-      })
-      await tx.itemPedido.update({
-        where: { id: item.id },
-        data: {
-          quantidadePreparada: item.quantidade,
-          preparadoEm: item.preparadoEm ?? new Date(),
-        },
-      })
-    }
-    return
-  }
-
-  if (estadoAtual === 'RESERVADO' && estadoDestino === 'LIVRE') {
-    for (const item of pedidoAtual.itens) {
-      if (item.quantidadePreparada > 0) {
-        await releaseReservedToAvailableStock(tx, tenantId, item.produtoId, item.quantidadePreparada, {
-          tipo: 'LIBERACAO_RESERVA',
-          descricao: `Liberacao da reserva da encomenda #${pedidoNumero}.`,
-          actorNome,
-          pedidoId: pedidoAtual.id,
-          pedidoNumero,
-          nomeProduto: item.nomeProdutoSnapshot,
-        })
-      }
-      await tx.itemPedido.update({
-        where: { id: item.id },
-        data: {
-          quantidadePreparada: 0,
-          preparadoEm: null,
-        },
-      })
-    }
-    return
-  }
-
-  if (estadoAtual === 'RESERVADO' && estadoDestino === 'CONSUMIDO') {
-    for (const item of pedidoAtual.itens) {
-      if (item.quantidadePreparada > 0) {
-        await consumeReservedStock(tx, tenantId, item.produtoId, item.quantidadePreparada, {
-          tipo: 'BAIXA_ESTOQUE_ENTREGA',
-          descricao: `Baixa da reserva ao entregar a encomenda #${pedidoNumero}.`,
-          actorNome,
-          pedidoId: pedidoAtual.id,
-          pedidoNumero,
-          nomeProduto: item.nomeProdutoSnapshot,
-        })
-      }
-    }
-    return
-  }
-
-  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'LIVRE') {
-    for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
-        tipo: 'ESTORNO_ESTOQUE',
-        descricao: `Estorno da encomenda #${pedidoNumero} ao sair de Entregue.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        nomeProduto: item.nomeProdutoSnapshot,
-      })
-      await tx.itemPedido.update({
-        where: { id: item.id },
-        data: {
-          quantidadePreparada: 0,
-          preparadoEm: null,
-        },
-      })
-    }
-    return
-  }
-
-  if (estadoAtual === 'CONSUMIDO' && estadoDestino === 'RESERVADO') {
-    for (const item of pedidoAtual.itens) {
-      await addAvailableStock(tx, tenantId, item.produtoId, item.quantidade, {
-        tipo: 'ESTORNO_ESTOQUE',
-        descricao: `Estorno temporario da encomenda #${pedidoNumero} para voltar a status reservado.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-        nomeProduto: item.nomeProdutoSnapshot,
-      })
-      await reserveFromAvailableStock(tx, tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
-        tipo: 'RESERVA_ENCOMENDA',
-        descricao: `Nova reserva da encomenda #${pedidoNumero} apos retorno de status.`,
-        actorNome,
-        pedidoId: pedidoAtual.id,
-        pedidoNumero,
-      })
-      await tx.itemPedido.update({
-        where: { id: item.id },
-        data: {
-          quantidadePreparada: item.quantidade,
-          preparadoEm: item.preparadoEm ?? new Date(),
-        },
-      })
-    }
-  }
-}
+const statusValidos: StatusPedido[] = ['FEITO', 'ACEITO', 'PREPARACAO', 'PRONTO_ENTREGA', 'ENTREGUE', 'CANCELADO']
 
 // PATCH /api/admin/pedidos/:id/status - Atualiza status do pedido
 export async function PATCH(
@@ -348,6 +46,21 @@ export async function PATCH(
         { status: 404 }
       )
     }
+    if (status === 'PRONTO_ENTREGA' && !canUseReadyToDeliverStatus(pedidoAtual.statusPagamento)) {
+      return NextResponse.json(
+        { error: 'Pronto para entregar so pode ser usado quando o pagamento estiver aprovado.' },
+        { status: 400 }
+      )
+    }
+    if (status === 'PRONTO_ENTREGA') {
+      const needsPreparacaoStage = shouldUsePreparacaoStage(pedidoAtual)
+      if (needsPreparacaoStage && pedidoAtual.status !== 'PREPARACAO' && pedidoAtual.status !== 'ENTREGUE') {
+        return NextResponse.json(
+          { error: 'Para encomendas, pronto para entregar so fica disponivel depois do preparo.' },
+          { status: 400 }
+        )
+      }
+    }
     if (pedidoAtual.status === status) {
       return NextResponse.json(pedidoAtual)
     }
@@ -356,30 +69,15 @@ export async function PATCH(
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
-        const estoqueControle = pedidoAtual.tipoEntrega === 'ENCOMENDA'
-          ? {
-            estoqueReservadoEm: pedidoAtual.estoqueReservadoEm,
-            estoqueBaixadoEm: pedidoAtual.estoqueBaixadoEm,
-          }
-          : await sincronizarPedidoComum({
-            tx,
-            tenantId: admin.tenantId,
-            pedidoAtual,
-            targetStatus: status,
-            actorNome,
-            pedidoNumero,
-          })
-
-        if (pedidoAtual.tipoEntrega === 'ENCOMENDA') {
-          await sincronizarPedidoEncomenda({
-            tx,
-            tenantId: admin.tenantId,
-            pedidoAtual,
-            targetStatus: status,
-            actorNome,
-            pedidoNumero,
-          })
-        }
+        const estoqueControle = await syncOrderStockForTransition({
+          tx,
+          tenantId: admin.tenantId,
+          pedidoAtual,
+          targetStatus: status,
+          targetStatusPagamento: pedidoAtual.statusPagamento,
+          actorNome,
+          pedidoNumero,
+        })
 
         const atualizado = await tx.pedido.update({
           where: { id },

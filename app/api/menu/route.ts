@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
+import { hasActiveAsaasPixKey } from '@/lib/asaas'
 import { prisma } from '@/lib/db'
+import { loadShadowCommittedQuantityMap } from '@/lib/order-stock'
+import { resolvePublicCardAvailability } from '@/lib/payment-gateway'
+import { resolveProductOrderMode } from '@/lib/product-availability'
 import { getTenantFromCookie } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
@@ -14,6 +18,12 @@ function getCategoriaPrioridade(nome: string) {
 }
 
 function getDefaultMenuPayload() {
+  const cardAvailability = resolvePublicCardAvailability({
+    cartaoHabilitado: true,
+    cartaoCreditoHabilitado: true,
+    cartaoDebitoHabilitado: true,
+  })
+
   return {
     estabelecimento: 'Brookie Pregiato',
     enderecoRetirada: 'Endereco de Retirada',
@@ -36,13 +46,18 @@ function getDefaultMenuPayload() {
       pagamentos: {
         pix: true,
         dinheiro: true,
-        cartao: true,
-        cartaoCredito: true,
-        cartaoDebito: true,
+        cartao: cardAvailability.cartao,
+        cartaoCredito: cardAvailability.cartaoCredito,
+        cartaoDebito: cardAvailability.cartaoDebito,
+      },
+      pagamentoOnline: {
+        gateway: cardAvailability.gateway.gateway,
+        cartaoDebitoSuportado: cardAvailability.gateway.cartaoDebitoSuportado,
       },
     },
     hasActiveCoupons: false,
     novidades: [],
+    indisponiveis: [],
     categorias: [],
   }
 }
@@ -83,16 +98,20 @@ export async function GET() {
       })
     }
 
-    const [categoriasOrdenadas, cuponsDisponiveis] = await Promise.all([
+    const [categoriasOrdenadas, estoques, cuponsDisponiveis, shadowCommittedMap] = await Promise.all([
       prisma.categoria.findMany({
-      where: { tenantId: tenant.id },
-      orderBy: { ordem: 'asc' },
-      include: {
-        produtos: {
-          where: { ativo: true, tenantId: tenant.id },
-          orderBy: { ordem: 'asc' },
+        where: { tenantId: tenant.id },
+        orderBy: { ordem: 'asc' },
+        include: {
+          produtos: {
+            where: { descontinuado: false, tenantId: tenant.id },
+            orderBy: { ordem: 'asc' },
+          },
         },
-      },
+      }),
+      prisma.produtoEstoque.findMany({
+        where: { tenantId: tenant.id },
+        select: { produtoId: true, quantidadeDisponivel: true },
       }),
       prisma.cupom.findMany({
         where: {
@@ -106,9 +125,35 @@ export async function GET() {
           maxUsos: true,
         },
       }),
+      loadShadowCommittedQuantityMap(tenant.id),
     ])
+    const estoqueMap = new Map(estoques.map((estoque) => [estoque.produtoId, estoque.quantidadeDisponivel]))
+    const encomendaHabilitada = configuracao.checkoutPublicoEntregaEncomenda ?? true
 
-    const categoriasComProdutos = categoriasOrdenadas
+    const categoriasNormalizadas = categoriasOrdenadas.map((categoria) => ({
+      ...categoria,
+      produtos: categoria.produtos.map((produto) => {
+        const estoqueDisponivel = Math.max(0, (estoqueMap.get(produto.id) ?? 0) - (shadowCommittedMap.get(produto.id) ?? 0))
+        const statusDisponibilidade = resolveProductOrderMode({
+          ativoNoCatalogo: produto.ativo,
+          estoqueDisponivel,
+          disponivelParaEncomenda: produto.disponivelParaEncomenda,
+          encomendaHabilitada,
+        })
+
+        return {
+          ...produto,
+          estoqueDisponivel,
+          statusDisponibilidade,
+        }
+      }),
+    }))
+
+    const categoriasComProdutos = categoriasNormalizadas
+      .map((categoria) => ({
+        ...categoria,
+        produtos: categoria.produtos.filter((produto) => produto.statusDisponibilidade !== 'INDISPONIVEL'),
+      }))
       .filter((cat) => cat.produtos.length > 0)
       .sort((a, b) => {
         const prioridadeA = getCategoriaPrioridade(a.nome)
@@ -122,9 +167,19 @@ export async function GET() {
       })
 
     const hasActiveCoupons = cuponsDisponiveis.some((cupom) => cupom.usos < cupom.maxUsos)
-    const novidades = categoriasComProdutos.flatMap((categoria) =>
-      categoria.produtos.filter((produto) => produto.novidade),
-    )
+    const novidades = categoriasComProdutos.flatMap((categoria) => categoria.produtos.filter((produto) => produto.novidade))
+    const indisponiveis = categoriasNormalizadas
+      .flatMap((categoria) => categoria.produtos)
+      .filter((produto) => produto.statusDisponibilidade === 'INDISPONIVEL')
+    const cardAvailability = resolvePublicCardAvailability({
+      cartaoHabilitado: configuracao.checkoutPublicoPagamentoCartao ?? true,
+      cartaoCreditoHabilitado: configuracao.checkoutPublicoPagamentoCartaoCredito ?? true,
+      cartaoDebitoHabilitado: configuracao.checkoutPublicoPagamentoCartaoDebito ?? true,
+    })
+    const pixGatewayDisponivel =
+      cardAvailability.gateway.gateway === 'ASAAS'
+        ? await hasActiveAsaasPixKey()
+        : true
 
     return NextResponse.json({
       estabelecimento: configuracao.nomeEstabelecimento || 'Brookie Pregiato',
@@ -146,15 +201,20 @@ export async function GET() {
           dataFixa: configuracao.checkoutPublicoEncomendaDataFixa ?? null,
         },
         pagamentos: {
-          pix: configuracao.checkoutPublicoPagamentoPix ?? true,
+          pix: (configuracao.checkoutPublicoPagamentoPix ?? true) && pixGatewayDisponivel,
           dinheiro: configuracao.checkoutPublicoPagamentoDinheiro ?? true,
-          cartao: configuracao.checkoutPublicoPagamentoCartao ?? true,
-          cartaoCredito: configuracao.checkoutPublicoPagamentoCartaoCredito ?? true,
-          cartaoDebito: configuracao.checkoutPublicoPagamentoCartaoDebito ?? true,
+          cartao: cardAvailability.cartao,
+          cartaoCredito: cardAvailability.cartaoCredito,
+          cartaoDebito: cardAvailability.cartaoDebito,
+        },
+        pagamentoOnline: {
+          gateway: cardAvailability.gateway.gateway,
+          cartaoDebitoSuportado: cardAvailability.gateway.cartaoDebitoSuportado,
         },
       },
       hasActiveCoupons,
       novidades,
+      indisponiveis,
       categorias: categoriasComProdutos ?? [],
     })
   } catch (error) {
