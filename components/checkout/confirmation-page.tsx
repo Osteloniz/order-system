@@ -22,7 +22,7 @@ import {
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
 import { formatarMoeda, formatarDataHora, formatarTelefone } from '@/lib/calc'
-import { saveRecentOrder } from '@/lib/customer-session'
+import { saveCustomerOrderLookupContact, saveRecentOrder } from '@/lib/customer-session'
 import { ORDER_ACCESS_HEADER } from '@/lib/public-order-access'
 import { getPagamentoLabel, statusPagamentoLabelsLong } from '@/lib/order-display'
 import { buildWhatsappUrl } from '@/lib/phone'
@@ -42,7 +42,7 @@ const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
   FEITO: { label: 'Pedido Recebido', color: 'bg-warning text-warning-foreground' },
   ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground' },
   PREPARACAO: { label: 'Em Preparação', color: 'bg-primary text-primary-foreground' },
-  PRONTO_ENTREGA: { label: 'Pronto para Entrega', color: 'bg-success/15 text-success-foreground' },
+  PRONTO_ENTREGA: { label: 'Pronto para Entrega', color: 'bg-success/15 text-success dark:bg-success/20 dark:text-white' },
   ENTREGUE: { label: 'Entregue', color: 'bg-success text-success-foreground' },
   CANCELADO: { label: 'Cancelado', color: 'bg-destructive text-destructive-foreground' }
 }
@@ -99,6 +99,7 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
         router.replace(`/confirmacao/${pedidoId}`)
       }
 
+      saveCustomerOrderLookupContact(pedido.clienteWhatsapp || pedido.clienteTelefone)
       saveRecentOrder(pedido)
     }
   }, [activeAccessToken, pedido, pedidoId, router])

@@ -141,6 +141,8 @@
 
 ### Asaas Hosted Checkout Consistency
 - The system now depends on Asaas hosted checkout for online payment continuity in both the public confirmation flow and the admin kanban.
+- A second hosted-checkout path is now available for HML through Mercado Pago Checkout Pro, but the rollout is intentionally gated by environment configuration instead of replacing PRD behavior immediately.
+- The Asaas webhook path was hardened again: automatic order progression now prioritizes the real payment status returned by the charge lookup, not only the raw webhook event name.
 - Hosted checkout generation must always mirror the persisted order total exactly:
   - item composition
   - freight
@@ -174,6 +176,9 @@
   - payment-method changes
   - relevant payer/contact changes
 - Operationally, the next payment-link action should generate a fresh link with the updated amount.
+- Exception for the HML Mercado Pago path:
+  - because old Mercado Pago preferences are not being remotely invalidated in this phase, pending orders with active Mercado Pago links now block those risky edits instead of silently rotating the link.
+  - this is an intentional safety tradeoff for the gradual migration path.
 
 ### Admin Detail Sheet Consistency Fix
 - The payment actions in the kanban detail sheet must keep returning the full order payload, not a partial shape.
@@ -191,6 +196,7 @@
   - `/api/admin/pedidos/[id]/status`
   - `/api/admin/pedidos/[id]/pagamento`
   - the same stock synchronization path used by kanban
+- The kanban/detail surface now also exposes which hosted-payment gateway generated the current online charge, which is useful when debugging HML gateway switches.
 - No migration was created for this KDS phase.
 
 ### Validation Already Performed For This Fix
@@ -201,6 +207,7 @@
 ### Migration Impact
 - No new migration was created for this continuity fix.
 - No local data reset is needed.
+- The initial Mercado Pago HML integration also keeps this same migration impact: no schema change and no migration to run.
 
 ## Later Catalog And Customer CRUD Continuity Notes
 

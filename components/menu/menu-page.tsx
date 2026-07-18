@@ -90,7 +90,7 @@ export function MenuPage() {
                     <Store className="h-5 w-5" />
                     <h1 className="text-xl font-bold">{data?.estabelecimento}</h1>
                   </div>
-                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground dark:text-foreground/76">
+                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground dark:text-white/80">
                     <MapPin className="h-4 w-4" />
                     <span>{data?.enderecoRetirada}</span>
                   </div>
@@ -167,7 +167,7 @@ export function MenuPage() {
                     <Sparkles className="h-5 w-5" />
                     <h2 className="text-xl font-bold">Novidades do cardapio</h2>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground dark:text-foreground/78">
+                  <p className="mt-2 text-sm text-muted-foreground dark:text-white/80">
                     Veja primeiro o que acabou de entrar no menu.
                   </p>
                 </div>
@@ -190,7 +190,7 @@ export function MenuPage() {
                     <Sparkles className="h-5 w-5" />
                     <h2 className="text-xl font-bold">Indisponiveis no momento</h2>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground dark:text-foreground/78">
+                  <p className="mt-2 text-sm text-muted-foreground dark:text-white/80">
                     Esses sabores continuam no cardapio, mas estao bloqueados para pedido agora.
                   </p>
                 </div>

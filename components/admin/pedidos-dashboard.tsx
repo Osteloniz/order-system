@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { NovoPedidoAdminPage } from '@/components/admin/novo-pedido-page'
 import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
+import { getHostedGatewayLabel, inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { buildPaymentReminderMessage, buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
 import { entregaLabels, getPagamentoLabel, statusPagamentoColors, statusPagamentoLabels } from '@/lib/order-display'
 import { getNextOperationalStatus, getPreviousOperationalStatus, shouldUsePreparacaoStage } from '@/lib/order-status'
@@ -33,7 +34,7 @@ const statusConfig: Record<StatusPedido, { label: string; color: string; columnC
   FEITO: { label: 'Novo', color: 'bg-warning text-warning-foreground', columnClass: 'border-warning/40 bg-warning/5', icon: Clock },
   ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground', columnClass: 'border-accent/40 bg-accent/5', icon: Check },
   PREPARACAO: { label: 'Preparando', color: 'bg-primary text-primary-foreground', columnClass: 'border-primary/40 bg-primary/5', icon: ChefHat },
-  PRONTO_ENTREGA: { label: 'Pronto para entregar', color: 'bg-success/15 text-success-foreground', columnClass: 'border-success/40 bg-success/5', icon: Package },
+  PRONTO_ENTREGA: { label: 'Pronto para entregar', color: 'bg-success/15 text-success dark:bg-success/20 dark:text-white', columnClass: 'border-success/40 bg-success/5', icon: Package },
   ENTREGUE: { label: 'Entregue', color: 'bg-success text-success-foreground', columnClass: 'border-success/40 bg-success/5', icon: Truck },
   CANCELADO: { label: 'Cancelado', color: 'bg-destructive text-destructive-foreground', columnClass: 'border-destructive/40 bg-destructive/5', icon: X }
 }
@@ -141,6 +142,18 @@ function getPaymentMethodBadgeClass(pedido: Pedido) {
   return 'border-border/70 bg-background/70 text-foreground'
 }
 
+function getGatewayBadgeClass(gateway: ReturnType<typeof inferHostedCheckoutGateway>) {
+  if (gateway === 'MERCADO_PAGO') {
+    return 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200'
+  }
+
+  if (gateway === 'ASAAS') {
+    return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-200'
+  }
+
+  return 'border-border/70 bg-background/70 text-muted-foreground'
+}
+
 export function PedidosDashboard() {
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [selectedPedidoIds, setSelectedPedidoIds] = useState<string[]>([])
@@ -196,6 +209,44 @@ export function PedidosDashboard() {
     { key: 'entregues', label: 'Entregues', value: contadores.entregues },
     { key: 'total', label: 'Total', value: contadores.todos },
   ]
+
+  const hostedCheckoutResumo = useMemo(() => {
+    return (pedidos || []).reduce(
+      (acc, pedido) => {
+        if (pedido.pagamento === 'DINHEIRO') {
+          acc.dinheiro += 1
+          return acc
+        }
+
+        const gateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
+        if (gateway === 'MERCADO_PAGO') {
+          acc.mercadoPago += 1
+        } else if (gateway === 'ASAAS') {
+          acc.asaas += 1
+        } else {
+          acc.manual += 1
+        }
+
+        if (pedido.statusPagamento === 'PENDENTE') {
+          acc.onlinePendentes += 1
+        }
+
+        if (pedido.statusPagamento === 'APROVADO') {
+          acc.onlineAprovados += 1
+        }
+
+        return acc
+      },
+      {
+        mercadoPago: 0,
+        asaas: 0,
+        manual: 0,
+        dinheiro: 0,
+        onlinePendentes: 0,
+        onlineAprovados: 0,
+      },
+    )
+  }, [pedidos])
 
   const pedidosFiltrados = (pedidos || []).filter(pedido => {
     const busca = searchTerm.trim().toLowerCase()
@@ -803,6 +854,7 @@ export function PedidosDashboard() {
     const StatusIcon = status.icon
     const isUpdating = updatingStatus === pedido.id
     const isSelected = selectedPedidoIds.includes(pedido.id)
+    const hostedGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
 
     return (
       <Card
@@ -843,6 +895,11 @@ export function PedidosDashboard() {
             <Badge variant="outline" className={`text-xs ${getPaymentMethodBadgeClass(pedido)}`}>
               {pedido.pagamento === 'DINHEIRO' ? 'Dinheiro' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
             </Badge>
+            {pedido.pagamento !== 'DINHEIRO' ? (
+              <Badge variant="outline" className={`text-xs ${getGatewayBadgeClass(hostedGateway)}`}>
+                {getHostedGatewayLabel(hostedGateway)}
+              </Badge>
+            ) : null}
             <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
           </div>
           <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} {formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
@@ -865,6 +922,8 @@ export function PedidosDashboard() {
     const whatsappDisponivel = Boolean(getPedidoWhatsapp(pedido))
     const onlinePaymentAvailable = pedido.pagamento !== 'DINHEIRO' && pedido.status !== 'CANCELADO'
     const paymentActionLoading = paymentActionPedidoId === pedido.id
+    const hostedGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
+    const hostedGatewayLabel = getHostedGatewayLabel(hostedGateway)
 
     return (
       <>
@@ -882,6 +941,11 @@ export function PedidosDashboard() {
               <Badge variant="outline" className={getPaymentMethodBadgeClass(pedido)}>
                 {pedido.pagamento === 'DINHEIRO' ? 'Dinheiro no recebimento' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
               </Badge>
+              {pedido.pagamento !== 'DINHEIRO' ? (
+                <Badge variant="outline" className={getGatewayBadgeClass(hostedGateway)}>
+                  {hostedGatewayLabel}
+                </Badge>
+              ) : null}
               <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{paymentStatusLabel}</Badge>
               {pedido.tipoEntrega === 'ENCOMENDA' ? <Badge variant="outline">Agendado</Badge> : null}
             </div>
@@ -969,6 +1033,9 @@ export function PedidosDashboard() {
               {onlinePaymentAvailable ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Link de pagamento</p>
+                  <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+                    Cobranca online atual: <span className="font-semibold text-foreground">{hostedGatewayLabel}</span>
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Button
                       variant="outline"
@@ -1288,6 +1355,53 @@ export function PedidosDashboard() {
           </Card>
         ))}
       </div>
+
+      <Card className="border-border/70 bg-card/95">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">Checkout online no admin</p>
+              <p className="text-sm text-muted-foreground">
+                Leitura rapida dos links gerados para saber se os pedidos estao saindo em Mercado Pago, legado Asaas ou fluxo manual.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className={getGatewayBadgeClass('MERCADO_PAGO')}>
+                Mercado Pago {hostedCheckoutResumo.mercadoPago}
+              </Badge>
+              {hostedCheckoutResumo.asaas > 0 ? (
+                <Badge variant="outline" className={getGatewayBadgeClass('ASAAS')}>
+                  Asaas legado {hostedCheckoutResumo.asaas}
+                </Badge>
+              ) : null}
+              {hostedCheckoutResumo.manual > 0 ? (
+                <Badge variant="outline" className={getGatewayBadgeClass(null)}>
+                  Manual {hostedCheckoutResumo.manual}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Pagamentos online pendentes</p>
+              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.onlinePendentes}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Pagamentos online aprovados</p>
+              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.onlineAprovados}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Pedidos em dinheiro</p>
+              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.dinheiro}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Sem link hospedado</p>
+              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.manual}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-primary/15 bg-card/90">
         <CardContent className="space-y-4 p-4">

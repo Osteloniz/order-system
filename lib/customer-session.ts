@@ -13,6 +13,7 @@ export type CustomerProfile = {
 const PROFILE_KEY = 'brookie.customer.profile'
 const ORDERS_KEY = 'brookie.customer.orders'
 const MENU_SCROLL_KEY = 'brookie.menu.scrollY'
+const ORDER_LOOKUP_CONTACT_KEY = 'brookie.customer.order-lookup-contact'
 const MAX_RECENT_ORDERS = 5
 
 function isRecentOrderReference(value: unknown): value is RecentOrderReference {
@@ -108,6 +109,24 @@ export function clearRecentOrdersForCurrentCustomer() {
   const profile = getCustomerProfile()
   const contact = normalizeContact(profile?.whatsapp || profile?.telefone)
   window.localStorage.removeItem(getOrdersKeyForContact(contact))
+}
+
+export function getCustomerOrderLookupContact() {
+  try {
+    return normalizeContact(window.localStorage.getItem(ORDER_LOOKUP_CONTACT_KEY))
+  } catch {
+    return ''
+  }
+}
+
+export function saveCustomerOrderLookupContact(contact?: string | null) {
+  const normalized = normalizeContact(contact)
+  if (!normalized) return
+  window.localStorage.setItem(ORDER_LOOKUP_CONTACT_KEY, normalized)
+}
+
+export function clearCustomerOrderLookupContact() {
+  window.localStorage.removeItem(ORDER_LOOKUP_CONTACT_KEY)
 }
 
 export function saveMenuScrollPosition() {

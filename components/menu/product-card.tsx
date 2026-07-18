@@ -74,33 +74,33 @@ export function ProductCard({ produto }: ProductCardProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-semibold text-foreground truncate">{produto.nome}</h3>
                 {produto.novidade ? (
-                  <Badge className="border border-primary/25 bg-primary/14 text-primary hover:bg-primary/14">
+                  <Badge className="border border-primary/25 bg-primary/14 text-primary hover:bg-primary/14 dark:border-primary/35 dark:bg-primary/30 dark:text-white">
                     Novidade
                   </Badge>
                 ) : null}
                 {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? (
-                  <Badge className="border border-warning/35 bg-warning/15 text-warning hover:bg-warning/15">
+                  <Badge className="border border-warning/35 bg-warning/15 text-warning hover:bg-warning/15 dark:border-warning/35 dark:bg-warning/20 dark:text-white">
                     Somente encomenda
                   </Badge>
                 ) : null}
                 {statusDisponibilidade === 'INDISPONIVEL' ? (
-                  <Badge variant="outline" className="border-destructive/35 bg-destructive/10 text-destructive">
+                  <Badge variant="outline" className="border-destructive/35 bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-white">
                     Indisponivel hoje
                   </Badge>
                 ) : null}
               </div>
               {produto.descricao && (
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground dark:text-foreground/82">
+                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground dark:text-white/85">
                   {produto.descricao}
                 </p>
               )}
               {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? (
-                <p className="mt-2 text-xs font-medium uppercase tracking-wide text-warning">
+                <p className="mt-2 text-xs font-medium uppercase tracking-wide text-warning dark:text-white/90">
                   Esse sabor entra apenas em pedidos de encomenda.
                 </p>
               ) : null}
               {statusDisponibilidade === 'INDISPONIVEL' ? (
-                <p className="mt-2 text-xs font-medium uppercase tracking-wide text-destructive">
+                <p className="mt-2 text-xs font-medium uppercase tracking-wide text-destructive dark:text-white/90">
                   Sem estoque e sem liberacao para encomenda agora.
                 </p>
               ) : null}

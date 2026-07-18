@@ -10,6 +10,7 @@ export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 export type StatusContaPagar = 'PENDENTE' | 'PAGO' | 'CANCELADO'
 export type EscopoCategoriaFinanceira = 'PAGAR' | 'RECEBER' | 'AMBOS'
 export type StatusDisponibilidadeProduto = 'DISPONIVEL' | 'SOMENTE_ENCOMENDA' | 'INDISPONIVEL'
+export type OnlinePaymentGateway = 'ASAAS' | 'MERCADO_PAGO'
 
 export interface Categoria {
   id: string
@@ -103,13 +104,26 @@ export interface Pedido {
 export interface PedidoPublico extends Pedido {
   publicAccessToken?: string | null
   pagamentoOnline?: {
-    gateway: 'ASAAS'
+    gateway: OnlinePaymentGateway
     checkoutUrl?: string | null
     invoiceUrl?: string | null
     pixQrCode?: string | null
     pixCopyPaste?: string | null
     expiresAt?: string | null
   } | null
+}
+
+export interface PedidoPublicoResumo {
+  id: string
+  status: StatusPedido
+  statusPagamento: StatusPagamento
+  pagamento: TipoPagamento
+  tipoCartao?: TipoCartao | null
+  tipoEntrega: TipoEntrega
+  encomendaPara?: string | null
+  total: number
+  criadoEm: string
+  clienteNome: string
 }
 
 export interface Cliente {
@@ -184,7 +198,7 @@ export interface CheckoutPublicoConfig {
     cartaoDebito: boolean
   }
   pagamentoOnline: {
-    gateway: 'ASAAS' | null
+    gateway: OnlinePaymentGateway | null
     cartaoDebitoSuportado: boolean
   }
 }

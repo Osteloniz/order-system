@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { ensureOrderHostedCheckout, hasReusableHostedCheckout } from '@/lib/order-payment'
 import { getPublicOrderAccessToken, isValidPublicOrderAccessToken } from '@/lib/public-order-access'
+import { doesPublicCustomerAccessMatchOrder, getPublicCustomerAccessPhone } from '@/lib/public-customer-access'
 import { getTenantFromCookie } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
@@ -66,7 +67,13 @@ export async function POST(
     }
 
     const accessToken = getPublicOrderAccessToken(request, id)
-    if (!pedido.publicAccessTokenHash || !isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash)) {
+    const customerAccessPhone = getPublicCustomerAccessPhone(request, tenant.id)
+    const hasOrderTokenAccess = Boolean(
+      pedido.publicAccessTokenHash && isValidPublicOrderAccessToken(accessToken, pedido.publicAccessTokenHash),
+    )
+    const hasCustomerPhoneAccess = doesPublicCustomerAccessMatchOrder(customerAccessPhone, pedido)
+
+    if (!hasOrderTokenAccess && !hasCustomerPhoneAccess) {
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
     }
 

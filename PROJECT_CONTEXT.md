@@ -18,6 +18,7 @@
 - The batch production-entry UX is now exposed directly on `admin/producao` through a single modal launcher, and the history date grouping there uses the Sao Paulo date key to avoid `Invalid Date`.
 - Stock and production were then consolidated into a single canonical admin screen at `admin/estoque`; `admin/producao` now exists only as a compatibility redirect, and the batch modal there should stay list-based with per-flavor checkbox enablement for mobile safety.
 - Public checkout now has a secure Asaas-hosted online payment foundation: the order is created first in the local system, online payments use Asaas Checkout plus Webhooks for confirmation, and the old Mercado Pago fields were replaced by explicit Asaas payment fields.
+- The online-payment layer is gateway-configurable and now defaults operationally to Mercado Pago Checkout Pro through `ONLINE_PAYMENT_GATEWAY=MERCADO_PAGO`, while Asaas remains supported for legacy links and controlled fallback without adding a new migration in this phase.
 - Public payment callbacks no longer need to carry the order access token to Asaas; a separate hashed return token is used for the gateway redirect, and the confirmation page then rotates back to a normal public order token.
 - Public order access was hardened again: new orders now persist access through an order-scoped `HttpOnly` cookie instead of exposing the token in the confirmation URL or keeping it in localStorage; header/query token input remains only as a compatibility path for controlled transitions.
 - Legacy orders without `publicAccessTokenHash` no longer auto-bootstrap a new public token on first anonymous access; that transition now fails closed and may require an explicit operational recovery path if old data still exists.
@@ -32,10 +33,14 @@
 - The admin now also has a dedicated KDS-style operational screen at `admin/kds`, focused on mobile/tablet execution. It reuses the same status, payment, and stock rules from the kanban instead of creating a second workflow.
 - This KDS groups the work into quick operational lanes (`FEITO`, `ACEITO`, `PREPARACAO`, `PRONTO_ENTREGA`), keeps a separate future `ENCOMENDA` agenda, highlights pending online payments, and exposes one-tap actions for payment confirmation and status progression.
 - Hosted Asaas checkouts must now reflect the saved order total exactly, including manual promotional discounts, coupons, and freight; when an open online order is edited in admin and that payment composition changes, the previous hosted-link state is invalidated locally so the next generated link uses the new amount instead of reusing stale checkout data.
+- For the new HML Mercado Pago path, security takes priority over convenience: while a pending Mercado Pago link is still active, the admin now blocks risky edits that would change amount, items, or relevant payer data and could leave an older valid charge circulating outside the system.
 - Stock commitment for public availability now follows a stricter rule: common online orders reserve stock as soon as payment is approved, common cash orders reserve stock once the store accepts them, and delivery is still the moment of definitive baixa; `ENCOMENDA` keeps reserving on production-oriented statuses (`PREPARACAO` / `PRONTO_ENTREGA`).
 - Payment-driven status changes now also pass through the same stock synchronization path used by manual kanban status changes, so webhook approval, manual payment confirmation, and payment-method switches can reserve or release stock consistently.
+- The Asaas webhook logic now prioritizes the actual payment status returned by the charge lookup when deciding `statusPagamento` and automatic status progression, instead of depending only on the webhook event name. This hardens PRD against cases where the event label is generic but the charge is already approved.
 - Public menu and checkout now also subtract a shadow map of committed-but-not-yet-reserved orders as a safety net, preventing oversell even if older open orders still have stale stock timestamps from before this rule was tightened.
 - Cash (`DINHEIRO`) orders now receive an explicit visual highlight in the admin kanban to make the non-online commitment path easier to spot during operation.
+- Public customer recovery is no longer primarily device-bound: the `Seus ultimos pedidos` block now searches the server by phone, rate-limits lookup attempts, and grants public follow-up access through a signed customer cookie tied to tenant + phone instead of relying only on local device history.
+- This phone-based public recovery is intentionally transitional: it must stay limited to minimal order data and remain ready for a future stronger verification step such as WhatsApp code confirmation.
 - Product lifecycle now also distinguishes temporary public unavailability from true discontinuation:
   - `ativo = false` means the item stays visible in the public menu as unavailable and blocked.
   - `descontinuado = true` means the item disappears from the public menu and from new product selections, but remains in history.
@@ -93,6 +98,8 @@
 - The product catalog/discontinuation refinement adds Prisma field `Produto.descontinuado` and creates migration `20260716113000_add_produto_descontinuado_flag`.
 - Before HML/PRD validation or deploy of this feature line, apply the migration and regenerate Prisma Client.
 - Supporting local sandbox scripts now include `scripts/asaas-sandbox-webhook.mjs` for webhook sync, `scripts/asaas-checkout-smoke.mjs` for direct checkout capability tests, and `scripts/asaas-pix-key.mjs` to inspect or create a sandbox Pix key when needed.
+- Mercado Pago HML instructions now live in `docs/hml-mercado-pago-checkout-pro.md`, including the env switch, webhook secret, and the no-migration note for this phase.
+- The admin kanban now also shows the active hosted-payment gateway badge (`Asaas` or `Mercado Pago`) on cards and in the order detail sheet, and it now exposes an admin-only checkout summary block so operations can quickly see which provider is being used and how many online payments are pending.
 
 ## Current Exceptions And Defaults
 - `Fluxo de caixa` and `Relatorios` intentionally keep week-based default periods.

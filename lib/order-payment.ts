@@ -7,8 +7,19 @@ import {
   isAsaasConfigured,
   normalizeAsaasPhone,
 } from '@/lib/asaas'
-import { getAppUrl } from '@/lib/app-url'
 import { appLogger } from '@/lib/app-logger'
+import {
+  buildHostedReturnUrl,
+  inferHostedCheckoutGateway,
+  type OnlinePaymentGateway,
+} from '@/lib/hosted-payment'
+import {
+  createMercadoPagoPreference,
+  getMercadoPagoLocalReuseExpiryDate,
+  getMercadoPagoWebhookUrl,
+  isMercadoPagoConfigured,
+} from '@/lib/mercado-pago'
+import { getOnlinePaymentGateway } from '@/lib/payment-gateway'
 import { generateAsaasReturnToken, hashAsaasReturnToken } from '@/lib/public-order-access'
 import type { TipoCartao, TipoPagamento } from '@/lib/types'
 
@@ -80,11 +91,7 @@ type HostedCheckoutLine = {
   targetTotalCents: number
 }
 
-function buildAsaasReturnUrl(orderId: string, status: 'success' | 'cancel' | 'expired', returnToken: string) {
-  return `${getAppUrl()}/pagamento/asaas/${encodeURIComponent(orderId)}?status=${status}&token=${encodeURIComponent(returnToken)}`
-}
-
-function getCheckoutExpiryDate(minutes?: number) {
+function getAsaasCheckoutExpiryDate(minutes?: number) {
   const expiryMinutes = Number.isFinite(minutes) && minutes ? minutes : 60
   return new Date(Date.now() + expiryMinutes * 60 * 1000)
 }
@@ -92,14 +99,6 @@ function getCheckoutExpiryDate(minutes?: number) {
 function isCheckoutExpired(expiresAt?: Date | null) {
   if (!expiresAt) return true
   return expiresAt.getTime() <= Date.now()
-}
-
-export function hasReusableHostedCheckout(pedido: Pick<PedidoPagamentoBase, 'status' | 'statusPagamento' | 'pagamento' | 'asaasCheckoutUrl' | 'asaasCheckoutExpiresAt'>) {
-  if (pedido.status === 'CANCELADO') return false
-  if (pedido.pagamento === 'DINHEIRO') return false
-  if (pedido.statusPagamento !== 'PENDENTE') return false
-  if (!pedido.asaasCheckoutUrl?.trim()) return false
-  return !isCheckoutExpired(pedido.asaasCheckoutExpiresAt)
 }
 
 function applyReductionToLines(lines: HostedCheckoutLine[], reductionCents: number) {
@@ -141,7 +140,7 @@ function applyReductionToLines(lines: HostedCheckoutLine[], reductionCents: numb
   return reductionCents - allocated
 }
 
-export function buildHostedCheckoutItemsFromOrder(pedido: HostedCheckoutOrderLike) {
+export function buildHostedCheckoutLinesFromOrder(pedido: HostedCheckoutOrderLike) {
   const productLines: HostedCheckoutLine[] = pedido.itens.map((item, index) => ({
     externalReference: `${item.produtoId}:${index}`,
     name: item.quantidade > 1 ? `${item.quantidade}x ${item.nomeProdutoSnapshot}` : item.nomeProdutoSnapshot,
@@ -182,39 +181,96 @@ export function buildHostedCheckoutItemsFromOrder(pedido: HostedCheckoutOrderLik
     .map((line) => ({
       externalReference: line.externalReference,
       name: line.name,
-      quantity: 1,
-      value: formatAsaasAmountFromCents(line.targetTotalCents),
+      totalCents: line.targetTotalCents,
     }))
 }
 
-async function validateHostedPaymentTarget(pagamento: TipoPagamento, tipoCartao?: TipoCartao | null) {
-  if (pagamento === 'DINHEIRO') return
+export function buildHostedCheckoutItemsFromOrder(pedido: HostedCheckoutOrderLike) {
+  return buildHostedCheckoutLinesFromOrder(pedido).map((line) => ({
+    externalReference: line.externalReference,
+    name: line.name,
+    quantity: 1,
+    value: formatAsaasAmountFromCents(line.totalCents),
+  }))
+}
 
-  if (!isAsaasConfigured()) {
+export function buildMercadoPagoHostedCheckoutItemsFromOrder(pedido: HostedCheckoutOrderLike) {
+  return buildHostedCheckoutLinesFromOrder(pedido).map((line) => ({
+    id: line.externalReference,
+    title: line.name,
+    quantity: 1,
+    unit_price: line.totalCents / 100,
+    currency_id: 'BRL' as const,
+  }))
+}
+
+async function validateHostedPaymentTarget(
+  pagamento: TipoPagamento,
+  tipoCartao?: TipoCartao | null,
+): Promise<OnlinePaymentGateway> {
+  if (pagamento === 'DINHEIRO') {
+    throw new Error('Pagamento em dinheiro nao usa checkout online.')
+  }
+
+  const gateway = getOnlinePaymentGateway()
+  if (!gateway.gateway) {
     throw new Error('Pagamento online indisponivel no momento.')
   }
 
-  if (pagamento === 'PIX') {
-    const pixDisponivel = await hasActiveAsaasPixKey()
-    if (!pixDisponivel) {
-      throw new Error('A conta de pagamento ainda nao possui chave Pix ativa.')
+  if (gateway.gateway === 'ASAAS') {
+    if (!isAsaasConfigured()) {
+      throw new Error('Pagamento online indisponivel no momento.')
     }
-    return
+
+    if (pagamento === 'PIX') {
+      const pixDisponivel = await hasActiveAsaasPixKey()
+      if (!pixDisponivel) {
+        throw new Error('A conta de pagamento ainda nao possui chave Pix ativa.')
+      }
+      return gateway.gateway
+    }
+
+    if (pagamento === 'CARTAO' && tipoCartao === 'DEBITO') {
+      throw new Error('Cartao de debito online ainda nao esta disponivel.')
+    }
+
+    return gateway.gateway
   }
 
-  if (pagamento === 'CARTAO' && tipoCartao === 'DEBITO') {
-    throw new Error('Cartao de debito online ainda nao esta disponivel.')
+  if (!isMercadoPagoConfigured()) {
+    throw new Error('Pagamento online indisponivel no momento.')
   }
+
+  return gateway.gateway
 }
 
-async function tryDeleteCurrentAsaasPayment(paymentId?: string | null) {
-  if (!paymentId) return
+async function tryDeleteCurrentHostedPayment(pedido: Pick<PedidoPagamentoBase, 'asaasCheckoutUrl' | 'asaasPaymentId'>) {
+  if (!pedido.asaasPaymentId) return
+
+  const currentGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
+  if (currentGateway !== 'ASAAS') return
 
   try {
-    await deleteAsaasPayment(paymentId)
+    await deleteAsaasPayment(pedido.asaasPaymentId)
   } catch (error) {
     appLogger.warn('[order-payment] Nao foi possivel excluir a cobranca anterior do Asaas', error)
   }
+}
+
+export function hasReusableHostedCheckout(
+  pedido: Pick<PedidoPagamentoBase, 'status' | 'statusPagamento' | 'pagamento' | 'asaasCheckoutUrl' | 'asaasCheckoutExpiresAt'>,
+) {
+  if (pedido.status === 'CANCELADO') return false
+  if (pedido.pagamento === 'DINHEIRO') return false
+  if (pedido.statusPagamento !== 'PENDENTE') return false
+  if (!pedido.asaasCheckoutUrl?.trim()) return false
+
+  const currentGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
+  if (currentGateway === 'MERCADO_PAGO') {
+    return true
+  }
+
+  return !isCheckoutExpired(pedido.asaasCheckoutExpiresAt)
 }
 
 async function createHostedCheckout(
@@ -223,25 +279,66 @@ async function createHostedCheckout(
   pagamento: Exclude<TipoPagamento, 'DINHEIRO'>,
   tipoCartao?: TipoCartao | null,
 ) {
-  await validateHostedPaymentTarget(pagamento, tipoCartao)
-  const checkoutItems = buildHostedCheckoutItemsFromOrder(pedido)
+  const gateway = await validateHostedPaymentTarget(pagamento, tipoCartao)
+  const returnToken = generateAsaasReturnToken()
 
+  if (gateway === 'ASAAS') {
+    const checkoutItems = buildHostedCheckoutItemsFromOrder(pedido)
+    if (checkoutItems.length === 0) {
+      throw new Error('Esse pedido nao possui valor valido para pagamento online.')
+    }
+
+    const checkout = await createAsaasCheckout({
+      externalReference: pedido.id,
+      customerName: pedido.clienteNome?.trim() || undefined,
+      customerPhone: pedido.clienteWhatsapp || pedido.clienteTelefone
+        ? normalizeAsaasPhone(pedido.clienteWhatsapp || pedido.clienteTelefone || '')
+        : undefined,
+      billingTypes: pagamento === 'PIX' ? ['PIX'] : ['CREDIT_CARD'],
+      items: checkoutItems,
+      successUrl: buildHostedReturnUrl(pedido.id, 'success', returnToken, gateway),
+      cancelUrl: buildHostedReturnUrl(pedido.id, 'cancel', returnToken, gateway),
+      expiredUrl: buildHostedReturnUrl(pedido.id, 'expired', returnToken, gateway),
+    })
+
+    return tx.pedido.update({
+      where: { id: pedido.id },
+      data: {
+        pagamento,
+        tipoCartao: pagamento === 'CARTAO' ? (tipoCartao ?? 'CREDITO') : null,
+        statusPagamento: 'PENDENTE',
+        asaasReturnTokenHash: hashAsaasReturnToken(returnToken),
+        asaasCheckoutId: checkout.id,
+        asaasCheckoutUrl: checkout.link,
+        asaasCheckoutExpiresAt: getAsaasCheckoutExpiryDate(checkout.minutesToExpire),
+        asaasPaymentId: null,
+        asaasInvoiceUrl: null,
+        asaasPixQrCode: null,
+        asaasPixCopyPaste: null,
+        asaasPaymentStatus: checkout.status ?? null,
+        asaasLastEventId: null,
+        asaasLastSyncAt: null,
+      },
+      include: { itens: true },
+    })
+  }
+
+  const checkoutItems = buildMercadoPagoHostedCheckoutItemsFromOrder(pedido)
   if (checkoutItems.length === 0) {
     throw new Error('Esse pedido nao possui valor valido para pagamento online.')
   }
 
-  const returnToken = generateAsaasReturnToken()
-  const checkout = await createAsaasCheckout({
-    externalReference: pedido.id,
+  const externalReference = `${pedido.id}:${returnToken}`
+  const checkout = await createMercadoPagoPreference({
+    externalReference,
     customerName: pedido.clienteNome?.trim() || undefined,
-    customerPhone: pedido.clienteWhatsapp || pedido.clienteTelefone
-      ? normalizeAsaasPhone(pedido.clienteWhatsapp || pedido.clienteTelefone || '')
-      : undefined,
-    billingTypes: pagamento === 'PIX' ? ['PIX'] : ['CREDIT_CARD'],
     items: checkoutItems,
-    successUrl: buildAsaasReturnUrl(pedido.id, 'success', returnToken),
-    cancelUrl: buildAsaasReturnUrl(pedido.id, 'cancel', returnToken),
-    expiredUrl: buildAsaasReturnUrl(pedido.id, 'expired', returnToken),
+    pagamento,
+    tipoCartao,
+    successUrl: buildHostedReturnUrl(pedido.id, 'success', returnToken, gateway),
+    failureUrl: buildHostedReturnUrl(pedido.id, 'cancel', returnToken, gateway),
+    pendingUrl: buildHostedReturnUrl(pedido.id, 'success', returnToken, gateway),
+    notificationUrl: getMercadoPagoWebhookUrl(),
   })
 
   return tx.pedido.update({
@@ -253,12 +350,12 @@ async function createHostedCheckout(
       asaasReturnTokenHash: hashAsaasReturnToken(returnToken),
       asaasCheckoutId: checkout.id,
       asaasCheckoutUrl: checkout.link,
-      asaasCheckoutExpiresAt: getCheckoutExpiryDate(checkout.minutesToExpire),
+      asaasCheckoutExpiresAt: getMercadoPagoLocalReuseExpiryDate(),
       asaasPaymentId: null,
       asaasInvoiceUrl: null,
       asaasPixQrCode: null,
       asaasPixCopyPaste: null,
-      asaasPaymentStatus: checkout.status ?? null,
+      asaasPaymentStatus: 'PREFERENCE_CREATED',
       asaasLastEventId: null,
       asaasLastSyncAt: null,
     },
@@ -297,7 +394,7 @@ export async function ensureOrderHostedCheckout(
     return { pedido, reused: true }
   }
 
-  await tryDeleteCurrentAsaasPayment(pedido.asaasPaymentId)
+  await tryDeleteCurrentHostedPayment(pedido)
   const atualizado = await createHostedCheckout(tx, pedido, pagamento, tipoCartao)
   return { pedido: atualizado, reused: false }
 }
@@ -323,7 +420,7 @@ export async function switchOrderPaymentMethod(
       throw new Error('O link online atual ainda esta ativo. Aguarde expirar antes de trocar para dinheiro.')
     }
 
-    await tryDeleteCurrentAsaasPayment(pedido.asaasPaymentId)
+    await tryDeleteCurrentHostedPayment(pedido)
     return tx.pedido.update({
       where: { id: pedido.id },
       data: {

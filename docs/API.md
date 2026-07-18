@@ -14,6 +14,10 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Body: `{ telefone }`
   - Faz busca por telefone normalizado no tenant atual para pre-preencher nome e endereco do cliente no checkout.
   - Observacao: retorna apenas dados operacionais minimos do cadastro, sem historico de pedidos, sem telefone completo de volta no payload e com limitacao de tentativas.
+- POST `/api/pedidos/recentes`
+  - Body: `{ telefone }`
+  - Localiza os ultimos pedidos vinculados ao telefone no tenant atual e devolve um resumo minimo para a faixa publica de acompanhamento.
+  - Observacao: aplica rate limit, nao devolve o telefone de volta no payload e emite um cookie publico assinado por telefone para permitir abrir a confirmacao e retomar o pagamento no mesmo navegador.
 - GET `/api/menu`
   - Retorna estabelecimento, endereco de retirada, parametros de frete, regras do checkout publico e categorias.
   - Observacao: agora tambem retorna `novidades`, com os produtos ativos marcados manualmente para destaque no menu.
@@ -31,8 +35,8 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: para `ENCOMENDA`, a data pode ser definida pelo cliente ou fixada pelo admin nas configuracoes.
   - Observacao: para pagamento em `CARTAO`, o checkout publico pode exigir a escolha entre `CREDITO` e `DEBITO`, conforme configuracao.
   - Observacao: pedidos novos passam a receber o acesso publico por cookie `HttpOnly` no navegador do cliente; o token nao deve mais aparecer em URL nem depender de armazenamento em `localStorage`.
-  - Observacao: quando o pagamento online Asaas estiver ativo, pedidos com `PIX` ou `CARTAO` criam tambem um checkout hospedado e retornam `pagamentoOnline` com o link de pagamento.
-  - Observacao: o checkout hospedado do Asaas deve refletir o valor final salvo do pedido, incluindo frete e descontos aplicados no proprio pedido, sem divergencia para o preco cheio dos itens.
+  - Observacao: quando houver gateway online configurado (`ASAAS` ou `MERCADO_PAGO`), pedidos com `PIX` ou `CARTAO` criam tambem um checkout hospedado e retornam `pagamentoOnline` com o link de pagamento.
+  - Observacao: o checkout hospedado deve refletir o valor final salvo do pedido, incluindo frete e descontos aplicados no proprio pedido, sem divergencia para o preco cheio dos itens.
   - Observacao: a validacao de disponibilidade agora tambem considera pedidos comprometidos que ainda nao tenham virado reserva formal no estoque, como protecao adicional contra oversell.
   - Observacao: se a conta Asaas nao tiver chave Pix ativa, pedidos em `PIX` devem ser bloqueados mesmo que a configuracao publica local esteja ligada.
   - Observacao: retorna 403 se o estabelecimento estiver fechado.
@@ -40,24 +44,31 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Valida cupom e retorna `descontoValor`.
 - GET `/api/pedidos/:id`
   - Retorna detalhe de um pedido (tenant atual).
-  - Observacao: exige o token publico do pedido; o fluxo padrao usa cookie `HttpOnly`, mas header `x-order-access-token` e query `?token=...` seguem aceitos apenas para compatibilidade controlada.
+  - Observacao: exige acesso publico valido ao pedido; o fluxo padrao usa cookie `HttpOnly` por pedido, e agora tambem pode aceitar o cookie publico assinado por telefone quando o cliente tiver recuperado os ultimos pedidos pelo numero.
+  - Observacao: header `x-order-access-token` e query `?token=...` seguem aceitos apenas para compatibilidade controlada.
   - Observacao: pedidos antigos sem `publicAccessTokenHash` nao recebem mais token novo automaticamente no primeiro acesso publico; a transicao agora falha fechada.
   - Observacao: pode retornar `pagamentoOnline` com o link atual do checkout/pagamento hospedado.
 - POST `/api/pedidos/:id/pagamento`
   - Retoma ou renova o checkout hospedado de um pedido online.
   - Body: `{ action: 'RESUME' | 'REFRESH_LINK' }`
-  - Observacao: exige o mesmo token publico de acesso do pedido, preferencialmente via cookie `HttpOnly`.
+  - Observacao: exige o mesmo acesso publico valido do pedido, preferencialmente via cookie `HttpOnly`.
   - Observacao: `RESUME` reutiliza o link atual se ele ainda estiver valido; `REFRESH_LINK` so cria um novo checkout quando o atual nao puder mais ser reaproveitado.
   - Observacao: quando o pedido tiver sido editado e a composicao financeira mudar, o estado local do checkout antigo pode ser limpo para impedir o reaproveitamento de um link com valor stale.
+  - Observacao: na fase atual de HML com Mercado Pago, pedidos com link pendente ativo podem bloquear certas edicoes para evitar divergencia de cobranca.
 - PATCH `/api/pedidos/:id`
   - Cancela pedido pelo cliente enquanto ele ainda estiver em `FEITO` e sem pagamento aprovado.
-  - Observacao: exige o mesmo token publico de acesso do pedido, preferencialmente via cookie `HttpOnly`.
+  - Observacao: exige o mesmo acesso publico valido do pedido, preferencialmente via cookie `HttpOnly`.
   - Observacao: pedidos com checkout online Asaas nao aceitam cancelamento publico automatico, para evitar inconsistencias entre pedido e gateway.
 - POST `/api/asaas/webhook`
   - Recebe eventos de pagamento enviados pelo Asaas.
   - Observacao: exige validacao do header `asaas-access-token`.
   - Observacao: processa eventos de forma idempotente pelo `event.id` e atualiza `statusPagamento` do pedido usando `externalReference`.
   - Observacao: quando o pagamento aprovado chega para um pedido em `PREPARACAO`, o backend pode promover automaticamente o status para `PRONTO_ENTREGA`; se o pagamento deixar de estar aprovado antes da entrega, o pedido pode voltar para `PREPARACAO`.
+- POST `/api/mercadopago/webhook`
+  - Recebe notificacoes de pagamento enviadas pelo Mercado Pago.
+  - Observacao: exige validacao da assinatura `x-signature` com o segredo configurado em `MERCADO_PAGO_WEBHOOK_SECRET`.
+  - Observacao: busca o pagamento completo pela `data.id`, valida o token embutido no `external_reference` e ignora notificacoes stale.
+  - Observacao: atualiza `statusPagamento` do pedido e reaproveita a mesma logica de status e estoque do kanban.
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
@@ -73,6 +84,7 @@ Pedidos:
 - PATCH `/api/admin/pedidos/:id`
   - Edita pedido em aberto.
   - Observacao: se o pedido for online e ainda estiver pendente, mudancas em itens, desconto, frete, forma de pagamento ou dados relevantes da cobranca invalidam o checkout local anterior para que o proximo link seja gerado com o valor atualizado.
+  - Observacao: na fase atual de HML com Mercado Pago, pedidos com link pendente ativo bloqueiam essas edicoes para evitar divergencia entre o valor do pedido e uma cobranca antiga ainda valida fora do sistema.
 - POST `/api/admin/pedidos/:id/pagamento`
   - Body: `{ action: 'REFRESH_LINK' }` ou `{ action: 'SWITCH_METHOD', pagamento: 'PIX' | 'DINHEIRO' | 'CARTAO', tipoCartao? }`
   - Observacao: `REFRESH_LINK` reaproveita o checkout atual quando ainda estiver valido e so gera outro quando necessario.

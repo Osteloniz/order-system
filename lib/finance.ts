@@ -9,7 +9,7 @@ export const statusContaPagarLabels: Record<StatusContaPagar, string> = {
 
 export const statusContaPagarStyles: Record<StatusContaPagar, string> = {
   PENDENTE: 'border-warning/35 bg-warning/10 text-warning-foreground',
-  PAGO: 'border-success/35 bg-success/10 text-success-foreground',
+  PAGO: 'border-success/35 bg-success/10 text-success dark:bg-success/20 dark:text-white',
   CANCELADO: 'border-destructive/25 bg-destructive/10 text-destructive',
 }
 
