@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { StatusPagamento, StatusPedido, TipoEntrega, TipoPagamento } from '@/lib/types'
 import { addAvailableStock, consumeAvailableStock, consumeReservedStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
@@ -29,6 +29,8 @@ type TargetPedidoStockContext = Pick<PedidoStockContext, 'status' | 'statusPagam
 
 type StockLifecycleState = 'LIVRE' | 'RESERVADO' | 'CONSUMIDO'
 
+export const PUBLIC_ORDER_SOFT_HOLD_MINUTES = 10
+
 export function shouldReserveCommonOrderStock(context: Pick<PedidoStockContext, 'status' | 'statusPagamento' | 'pagamento'>) {
   if (context.status === 'ENTREGUE' || context.status === 'CANCELADO') {
     return false
@@ -41,29 +43,55 @@ export function shouldReserveCommonOrderStock(context: Pick<PedidoStockContext, 
   return context.statusPagamento === 'APROVADO'
 }
 
-export async function loadShadowCommittedQuantityMap(tenantId: string) {
-  const pedidos = await prisma.pedido.findMany({
+function buildShadowCommittedOrderWhere(tenantId: string, now = new Date()): Prisma.PedidoWhereInput {
+  const recentSoftHoldCutoff = new Date(now.getTime() - PUBLIC_ORDER_SOFT_HOLD_MINUTES * 60 * 1000)
+
+  return {
+    tenantId,
+    estoqueReservadoEm: null,
+    estoqueBaixadoEm: null,
+    OR: [
+      {
+        tipoEntrega: { not: 'ENCOMENDA' },
+        status: 'FEITO',
+        criadoEm: { gte: recentSoftHoldCutoff },
+      },
+      {
+        tipoEntrega: { not: 'ENCOMENDA' },
+        pagamento: 'DINHEIRO',
+        status: { in: ['ACEITO', 'PREPARACAO', 'PRONTO_ENTREGA'] },
+      },
+      {
+        tipoEntrega: { not: 'ENCOMENDA' },
+        pagamento: { in: ['PIX', 'CARTAO'] },
+        statusPagamento: 'APROVADO',
+        status: { notIn: ['CANCELADO', 'ENTREGUE'] },
+      },
+      {
+        tipoEntrega: 'ENCOMENDA',
+        status: { in: ['PREPARACAO', 'PRONTO_ENTREGA'] },
+      },
+    ],
+  }
+}
+
+async function loadShadowCommittedQuantityMapFromClient(
+  client: {
+    pedido: {
+      findMany: (args: Prisma.PedidoFindManyArgs) => Promise<Array<{
+        itens: Array<{
+          produtoId: string
+          quantidade: number
+        }>
+      }>>
+    }
+  },
+  tenantId: string,
+  now = new Date(),
+) {
+  const pedidos = await client.pedido.findMany({
     where: {
-      tenantId,
-      estoqueReservadoEm: null,
-      estoqueBaixadoEm: null,
-      OR: [
-        {
-          tipoEntrega: { not: 'ENCOMENDA' },
-          pagamento: 'DINHEIRO',
-          status: { in: ['ACEITO', 'PREPARACAO', 'PRONTO_ENTREGA'] },
-        },
-        {
-          tipoEntrega: { not: 'ENCOMENDA' },
-          pagamento: { in: ['PIX', 'CARTAO'] },
-          statusPagamento: 'APROVADO',
-          status: { notIn: ['CANCELADO', 'ENTREGUE'] },
-        },
-        {
-          tipoEntrega: 'ENCOMENDA',
-          status: { in: ['PREPARACAO', 'PRONTO_ENTREGA'] },
-        },
-      ],
+      ...buildShadowCommittedOrderWhere(tenantId, now),
     },
     select: {
       itens: {
@@ -84,6 +112,29 @@ export async function loadShadowCommittedQuantityMap(tenantId: string) {
   }
 
   return shadowMap
+}
+
+export async function loadShadowCommittedQuantityMap(tenantId: string, now = new Date()) {
+  return loadShadowCommittedQuantityMapFromClient(prisma, tenantId, now)
+}
+
+export async function loadShadowCommittedQuantityMapTx(tx: Tx, tenantId: string, now = new Date()) {
+  return loadShadowCommittedQuantityMapFromClient(tx, tenantId, now)
+}
+
+export async function lockProductStockRows(tx: Tx, tenantId: string, productIds: string[]) {
+  const normalizedIds = Array.from(new Set(productIds.filter(Boolean)))
+  if (normalizedIds.length === 0) return
+
+  await tx.$queryRaw(
+    Prisma.sql`
+      SELECT "produtoId"
+      FROM "ProdutoEstoque"
+      WHERE "tenantId" = ${tenantId}
+        AND "produtoId" IN (${Prisma.join(normalizedIds)})
+      FOR UPDATE
+    `,
+  )
 }
 
 function classifyCurrentCommonStockState(pedido: Pick<PedidoStockContext, 'estoqueReservadoEm' | 'estoqueBaixadoEm'>) {

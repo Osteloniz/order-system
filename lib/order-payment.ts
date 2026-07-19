@@ -14,6 +14,7 @@ import {
   type OnlinePaymentGateway,
 } from '@/lib/hosted-payment'
 import {
+  createMercadoPagoPixPayment,
   createMercadoPagoPreference,
   getMercadoPagoLocalReuseExpiryDate,
   getMercadoPagoWebhookUrl,
@@ -258,17 +259,26 @@ async function tryDeleteCurrentHostedPayment(pedido: Pick<PedidoPagamentoBase, '
 }
 
 export function hasReusableHostedCheckout(
-  pedido: Pick<PedidoPagamentoBase, 'status' | 'statusPagamento' | 'pagamento' | 'asaasCheckoutUrl' | 'asaasCheckoutExpiresAt'>,
+  pedido: Pick<
+    PedidoPagamentoBase,
+    'status' | 'statusPagamento' | 'pagamento' | 'asaasCheckoutUrl' | 'asaasCheckoutExpiresAt' | 'asaasPixQrCode' | 'asaasPixCopyPaste'
+  >,
 ) {
   if (pedido.status === 'CANCELADO') return false
   if (pedido.pagamento === 'DINHEIRO') return false
   if (pedido.statusPagamento !== 'PENDENTE') return false
-  if (!pedido.asaasCheckoutUrl?.trim()) return false
 
-  const currentGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
+  const currentGateway =
+    inferHostedCheckoutGateway(pedido.asaasCheckoutUrl) ||
+    ((pedido.asaasPixQrCode || pedido.asaasPixCopyPaste) ? 'MERCADO_PAGO' : null)
+
+  if (!currentGateway) return false
+
   if (currentGateway === 'MERCADO_PAGO') {
     return true
   }
+
+  if (!pedido.asaasCheckoutUrl?.trim()) return false
 
   return !isCheckoutExpired(pedido.asaasCheckoutExpiresAt)
 }
@@ -278,9 +288,16 @@ async function createHostedCheckout(
   pedido: PedidoPagamentoBase,
   pagamento: Exclude<TipoPagamento, 'DINHEIRO'>,
   tipoCartao?: TipoCartao | null,
+  options?: {
+    mercadoPagoPixMode?: 'CHECKOUT' | 'DIRECT'
+  },
 ) {
   const gateway = await validateHostedPaymentTarget(pagamento, tipoCartao)
   const returnToken = generateAsaasReturnToken()
+  const shouldUseMercadoPagoDirectPix =
+    gateway === 'MERCADO_PAGO' &&
+    pagamento === 'PIX' &&
+    options?.mercadoPagoPixMode !== 'CHECKOUT'
 
   if (gateway === 'ASAAS') {
     const checkoutItems = buildHostedCheckoutItemsFromOrder(pedido)
@@ -323,12 +340,43 @@ async function createHostedCheckout(
     })
   }
 
+  const externalReference = `${pedido.id}:${returnToken}`
+  if (shouldUseMercadoPagoDirectPix) {
+    const mercadoPagoPix = await createMercadoPagoPixPayment({
+      externalReference,
+      amountCents: pedido.total,
+      description: `Pedido ${pedido.id.slice(-8).toUpperCase()}`,
+      customerName: pedido.clienteNome?.trim() || undefined,
+      notificationUrl: getMercadoPagoWebhookUrl(),
+    })
+
+    return tx.pedido.update({
+      where: { id: pedido.id },
+      data: {
+        pagamento,
+        tipoCartao: null,
+        statusPagamento: 'PENDENTE',
+        asaasReturnTokenHash: hashAsaasReturnToken(returnToken),
+        asaasCheckoutId: mercadoPagoPix.id,
+        asaasCheckoutUrl: mercadoPagoPix.link,
+        asaasCheckoutExpiresAt: getMercadoPagoLocalReuseExpiryDate(),
+        asaasPaymentId: mercadoPagoPix.id,
+        asaasInvoiceUrl: null,
+        asaasPixQrCode: mercadoPagoPix.qrCodeBase64,
+        asaasPixCopyPaste: mercadoPagoPix.qrCode,
+        asaasPaymentStatus: mercadoPagoPix.statusDetail || mercadoPagoPix.status || 'pending',
+        asaasLastEventId: null,
+        asaasLastSyncAt: null,
+      },
+      include: { itens: true },
+    })
+  }
+
   const checkoutItems = buildMercadoPagoHostedCheckoutItemsFromOrder(pedido)
   if (checkoutItems.length === 0) {
     throw new Error('Esse pedido nao possui valor valido para pagamento online.')
   }
 
-  const externalReference = `${pedido.id}:${returnToken}`
   const checkout = await createMercadoPagoPreference({
     externalReference,
     customerName: pedido.clienteNome?.trim() || undefined,
@@ -369,10 +417,19 @@ export async function ensureOrderHostedCheckout(
   options?: {
     pagamento?: Exclude<TipoPagamento, 'DINHEIRO'>
     tipoCartao?: TipoCartao | null
+    forceRefresh?: boolean
+    mercadoPagoPixMode?: 'CHECKOUT' | 'DIRECT'
   },
 ): Promise<CheckoutRefreshResult> {
   const pagamento = options?.pagamento ?? (pedido.pagamento === 'DINHEIRO' ? 'PIX' : pedido.pagamento)
   const tipoCartao = pagamento === 'CARTAO' ? (options?.tipoCartao ?? pedido.tipoCartao ?? 'CREDITO') : null
+  const forceRefresh = options?.forceRefresh ?? false
+  const shouldForceMercadoPagoPixDirect =
+    pagamento === 'PIX' &&
+    inferHostedCheckoutGateway(pedido.asaasCheckoutUrl) === 'MERCADO_PAGO' &&
+    !pedido.asaasPixQrCode &&
+    !pedido.asaasPixCopyPaste &&
+    options?.mercadoPagoPixMode !== 'CHECKOUT'
 
   if (pedido.status === 'CANCELADO') {
     throw new Error('Pedido cancelado nao pode receber novo link.')
@@ -387,6 +444,8 @@ export async function ensureOrderHostedCheckout(
   }
 
   if (
+    !forceRefresh &&
+    !shouldForceMercadoPagoPixDirect &&
     pagamento === pedido.pagamento &&
     tipoCartao === (pedido.tipoCartao ?? null) &&
     hasReusableHostedCheckout(pedido)
@@ -395,7 +454,9 @@ export async function ensureOrderHostedCheckout(
   }
 
   await tryDeleteCurrentHostedPayment(pedido)
-  const atualizado = await createHostedCheckout(tx, pedido, pagamento, tipoCartao)
+  const atualizado = await createHostedCheckout(tx, pedido, pagamento, tipoCartao, {
+    mercadoPagoPixMode: options?.mercadoPagoPixMode,
+  })
   return { pedido: atualizado, reused: false }
 }
 

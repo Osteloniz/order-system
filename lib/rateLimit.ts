@@ -51,6 +51,14 @@ export function rateLimitPublicOrderLookup(ip: string, tenantId: string, phone: 
   return checkRateLimit(`public-orders:${tenantId}:${ip}:${phone.trim()}`, publicStore, 60 * 1000, 8, 10 * 60 * 1000)
 }
 
+export function rateLimitPublicCheckoutByIp(ip: string, tenantId: string) {
+  return checkRateLimit(`public-checkout-ip:${tenantId}:${ip}`, publicStore, 10 * 60 * 1000, 10, 15 * 60 * 1000)
+}
+
+export function rateLimitPublicCheckoutByPhone(tenantId: string, phone: string) {
+  return checkRateLimit(`public-checkout-phone:${tenantId}:${phone.trim()}`, publicStore, 10 * 60 * 1000, 4, 15 * 60 * 1000)
+}
+
 export function resetRateLimitByIp(ip: string) {
   store.delete(`ip:${ip}`)
 }

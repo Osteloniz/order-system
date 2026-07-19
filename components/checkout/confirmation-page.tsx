@@ -3,7 +3,7 @@
 import useSWR from 'swr'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle, XCircle } from 'lucide-react'
+import { CheckCircle, Package, MapPin, CreditCard, Clock, ArrowLeft, MessageCircle, XCircle, Copy, QrCode } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -77,12 +77,14 @@ function getConfirmationStatusMessage(pedido: PedidoPublico) {
 interface ConfirmationPageProps {
   pedidoId: string
   accessToken?: string
+  paymentSyncPending?: boolean
 }
 
-export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProps) {
+export function ConfirmationPage({ pedidoId, accessToken, paymentSyncPending = false }: ConfirmationPageProps) {
   const router = useRouter()
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefreshingPayment, setIsRefreshingPayment] = useState(false)
+  const [copySuccess, setCopySuccess] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [paymentError, setPaymentError] = useState('')
   const [activeAccessToken, setActiveAccessToken] = useState(accessToken || '')
@@ -135,11 +137,36 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
   const statusInfo = statusConfig[pedido.status]
   const statusMessage = getConfirmationStatusMessage(pedido)
   const canCancelOrder = pedido.status === 'FEITO' && pedido.statusPagamento !== 'APROVADO' && pedido.pagamento === 'DINHEIRO'
-  const canContinuePayment =
+  const inlinePixQrCode = pedido.pagamentoOnline?.pixQrCode?.trim() || ''
+  const inlinePixCopyPaste = pedido.pagamentoOnline?.pixCopyPaste?.trim() || ''
+  const inlinePixQrCodeSrc = inlinePixQrCode
+    ? (inlinePixQrCode.startsWith('data:') ? inlinePixQrCode : `data:image/png;base64,${inlinePixQrCode}`)
+    : ''
+  const hasInlinePixPayment =
+    pedido.pagamento === 'PIX' &&
+    pedido.statusPagamento === 'PENDENTE' &&
+    Boolean(inlinePixCopyPaste)
+  const canContinueCardPayment =
     pedido.status !== 'CANCELADO' &&
     pedido.statusPagamento === 'PENDENTE' &&
-    pedido.pagamento !== 'DINHEIRO' &&
+    pedido.pagamento === 'CARTAO' &&
     Boolean(pedido.pagamentoOnline?.checkoutUrl)
+  const canRefreshPixPayment =
+    pedido.status !== 'CANCELADO' &&
+    pedido.statusPagamento === 'PENDENTE' &&
+    pedido.pagamento === 'PIX'
+
+  const handleCopyPixCode = async () => {
+    if (!inlinePixCopyPaste) return
+
+    try {
+      await navigator.clipboard.writeText(inlinePixCopyPaste)
+      setCopySuccess('Codigo Pix copiado.')
+      window.setTimeout(() => setCopySuccess(''), 2500)
+    } catch {
+      setPaymentError('Nao foi possivel copiar o codigo Pix agora.')
+    }
+  }
 
   const handleCancelOrder = async () => {
     setCancelError('')
@@ -168,7 +195,7 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
     }
   }
 
-  const handleContinuePayment = async (action: 'RESUME' | 'REFRESH_LINK') => {
+  const handleContinuePayment = async (action: 'RESUME' | 'REFRESH_LINK' | 'PIX_FALLBACK') => {
     setPaymentError('')
     setIsRefreshingPayment(true)
 
@@ -188,6 +215,10 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
       }
 
       await mutate()
+      if (pedido.pagamento === 'PIX' && action !== 'RESUME') {
+        return
+      }
+
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       }
@@ -219,6 +250,16 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {paymentSyncPending && pedido.statusPagamento === 'PENDENTE' ? (
+          <Card className="border-warning/35 bg-warning/10">
+            <CardContent className="py-4">
+              <p className="text-sm text-warning-foreground">
+                Seu pagamento voltou do gateway, mas o sistema ainda esta confirmando essa atualizacao. Esta tela se atualiza sozinha em instantes.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* Número do Pedido */}
         <Card>
           <CardContent className="py-6 text-center">
@@ -350,7 +391,83 @@ export function ConfirmationPage({ pedidoId, accessToken }: ConfirmationPageProp
 
         {/* Actions */}
         <div className="space-y-3">
-          {canContinuePayment ? (
+          {hasInlinePixPayment ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Pix para pagar agora
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {inlinePixQrCodeSrc ? (
+                  <div className="flex justify-center">
+                    <div className="rounded-2xl border bg-white p-3 shadow-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={inlinePixQrCodeSrc}
+                        alt="QR Code Pix do pedido"
+                        className="h-56 w-56 max-w-full rounded-lg object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Se preferir, copie o codigo Pix abaixo e pague no aplicativo do seu banco.
+                  </p>
+                  <div className="rounded-2xl border bg-muted/20 p-3">
+                    <p className="break-all text-xs leading-5">{inlinePixCopyPaste}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button className="w-full h-12" onClick={() => void handleCopyPixCode()}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copiar codigo Pix
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full h-12"
+                    onClick={() => void handleContinuePayment('REFRESH_LINK')}
+                    disabled={isRefreshingPayment}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    {isRefreshingPayment ? 'Atualizando...' : 'Atualizar QR Pix'}
+                  </Button>
+                </div>
+
+                {copySuccess ? (
+                  <p className="text-sm text-success text-center">{copySuccess}</p>
+                ) : null}
+                {paymentError ? (
+                  <p className="text-sm text-destructive text-center">{paymentError}</p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {canRefreshPixPayment && !hasInlinePixPayment ? (
+            <>
+              <Button
+                className="w-full h-12"
+                onClick={() => void handleContinuePayment('REFRESH_LINK')}
+                disabled={isRefreshingPayment}
+              >
+                <QrCode className="h-4 w-4 mr-2" />
+                {isRefreshingPayment ? 'Gerando QR Pix...' : 'Gerar QR Pix para pagar'}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                O Pix agora abre direto como QR Code e copia-e-cola, sem depender do checkout hospedado.
+              </p>
+              {paymentError ? (
+                <p className="text-sm text-destructive text-center">{paymentError}</p>
+              ) : null}
+            </>
+          ) : null}
+
+          {canContinueCardPayment ? (
             <>
               <Button
                 className="w-full h-12"

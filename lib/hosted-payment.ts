@@ -46,15 +46,18 @@ export function buildHostedReturnUrl(
 export function serializeHostedPagamentoOnline(pedido: HostedPaymentSource) {
   if (pedido.pagamento === 'DINHEIRO') return null
 
-  const gateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
-  if (!gateway || !pedido.asaasCheckoutUrl?.trim()) return null
+  const gateway =
+    inferHostedCheckoutGateway(pedido.asaasCheckoutUrl) ||
+    ((pedido.asaasPixQrCode || pedido.asaasPixCopyPaste) ? 'MERCADO_PAGO' : null)
+
+  if (!gateway) return null
 
   return {
     gateway,
-    checkoutUrl: pedido.asaasCheckoutUrl,
+    checkoutUrl: pedido.asaasCheckoutUrl ?? null,
     invoiceUrl: gateway === 'ASAAS' ? pedido.asaasInvoiceUrl ?? null : null,
-    pixQrCode: gateway === 'ASAAS' ? pedido.asaasPixQrCode ?? null : null,
-    pixCopyPaste: gateway === 'ASAAS' ? pedido.asaasPixCopyPaste ?? null : null,
+    pixQrCode: pedido.asaasPixQrCode ?? null,
+    pixCopyPaste: pedido.asaasPixCopyPaste ?? null,
     expiresAt: pedido.asaasCheckoutExpiresAt ?? null,
   }
 }

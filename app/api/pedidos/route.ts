@@ -11,16 +11,18 @@ import {
   type OnlinePaymentGateway,
 } from '@/lib/hosted-payment'
 import {
+  createMercadoPagoPixPayment,
   createMercadoPagoPreference,
   getMercadoPagoLocalReuseExpiryDate,
   getMercadoPagoWebhookUrl,
   isMercadoPagoApiError,
 } from '@/lib/mercado-pago'
-import { loadShadowCommittedQuantityMap } from '@/lib/order-stock'
+import { lockProductStockRows, loadShadowCommittedQuantityMap, loadShadowCommittedQuantityMapTx } from '@/lib/order-stock'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { getOnlinePaymentGateway, resolvePublicCardAvailability } from '@/lib/payment-gateway'
 import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
 import { resolveProductOrderMode } from '@/lib/product-availability'
+import { rateLimitPublicCheckoutByIp, rateLimitPublicCheckoutByPhone } from '@/lib/rateLimit'
 import {
   generateAsaasReturnToken,
   generatePublicOrderAccessToken,
@@ -38,6 +40,28 @@ import { getTenantFromCookie } from '@/lib/tenant'
 import type { CriarPedidoPayload } from '@/lib/types'
 
 export const runtime = 'nodejs'
+
+function getProviderErrorStatus(error: unknown) {
+  if (!error || typeof error !== 'object') return null
+  const candidate = (error as { status?: unknown }).status
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : null
+}
+
+class PublicOrderCheckoutError extends Error {
+  status: number
+
+  constructor(message: string, status = 409) {
+    super(message)
+    this.name = 'PublicOrderCheckoutError'
+    this.status = status
+  }
+}
+
+function getIp(request: NextRequest) {
+  const forwardedFor = request.headers.get('x-forwarded-for')
+  const realIp = request.headers.get('x-real-ip')
+  return forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
+}
 
 type ItemPedidoCreate = {
   produtoId: string
@@ -190,6 +214,22 @@ export async function POST(request: NextRequest) {
     }
     if (!tenant.isOpen) {
       return NextResponse.json({ error: 'Estabelecimento fechado' }, { status: 403 })
+    }
+
+    const checkoutRateByIp = rateLimitPublicCheckoutByIp(getIp(request), tenant.id)
+    if (!checkoutRateByIp.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas de pedido em pouco tempo. Aguarde alguns minutos antes de tentar novamente.' },
+        { status: 429 },
+      )
+    }
+
+    const checkoutRateByPhone = rateLimitPublicCheckoutByPhone(tenant.id, telefoneLimpo)
+    if (!checkoutRateByPhone.allowed) {
+      return NextResponse.json(
+        { error: 'Esse numero atingiu o limite temporario de tentativas de checkout. Aguarde alguns minutos antes de tentar novamente.' },
+        { status: 429 },
+      )
     }
 
     const configuracao = await prisma.configuracao.findFirst({
@@ -410,9 +450,11 @@ export async function POST(request: NextRequest) {
     let hostedCheckout:
       | {
           id: string
-          link: string
+          link: string | null
           expiresAt: Date
           status: string | null
+          pixQrCode?: string | null
+          pixCopyPaste?: string | null
         }
       | null = null
 
@@ -461,28 +503,58 @@ export async function POST(request: NextRequest) {
             status: asaasCheckout.status ?? null,
           }
         } else if (hostedCheckoutGateway === 'MERCADO_PAGO') {
-          const checkoutItems = buildMercadoPagoHostedCheckoutItemsFromOrder(pedidoCheckout)
-          const mercadoPagoCheckout = await createMercadoPagoPreference({
-            externalReference: `${pedidoId}:${returnToken}`,
-            customerName: clienteNomePedido,
-            items: checkoutItems,
-            pagamento: body.pagamento,
-            tipoCartao: body.pagamento === 'CARTAO' ? tipoCartaoPedido : null,
-            successUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
-            failureUrl: buildHostedReturnUrl(pedidoId, 'cancel', returnToken, hostedCheckoutGateway),
-            pendingUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
-            notificationUrl: getMercadoPagoWebhookUrl(),
-          })
+          const externalReference = `${pedidoId}:${returnToken}`
 
-          hostedCheckout = {
-            id: mercadoPagoCheckout.id,
-            link: mercadoPagoCheckout.link,
-            expiresAt: getMercadoPagoLocalReuseExpiryDate(),
-            status: 'PREFERENCE_CREATED',
+          if (body.pagamento === 'PIX') {
+            const mercadoPagoPix = await createMercadoPagoPixPayment({
+              externalReference,
+              amountCents: Math.max(0, total),
+              description: `Pedido ${pedidoId.slice(-8).toUpperCase()}`,
+              customerName: clienteNomePedido,
+              notificationUrl: getMercadoPagoWebhookUrl(),
+            })
+
+            hostedCheckout = {
+              id: mercadoPagoPix.id,
+              link: mercadoPagoPix.link,
+              expiresAt: getMercadoPagoLocalReuseExpiryDate(),
+              status: mercadoPagoPix.statusDetail || mercadoPagoPix.status || 'pending',
+              pixQrCode: mercadoPagoPix.qrCodeBase64,
+              pixCopyPaste: mercadoPagoPix.qrCode,
+            }
+          } else {
+            const checkoutItems = buildMercadoPagoHostedCheckoutItemsFromOrder(pedidoCheckout)
+            const mercadoPagoCheckout = await createMercadoPagoPreference({
+              externalReference,
+              customerName: clienteNomePedido,
+              items: checkoutItems,
+              pagamento: body.pagamento,
+              tipoCartao: body.pagamento === 'CARTAO' ? tipoCartaoPedido : null,
+              successUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
+              failureUrl: buildHostedReturnUrl(pedidoId, 'cancel', returnToken, hostedCheckoutGateway),
+              pendingUrl: buildHostedReturnUrl(pedidoId, 'success', returnToken, hostedCheckoutGateway),
+              notificationUrl: getMercadoPagoWebhookUrl(),
+            })
+
+            hostedCheckout = {
+              id: mercadoPagoCheckout.id,
+              link: mercadoPagoCheckout.link,
+              expiresAt: getMercadoPagoLocalReuseExpiryDate(),
+              status: 'PREFERENCE_CREATED',
+            }
           }
         }
       } catch (error) {
         appLogger.error('[api/pedidos] Falha ao criar checkout hospedado', error)
+        const providerStatus = getProviderErrorStatus(error)
+
+        if (providerStatus === 401 || providerStatus === 403) {
+          return NextResponse.json(
+            { error: 'O gateway de pagamento recusou as credenciais deste ambiente. Revise as chaves do Mercado Pago/Asaas antes de testar novamente.' },
+            { status: 502 },
+          )
+        }
+
         if (
           (isAsaasApiError(error) && error.status < 500) ||
           (isMercadoPagoApiError(error) && error.status < 500)
@@ -515,6 +587,67 @@ export async function POST(request: NextRequest) {
         })
 
     const novoPedido = await prisma.$transaction(async (tx) => {
+      await lockProductStockRows(tx, tenant.id, itemIds)
+
+      const produtosAtualizados = await tx.produto.findMany({
+        where: {
+          id: { in: itemIds },
+          descontinuado: false,
+          tenantId: tenant.id,
+        },
+        select: {
+          id: true,
+          nome: true,
+          ativo: true,
+          disponivelParaEncomenda: true,
+          estoqueProdutos: {
+            where: { tenantId: tenant.id },
+            select: { quantidadeDisponivel: true },
+            take: 1,
+          },
+        },
+      })
+      const shadowCommittedMapTx = await loadShadowCommittedQuantityMapTx(tx, tenant.id)
+      const produtosAtualizadosMap = new Map(produtosAtualizados.map((produto) => [produto.id, produto]))
+      const itensSomenteEncomendaTx = new Set<string>()
+
+      for (const item of body.itens) {
+        const produtoAtualizado = produtosAtualizadosMap.get(item.produtoId)
+        if (!produtoAtualizado) {
+          throw new PublicOrderCheckoutError(
+            'Um dos produtos saiu do cardapio enquanto seu pedido era finalizado. Atualize a pagina e tente novamente.',
+          )
+        }
+
+        const estoqueDisponivelAtual = Math.max(
+          0,
+          (produtoAtualizado.estoqueProdutos[0]?.quantidadeDisponivel ?? 0) - (shadowCommittedMapTx.get(produtoAtualizado.id) ?? 0),
+        )
+        const statusDisponibilidadeAtual = resolveProductOrderMode({
+          requestedQty: item.quantidade,
+          ativoNoCatalogo: produtoAtualizado.ativo,
+          estoqueDisponivel: estoqueDisponivelAtual,
+          disponivelParaEncomenda: produtoAtualizado.disponivelParaEncomenda,
+          encomendaHabilitada: entregaEncomendaDisponivel,
+        })
+
+        if (statusDisponibilidadeAtual === 'INDISPONIVEL') {
+          throw new PublicOrderCheckoutError(
+            `${produtoAtualizado.nome} ficou indisponivel enquanto outro pedido era processado. Revise o carrinho e tente novamente.`,
+          )
+        }
+
+        if (statusDisponibilidadeAtual === 'SOMENTE_ENCOMENDA') {
+          itensSomenteEncomendaTx.add(produtoAtualizado.nome)
+        }
+      }
+
+      if (itensSomenteEncomendaTx.size > 0 && body.tipoEntrega !== 'ENCOMENDA') {
+        throw new PublicOrderCheckoutError(
+          `Alguns itens acabaram de ficar disponiveis apenas por encomenda: ${Array.from(itensSomenteEncomendaTx).join(', ')}.`,
+        )
+      }
+
       const pedido = await tx.pedido.create({
         data: {
           id: pedidoId,
@@ -534,6 +667,12 @@ export async function POST(request: NextRequest) {
           asaasCheckoutId: hostedCheckout?.id ?? null,
           asaasCheckoutUrl: hostedCheckout?.link ?? null,
           asaasCheckoutExpiresAt: hostedCheckout?.expiresAt ?? null,
+          asaasPaymentId:
+            body.pagamento === 'PIX' && hostedCheckoutGateway === 'MERCADO_PAGO'
+              ? hostedCheckout?.id ?? null
+              : null,
+          asaasPixQrCode: hostedCheckout?.pixQrCode ?? null,
+          asaasPixCopyPaste: hostedCheckout?.pixCopyPaste ?? null,
           asaasPaymentStatus: hostedCheckout?.status ?? null,
           tipoEntrega: body.tipoEntrega,
           encomendaPara: encomendaParaPedido,
@@ -595,6 +734,9 @@ export async function POST(request: NextRequest) {
     setPublicCustomerAccessCookie(response, tenant.id, clienteWhatsappPedido || telefoneLimpo)
     return response
   } catch (error) {
+    if (error instanceof PublicOrderCheckoutError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error('[v0] Erro ao criar pedido:', error)
     return NextResponse.json({ error: 'Erro interno ao processar pedido' }, { status: 500 })
   }

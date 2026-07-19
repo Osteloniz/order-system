@@ -76,13 +76,24 @@ function getFirstEnabledPagamento(config?: CheckoutPublicoConfig): TipoPagamento
   return 'DINHEIRO'
 }
 
-function getHostedPaymentDescription(gateway: CheckoutPublicoConfig['pagamentoOnline']['gateway']) {
+function getHostedPaymentDescription(
+  gateway: CheckoutPublicoConfig['pagamentoOnline']['gateway'],
+  paymentType: 'PIX' | 'CARTAO',
+) {
   if (!gateway) {
     return 'Referencia operacional para o atendimento.'
   }
 
   if (gateway === 'MERCADO_PAGO') {
+    if (paymentType === 'PIX') {
+      return 'Pedido criado no sistema e pagamento iniciado no checkout seguro do Mercado Pago. Se houver falha, voce ainda podera gerar um QR Pix alternativo na confirmacao.'
+    }
+
     return 'Pedido criado no sistema e pagamento finalizado no checkout seguro do Mercado Pago.'
+  }
+
+  if (paymentType === 'PIX') {
+    return 'Pedido criado no sistema e pagamento finalizado no ambiente seguro da loja.'
   }
 
   return 'Pedido criado no sistema e pagamento finalizado no checkout seguro da loja.'
@@ -821,7 +832,7 @@ export function CheckoutPage() {
                     <QrCode className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">PIX</p>
-                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway)}</p>
+                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway, 'PIX')}</p>
                     </div>
                   </label>
                 ) : null}
@@ -856,7 +867,7 @@ export function CheckoutPage() {
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">Cartão crédito</p>
-                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway)}</p>
+                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway, 'CARTAO')}</p>
                     </div>
                   </label>
                 ) : null}
@@ -875,7 +886,7 @@ export function CheckoutPage() {
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="font-medium">Cartão débito</p>
-                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway)}</p>
+                      <p className="text-sm text-muted-foreground">{getHostedPaymentDescription(pagamentoOnlineGateway, 'CARTAO')}</p>
                     </div>
                   </label>
                 ) : null}

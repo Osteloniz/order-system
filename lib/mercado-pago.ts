@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 import { appLogger } from '@/lib/app-logger'
 import { getAppUrl } from '@/lib/app-url'
 import type { TipoCartao, TipoPagamento } from '@/lib/types'
@@ -41,6 +41,13 @@ type MercadoPagoPaymentResponse = {
   payment_type_id?: string | null
   date_approved?: string | null
   date_last_updated?: string | null
+  point_of_interaction?: {
+    transaction_data?: {
+      qr_code_base64?: string | null
+      qr_code?: string | null
+      ticket_url?: string | null
+    } | null
+  } | null
 }
 
 type MercadoPagoRequestInit = RequestInit & {
@@ -69,6 +76,21 @@ export function getMercadoPagoWebhookSecret() {
 
 export function getMercadoPagoWebhookUrl() {
   return `${getAppUrl()}/api/mercadopago/webhook`
+}
+
+function buildMercadoPagoPayerEmail(externalReference: string) {
+  const orderReference = externalReference.trim().replace(/[^a-z0-9-_:]/gi, '').toLowerCase() || 'pedido'
+
+  try {
+    const host = new URL(getAppUrl()).hostname.replace(/^www\./i, '').trim().toLowerCase()
+    if (host && host.includes('.') && host !== 'localhost') {
+      return `pedido+${orderReference}@${host}`
+    }
+  } catch {
+    // Fallback seguro logo abaixo.
+  }
+
+  return `pedido+${orderReference}@example.com`
 }
 
 export function getMercadoPagoLocalReuseExpiryDate() {
@@ -158,6 +180,50 @@ export async function createMercadoPagoPreference(input: {
   return {
     id: response.id,
     link: checkoutUrl,
+  }
+}
+
+export async function createMercadoPagoPixPayment(input: {
+  externalReference: string
+  amountCents: number
+  description: string
+  customerName?: string
+  notificationUrl?: string
+}) {
+  const response = await mercadoPagoRequest<MercadoPagoPaymentResponse>('/v1/payments', {
+    method: 'POST',
+    headers: {
+      'X-Idempotency-Key': randomUUID(),
+    },
+    body: JSON.stringify({
+      transaction_amount: Number((input.amountCents / 100).toFixed(2)),
+      description: input.description,
+      payment_method_id: 'pix',
+      payer: {
+        email: buildMercadoPagoPayerEmail(input.externalReference),
+        first_name: input.customerName?.trim() || undefined,
+      },
+      external_reference: input.externalReference,
+      notification_url: input.notificationUrl?.trim() || undefined,
+    }),
+  })
+
+  const transactionData = response.point_of_interaction?.transaction_data
+  const qrCode = transactionData?.qr_code?.trim() || null
+  const qrCodeBase64 = transactionData?.qr_code_base64?.trim() || null
+  const ticketUrl = transactionData?.ticket_url?.trim() || null
+
+  if (!qrCode || !qrCodeBase64) {
+    throw new Error('Mercado Pago nao retornou os dados do QR Code Pix.')
+  }
+
+  return {
+    id: String(response.id),
+    link: ticketUrl,
+    qrCode,
+    qrCodeBase64,
+    status: response.status || null,
+    statusDetail: response.status_detail || null,
   }
 }
 

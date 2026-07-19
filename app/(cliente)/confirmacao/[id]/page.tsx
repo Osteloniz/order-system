@@ -5,9 +5,9 @@ export default async function Confirmacao({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ token?: string }>
+  searchParams: Promise<{ token?: string; sync?: string }>
 }) {
   const { id } = await params
-  const { token } = await searchParams
-  return <ConfirmationPage pedidoId={id} accessToken={token} />
+  const { token, sync } = await searchParams
+  return <ConfirmationPage pedidoId={id} accessToken={token} paymentSyncPending={sync === 'pending'} />
 }

@@ -6,6 +6,7 @@ import { getTokenPepper, safeEqualString } from '@/lib/auth-security'
 
 const PUBLIC_CUSTOMER_ACCESS_COOKIE_NAME = 'brookie.customer-access'
 const PUBLIC_CUSTOMER_ACCESS_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
+let hasWarnedMissingPublicCustomerSecret = false
 
 type PublicCustomerAccessPayload = {
   tenantId: string
@@ -23,15 +24,22 @@ function normalizePhoneContact(value?: string | null) {
 }
 
 function getPublicCustomerAccessSecret() {
-  return (
+  const secret =
     process.env.NEXTAUTH_SECRET?.trim() ||
-    getTokenPepper() ||
-    'brookie-public-customer-access'
-  )
+    getTokenPepper()
+
+  if (!secret && !hasWarnedMissingPublicCustomerSecret) {
+    hasWarnedMissingPublicCustomerSecret = true
+    console.warn('[public-customer-access] NEXTAUTH_SECRET/TOKEN_PEPPER ausente; cookie publico por telefone sera desativado ate a configuracao correta.')
+  }
+
+  return secret || ''
 }
 
-function signPublicCustomerAccessPayload(encodedPayload: string) {
-  return createHmac('sha256', getPublicCustomerAccessSecret())
+function signPublicCustomerAccessPayload(encodedPayload: string, secret: string) {
+  if (!secret) return ''
+
+  return createHmac('sha256', secret)
     .update(encodedPayload)
     .digest('hex')
 }
@@ -53,8 +61,9 @@ export function createPublicCustomerAccessToken(input: {
   phone: string
   expiresAt?: Date
 }) {
+  const secret = getPublicCustomerAccessSecret()
   const normalizedPhone = normalizePhoneContact(input.phone)
-  if (!normalizedPhone) return ''
+  if (!normalizedPhone || !secret) return ''
 
   const expiresAt = input.expiresAt ?? new Date(Date.now() + PUBLIC_CUSTOMER_ACCESS_MAX_AGE_SECONDS * 1000)
   const payload = encodePublicCustomerAccessPayload({
@@ -63,7 +72,7 @@ export function createPublicCustomerAccessToken(input: {
     exp: expiresAt.getTime(),
   })
 
-  return `${payload}.${signPublicCustomerAccessPayload(payload)}`
+  return `${payload}.${signPublicCustomerAccessPayload(payload, secret)}`
 }
 
 export function setPublicCustomerAccessCookie(response: NextResponse, tenantId: string, phone?: string | null) {
@@ -94,13 +103,16 @@ export function clearPublicCustomerAccessCookie(response: NextResponse) {
 }
 
 export function getPublicCustomerAccessPhone(request: NextRequest, tenantId: string) {
+  const secret = getPublicCustomerAccessSecret()
+  if (!secret) return ''
+
   const rawToken = request.cookies.get(PUBLIC_CUSTOMER_ACCESS_COOKIE_NAME)?.value?.trim() || ''
   if (!rawToken) return ''
 
   const [encodedPayload, signature] = rawToken.split('.', 2)
   if (!encodedPayload || !signature) return ''
 
-  const expectedSignature = signPublicCustomerAccessPayload(encodedPayload)
+  const expectedSignature = signPublicCustomerAccessPayload(encodedPayload, secret)
   if (!safeEqualString(signature, expectedSignature)) return ''
 
   const payload = decodePublicCustomerAccessPayload(encodedPayload)
