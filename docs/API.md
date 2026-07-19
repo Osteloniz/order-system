@@ -35,7 +35,8 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: para `ENCOMENDA`, a data pode ser definida pelo cliente ou fixada pelo admin nas configuracoes.
   - Observacao: para pagamento em `CARTAO`, o checkout publico pode exigir a escolha entre `CREDITO` e `DEBITO`, conforme configuracao.
   - Observacao: pedidos novos passam a receber o acesso publico por cookie `HttpOnly` no navegador do cliente; o token nao deve mais aparecer em URL nem depender de armazenamento em `localStorage`.
-  - Observacao: quando houver gateway online configurado (`ASAAS` ou `MERCADO_PAGO`), pedidos com `PIX` ou `CARTAO` criam tambem um checkout hospedado e retornam `pagamentoOnline` com o link de pagamento.
+  - Observacao: quando houver gateway online configurado (`ASAAS` ou `MERCADO_PAGO`), pedidos com `PIX` ou `CARTAO` iniciam tambem o fluxo online e retornam `pagamentoOnline`.
+  - Observacao: na configuracao atual com Mercado Pago, `CARTAO` segue usando Checkout Pro, enquanto `PIX` usa a API direta como fluxo principal e retorna QR Code + codigo copia-e-cola para pagamento sem depender do checkout hospedado.
   - Observacao: o checkout hospedado deve refletir o valor final salvo do pedido, incluindo frete e descontos aplicados no proprio pedido, sem divergencia para o preco cheio dos itens.
   - Observacao: a validacao de disponibilidade agora tambem considera pedidos comprometidos que ainda nao tenham virado reserva formal no estoque, como protecao adicional contra oversell.
   - Observacao: se a conta Asaas nao tiver chave Pix ativa, pedidos em `PIX` devem ser bloqueados mesmo que a configuracao publica local esteja ligada.
@@ -49,10 +50,12 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: pedidos antigos sem `publicAccessTokenHash` nao recebem mais token novo automaticamente no primeiro acesso publico; a transicao agora falha fechada.
   - Observacao: pode retornar `pagamentoOnline` com o link atual do checkout/pagamento hospedado.
 - POST `/api/pedidos/:id/pagamento`
-  - Retoma ou renova o checkout hospedado de um pedido online.
-  - Body: `{ action: 'RESUME' | 'REFRESH_LINK' }`
+  - Retoma ou renova o pagamento online de um pedido.
+  - Body: `{ action: 'RESUME' | 'REFRESH_LINK' | 'PIX_FALLBACK' }`
   - Observacao: exige o mesmo acesso publico valido do pedido, preferencialmente via cookie `HttpOnly`.
-  - Observacao: `RESUME` reutiliza o link atual se ele ainda estiver valido; `REFRESH_LINK` so cria um novo checkout quando o atual nao puder mais ser reaproveitado.
+  - Observacao: `RESUME` segue voltado ao checkout hospedado de cartao; para Pix do Mercado Pago, o fluxo operacional deve usar QR Code/copia-e-cola direto.
+  - Observacao: `REFRESH_LINK` reaproveita o checkout atual quando possivel e, para Pix do Mercado Pago, migra pedidos antigos sem QR salvo para o fluxo direto ou devolve novamente os dados atuais do QR/copia-e-cola.
+  - Observacao: `PIX_FALLBACK` permanece apenas como compatibilidade tecnica e nao deve mais ser tratado como fluxo principal do frontend.
   - Observacao: quando o pedido tiver sido editado e a composicao financeira mudar, o estado local do checkout antigo pode ser limpo para impedir o reaproveitamento de um link com valor stale.
   - Observacao: na fase atual de HML com Mercado Pago, pedidos com link pendente ativo podem bloquear certas edicoes para evitar divergencia de cobranca.
 - PATCH `/api/pedidos/:id`

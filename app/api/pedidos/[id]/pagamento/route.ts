@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
+import { inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { ensureOrderHostedCheckout, hasReusableHostedCheckout } from '@/lib/order-payment'
 import { getPublicOrderAccessToken, isValidPublicOrderAccessToken } from '@/lib/public-order-access'
 import { doesPublicCustomerAccessMatchOrder, getPublicCustomerAccessPhone } from '@/lib/public-customer-access'
@@ -9,7 +10,7 @@ import { getTenantFromCookie } from '@/lib/tenant'
 export const runtime = 'nodejs'
 
 const pagamentoActionSchema = z.object({
-  action: z.enum(['RESUME', 'REFRESH_LINK']),
+  action: z.enum(['RESUME', 'REFRESH_LINK', 'PIX_FALLBACK']),
 }).strict()
 
 const pagamentoPedidoSelect = {
@@ -96,7 +97,30 @@ export async function POST(
       })
     }
 
-    const result = await prisma.$transaction((tx) => ensureOrderHostedCheckout(tx, pedido))
+    if (parsed.data.action === 'PIX_FALLBACK') {
+      if (pedido.pagamento !== 'PIX') {
+        return NextResponse.json({ error: 'O QR Pix alternativo so pode ser usado em pedidos Pix.' }, { status: 400 })
+      }
+
+      const currentGateway =
+        inferHostedCheckoutGateway(pedido.asaasCheckoutUrl) ||
+        ((pedido.asaasPixQrCode || pedido.asaasPixCopyPaste) ? 'MERCADO_PAGO' : null)
+
+      if (currentGateway !== 'MERCADO_PAGO') {
+        return NextResponse.json(
+          { error: 'Esse pedido nao usa Mercado Pago como gateway de pagamento.' },
+          { status: 400 },
+        )
+      }
+    }
+
+    const result = await prisma.$transaction((tx) => ensureOrderHostedCheckout(tx, pedido, {
+      forceRefresh: parsed.data.action === 'PIX_FALLBACK',
+      mercadoPagoPixMode:
+        pedido.pagamento === 'PIX' && parsed.data.action !== 'RESUME'
+          ? 'DIRECT'
+          : undefined,
+    }))
 
     return NextResponse.json({
       checkoutUrl: result.pedido.asaasCheckoutUrl,

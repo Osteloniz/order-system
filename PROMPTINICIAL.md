@@ -28,7 +28,6 @@ Use este comando base:
 - `C:\SystemOrder\AGENTS.md`
 - `C:\SystemOrder\order-system\PROJECT_CONTEXT.md`
 - `C:\SystemOrder\order-system\docs\admin-mobile-order-flow-handoff.md`
-- `C:\SystemOrder\order-system\docs\prd-go-live-asaas-dominio-checklist.md`
 - `C:\SystemOrder\order-system\docs\hml-mercado-pago-checkout-pro.md`
 - `C:\SystemOrder\order-system\SECURITY_AUTH.md`
 - `C:\SystemOrder\order-system\docs\API.md`
@@ -64,7 +63,10 @@ Use este comando base:
 - Nesta frente de menu/produtos tambem foi criada a migration `20260715110000_add_produto_novidade_flag`
 - Nesta frente de estoque/menu tambem foi criada a migration `20260715143000_add_produto_disponivel_para_encomenda`
 - Nesta frente de pagamento online tambem foi criada a migration `20260715193000_add_asaas_checkout_integration`
-- O legado antigo de Mercado Pago nao deve ser reutilizado, mas agora existe uma nova integracao de Mercado Pago Checkout Pro sobre a camada atual de checkout hospedado e ela passou a ser o gateway padrao da operacao quando `ONLINE_PAYMENT_GATEWAY="MERCADO_PAGO"`
+- O legado antigo de Mercado Pago nao deve ser reutilizado, mas agora existe uma nova integracao de Mercado Pago sobre a camada atual de checkout hospedado e ela passou a ser o gateway padrao da operacao quando `ONLINE_PAYMENT_GATEWAY="MERCADO_PAGO"`
+- Na forma atual dessa integracao, cartao segue no Checkout Pro, mas o Pix do Mercado Pago passou a usar cobranca direta por API como fluxo principal, com QR Code e copia-e-cola exibidos na confirmacao publica; a trilha antiga de Checkout Pro para Pix ficou apenas como compatibilidade tecnica e nao deve mais ser exposta como fluxo principal
+- O fluxo do Mercado Pago agora tambem deve sincronizar o status do pagamento no retorno publico do checkout sempre que houver `payment_id`, para nao depender exclusivamente do webhook assíncrono
+- A protecao de disponibilidade publica agora tambem precisa considerar uma sombra temporaria para pedidos publicos muito recentes em `FEITO`, alem da revalidacao transacional com lock das linhas de estoque no fechamento do pedido, para reduzir a brecha da ultima unidade em acessos simultaneos
 - O retorno do gateway nao deve expor diretamente o token publico do pedido para terceiros; a integracao agora usa um token separado de retorno do Asaas e depois reemite o token publico normal na confirmacao
 - Pedidos antigos sem `publicAccessTokenHash` nao devem mais receber bootstrap automatico de token no primeiro acesso anonimo; essa brecha foi fechada e qualquer compatibilidade futura precisa ser pensada de forma explicita e segura
 - Para validar Asaas localmente em sandbox, `APP_URL` nao pode ficar em `localhost`; o checkout rejeita callbacks locais, entao testes fim a fim precisam de uma URL publica temporaria e do webhook sincronizado para ela
@@ -96,7 +98,7 @@ Use este comando base:
 - O CRUD direto de clientes no admin agora nao deve mais sobrescrever silenciosamente um cadastro existente quando um novo cliente e criado com o mesmo telefone; nesse caso o backend deve retornar conflito explicito e orientar a editar o cadastro existente
 - Nesta frente de catalogo/produtos tambem foi criada a migration `20260716113000_add_produto_descontinuado_flag`
 - Existe agora um checklist operacional dedicado em `docs/prd-go-live-asaas-dominio-checklist.md` para a subida segura desta frente em PRD com dominio customizado, Vercel, migrations e configuracao do Asaas
-- Existe agora tambem `docs/hml-mercado-pago-checkout-pro.md` para a validacao gradual do Mercado Pago em HML/local, incluindo variaveis de ambiente, webhook e a observacao de que nao ha migration nova nesta etapa
+- Existe agora tambem `docs/hml-mercado-pago-checkout-pro.md` para a validacao gradual do Mercado Pago em HML/local, incluindo variaveis de ambiente, webhook, comportamento do Pix por QR Code/copia-e-cola e a observacao de que nao ha migration nova nesta etapa
 - O fluxo do kanban apos a criacao do pedido deve continuar sendo preservado; esta frente mexe no checkout e nas configuracoes, nao no pipeline central de status
 - O proximo passo natural, se quisermos continuar essa frente, e revisar detalhes finais do checkout publico e depois entrar nos ajustes pontuais do kanban sem alterar sua logica principal
 - Na camada de tenant, ausencia de cookie ainda pode usar o tenant padrao no cenario atual de marca unica, mas cookie invalido nao deve mais cair silenciosamente no tenant default

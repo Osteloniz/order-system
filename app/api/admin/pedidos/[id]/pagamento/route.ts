@@ -137,7 +137,9 @@ export async function POST(
         return NextResponse.json({ error: 'Esse pedido nao possui pagamento online.' }, { status: 400 })
       }
 
-      const result = await prisma.$transaction((tx) => ensureOrderHostedCheckout(tx, pedido))
+      const result = await prisma.$transaction((tx) => ensureOrderHostedCheckout(tx, pedido, {
+        mercadoPagoPixMode: pedido.pagamento === 'PIX' ? 'DIRECT' : undefined,
+      }))
       return NextResponse.json({
         pedido: result.pedido,
         reused: result.reused,
