@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { buildCouponExpiryDate } from '@/lib/coupon-expiry'
 
 export const runtime = 'nodejs'
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     const tipo = body.tipo
     const valor = Number(body.valor)
     const maxUsos = Number(body.maxUsos)
-    const expiraEm = new Date(body.expiraEm)
+    const expiraEm = buildCouponExpiryDate(typeof body.expiraEm === 'string' ? body.expiraEm : null)
 
     if (!codigo || (tipo !== 'FIXO' && tipo !== 'PERCENTUAL')) {
       return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })

@@ -19,6 +19,7 @@ interface CartSheetProps {
   onOpenChange: (open: boolean) => void
   onCheckout: () => void
   canCheckout?: boolean
+  closedMessage?: string
   allowEncomendaFallback?: boolean
 }
 
@@ -27,6 +28,7 @@ export function CartSheet({
   onOpenChange,
   onCheckout,
   canCheckout = true,
+  closedMessage,
   allowEncomendaFallback = true,
 }: CartSheetProps) {
   const { itens, subtotal, atualizarQuantidade, removerItem } = useCart()
@@ -137,7 +139,7 @@ export function CartSheet({
                 </div>
                 {!checkoutLiberado && !canCheckout && (
                   <p className="text-sm text-destructive">
-                    Estamos fechados no momento. Volte em outro horário.
+                    {closedMessage || 'Estamos fechados no momento. Volte em outro horario.'}
                   </p>
                 )}
                 {forceEncomenda && !possuiIndisponivel && (

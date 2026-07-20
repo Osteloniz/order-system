@@ -32,7 +32,7 @@ import { formatarMoeda } from '@/lib/calc'
 import { getCustomerProfile, saveCustomerProfile, saveRecentOrder } from '@/lib/customer-session'
 import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
 import { resolveProductOrderMode } from '@/lib/product-availability'
-import type { CheckoutPublicoConfig, CriarPedidoPayload, PedidoPublico, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
+import type { CheckoutPublicoConfig, CriarPedidoPayload, LojaFuncionamentoStatus, PedidoPublico, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 
 interface MenuData {
   estabelecimento: string
@@ -40,6 +40,8 @@ interface MenuData {
   freteBase: number
   freteRaioKm: number
   freteKmExcedente: number
+  isOpen: boolean
+  lojaStatus: LojaFuncionamentoStatus
   checkoutPublico: CheckoutPublicoConfig
   hasActiveCoupons: boolean
 }
@@ -86,7 +88,7 @@ function getHostedPaymentDescription(
 
   if (gateway === 'MERCADO_PAGO') {
     if (paymentType === 'PIX') {
-      return 'Pedido criado no sistema e pagamento iniciado no checkout seguro do Mercado Pago. Se houver falha, voce ainda podera gerar um QR Pix alternativo na confirmacao.'
+      return 'Pedido criado no sistema e pagamento liberado por QR Code Pix e copia-e-cola na confirmacao.'
     }
 
     return 'Pedido criado no sistema e pagamento finalizado no checkout seguro do Mercado Pago.'
@@ -137,6 +139,7 @@ export function CheckoutPage() {
   const cartaoCreditoDisponivel = checkoutConfig?.pagamentos.cartaoCredito ?? true
   const cartaoDebitoDisponivel = checkoutConfig?.pagamentos.cartaoDebito ?? true
   const pagamentoOnlineGateway = checkoutConfig?.pagamentoOnline.gateway ?? null
+  const lojaFechada = menuData ? !menuData.isOpen : false
   const pagamentoUiValue =
     pagamento === 'CARTAO'
       ? (tipoCartao === 'DEBITO' ? 'CARTAO_DEBITO' : 'CARTAO_CREDITO')
@@ -356,6 +359,10 @@ export function CheckoutPage() {
       setError(`Alguns itens ficaram indisponiveis no momento: ${itensIndisponiveis.map((item) => item.produto.nome).join(', ')}.`)
       return
     }
+    if (lojaFechada) {
+      setError(menuData?.lojaStatus?.message || 'Estamos fechados no momento para novos pedidos.')
+      return
+    }
     if (forceEncomenda && tipoEntrega !== 'ENCOMENDA') {
       setError('Esse carrinho possui itens disponiveis apenas por encomenda.')
       return
@@ -443,6 +450,12 @@ export function CheckoutPage() {
       </header>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6">
+        {lojaFechada ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            {menuData?.lojaStatus?.message || 'Estamos fechados no momento para novos pedidos.'}
+          </div>
+        ) : null}
+
         <section className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/16 p-5 shadow-sm">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div className="max-w-lg">
@@ -795,7 +808,7 @@ export function CheckoutPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-2xl border border-border/70 bg-muted/15 p-4 text-sm text-muted-foreground">
-                Pix e cartao seguem para um checkout online seguro depois que o pedido for criado. Dinheiro continua combinado direto com a loja.
+                Pix gera QR Code e codigo copia-e-cola apos criar o pedido. Cartao abre o checkout seguro. Dinheiro continua combinado direto com a loja.
               </div>
 
               <RadioGroup
@@ -923,7 +936,7 @@ export function CheckoutPage() {
             </div>
           ) : null}
 
-          <Button type="submit" className="h-14 w-full rounded-2xl text-base" disabled={isSubmitting || itensIndisponiveis.length > 0}>
+          <Button type="submit" className="h-14 w-full rounded-2xl text-base" disabled={isSubmitting || itensIndisponiveis.length > 0 || lojaFechada}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />

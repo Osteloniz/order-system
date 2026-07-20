@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { LojaFuncionamentoStatus } from '@/lib/types'
 
-type TenantOption = { id: string; nome: string; slug: string; isOpen: boolean }
+type TenantOption = { id: string; nome: string; slug: string; isOpen: boolean; lojaStatus?: LojaFuncionamentoStatus }
 
 export function TenantSelectPage() {
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -50,9 +51,16 @@ export function TenantSelectPage() {
                 <CardTitle className="text-base">{t.nome}</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center justify-between">
-                <span className={`text-sm ${t.isOpen ? 'text-success' : 'text-destructive'}`}>
-                  {t.isOpen ? 'Aberto' : 'Fechado'}
-                </span>
+                <div>
+                  <span className={`text-sm ${t.isOpen ? 'text-success' : 'text-destructive'}`}>
+                    {t.lojaStatus?.statusLabel || (t.isOpen ? 'Aberto' : 'Fechado')}
+                  </span>
+                  {!t.isOpen && t.lojaStatus?.scheduleSummary ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Horario: {t.lojaStatus.scheduleSummary}
+                    </p>
+                  ) : null}
+                </div>
                 <div className="flex items-center gap-2">
                   <Button onClick={() => handleSelect(t.slug)} disabled={!t.isOpen} variant="secondary">
                     Cardápio

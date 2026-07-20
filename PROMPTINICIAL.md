@@ -57,14 +57,17 @@ Use este comando base:
 - No checkout publico, o pagamento segue sendo apenas um indicador de metodo para controle operacional; a efetivacao continua sendo tratada fora do site
 - Essa regra mudou: agora estamos iniciando a integracao de pagamento online com Asaas Checkout hospedado, preservando o fluxo do pedido local e confirmando o financeiro por webhook
 - O checkout publico agora tambem e configuravel por tenant: o admin pode ligar/desligar tipos de entrega, controlar pagamentos disponiveis e definir se `ENCOMENDA` usa data escolhida pelo cliente ou data fixa da loja
+- O checkout publico agora tambem pode seguir um horario automatico diario configurado no admin; esse horario complementa o toggle manual `aberto para pedidos`, nao o substitui: se a loja estiver fechada manualmente continua fechada, e se o horario automatico estiver ativo o menu/checkout devem bloquear pedidos fora da janela configurada no horario de Sao Paulo
 - Para pagamento com cartao no checkout publico, a interface agora permite expor `credito`, `debito` ou ambos, espelhando melhor o fluxo do pedido manual
 - Nesta passada houve alteracao em `prisma/schema.prisma` e foi criada a migration `20260713113000_add_public_checkout_controls_to_configuracao`
+- Nesta frente do horario automatico do checkout publico tambem foi criada a migration `20260719193000_add_public_checkout_hours_to_configuracao`
 - Nesta frente de seguranca do checkout publico tambem foi criada a migration `20260713170000_add_public_order_access_token`
 - Nesta frente de menu/produtos tambem foi criada a migration `20260715110000_add_produto_novidade_flag`
 - Nesta frente de estoque/menu tambem foi criada a migration `20260715143000_add_produto_disponivel_para_encomenda`
 - Nesta frente de pagamento online tambem foi criada a migration `20260715193000_add_asaas_checkout_integration`
 - O legado antigo de Mercado Pago nao deve ser reutilizado, mas agora existe uma nova integracao de Mercado Pago sobre a camada atual de checkout hospedado e ela passou a ser o gateway padrao da operacao quando `ONLINE_PAYMENT_GATEWAY="MERCADO_PAGO"`
 - Na forma atual dessa integracao, cartao segue no Checkout Pro, mas o Pix do Mercado Pago passou a usar cobranca direta por API como fluxo principal, com QR Code e copia-e-cola exibidos na confirmacao publica; a trilha antiga de Checkout Pro para Pix ficou apenas como compatibilidade tecnica e nao deve mais ser exposta como fluxo principal
+- O payload tecnico do Pix direto do Mercado Pago foi endurecido para evitar falhas de criacao por identificadores invalidos; qualquer ajuste futuro nessa trilha deve preservar e-mail tecnico curto/seguro e continuar tratando webhook apenas como confirmacao posterior, nao como etapa de geracao da cobranca
 - O fluxo do Mercado Pago agora tambem deve sincronizar o status do pagamento no retorno publico do checkout sempre que houver `payment_id`, para nao depender exclusivamente do webhook assíncrono
 - A protecao de disponibilidade publica agora tambem precisa considerar uma sombra temporaria para pedidos publicos muito recentes em `FEITO`, alem da revalidacao transacional com lock das linhas de estoque no fechamento do pedido, para reduzir a brecha da ultima unidade em acessos simultaneos
 - O retorno do gateway nao deve expor diretamente o token publico do pedido para terceiros; a integracao agora usa um token separado de retorno do Asaas e depois reemite o token publico normal na confirmacao
@@ -100,6 +103,8 @@ Use este comando base:
 - Existe agora um checklist operacional dedicado em `docs/prd-go-live-asaas-dominio-checklist.md` para a subida segura desta frente em PRD com dominio customizado, Vercel, migrations e configuracao do Asaas
 - Existe agora tambem `docs/hml-mercado-pago-checkout-pro.md` para a validacao gradual do Mercado Pago em HML/local, incluindo variaveis de ambiente, webhook, comportamento do Pix por QR Code/copia-e-cola e a observacao de que nao ha migration nova nesta etapa
 - O fluxo do kanban apos a criacao do pedido deve continuar sendo preservado; esta frente mexe no checkout e nas configuracoes, nao no pipeline central de status
+- O CRUD de cupons agora deve tratar `expiraEm` como opcional na operacao do admin, usando apenas data sem hora; em branco significa cupom sem expiracao, sem exigir migration nova nesta fase
+- O seletor de tenant publico, o menu, o carrinho, o checkout e a API de criacao de pedido agora precisam continuar usando o mesmo conceito de `loja aberta efetiva`; nao vale reintroduzir verificacoes isoladas apenas em cima de `tenant.isOpen`
 - O proximo passo natural, se quisermos continuar essa frente, e revisar detalhes finais do checkout publico e depois entrar nos ajustes pontuais do kanban sem alterar sua logica principal
 - Na camada de tenant, ausencia de cookie ainda pode usar o tenant padrao no cenario atual de marca unica, mas cookie invalido nao deve mais cair silenciosamente no tenant default
 

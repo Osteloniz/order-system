@@ -98,6 +98,9 @@ type ConfiguracaoWithNullableMessages = {
   checkoutPublicoPagamentoCartao?: Configuracao['checkoutPublicoPagamentoCartao']
   checkoutPublicoPagamentoCartaoCredito?: Configuracao['checkoutPublicoPagamentoCartaoCredito']
   checkoutPublicoPagamentoCartaoDebito?: Configuracao['checkoutPublicoPagamentoCartaoDebito']
+  checkoutPublicoHorarioAtivo?: Configuracao['checkoutPublicoHorarioAtivo']
+  checkoutPublicoHorarioAbertura?: Configuracao['checkoutPublicoHorarioAbertura']
+  checkoutPublicoHorarioFechamento?: Configuracao['checkoutPublicoHorarioFechamento']
   mensagemStatusAceito?: string | null
   mensagemStatusPreparacao?: string | null
   mensagemStatusEntregue?: string | null
@@ -134,6 +137,9 @@ export function hydrateConfigWithMessageDefaults(config: ConfiguracaoWithNullabl
     checkoutPublicoPagamentoCartao: config?.checkoutPublicoPagamentoCartao ?? true,
     checkoutPublicoPagamentoCartaoCredito: config?.checkoutPublicoPagamentoCartaoCredito ?? true,
     checkoutPublicoPagamentoCartaoDebito: config?.checkoutPublicoPagamentoCartaoDebito ?? true,
+    checkoutPublicoHorarioAtivo: config?.checkoutPublicoHorarioAtivo ?? false,
+    checkoutPublicoHorarioAbertura: config?.checkoutPublicoHorarioAbertura ?? null,
+    checkoutPublicoHorarioFechamento: config?.checkoutPublicoHorarioFechamento ?? null,
     mensagemStatusAceito: sanitizeTemplate(config?.mensagemStatusAceito, defaultStatusMessageTemplates.ACEITO),
     mensagemStatusPreparacao: sanitizeTemplate(config?.mensagemStatusPreparacao, defaultStatusMessageTemplates.PREPARACAO),
     mensagemStatusEntregue: sanitizeTemplate(config?.mensagemStatusEntregue, defaultStatusMessageTemplates.ENTREGUE),

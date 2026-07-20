@@ -23,6 +23,7 @@ import { getOnlinePaymentGateway, resolvePublicCardAvailability } from '@/lib/pa
 import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
 import { resolveProductOrderMode } from '@/lib/product-availability'
 import { rateLimitPublicCheckoutByIp, rateLimitPublicCheckoutByPhone } from '@/lib/rateLimit'
+import { resolveStoreHoursStatus } from '@/lib/store-hours'
 import {
   generateAsaasReturnToken,
   generatePublicOrderAccessToken,
@@ -36,6 +37,7 @@ import {
   buildHostedCheckoutLinesFromOrder,
   buildMercadoPagoHostedCheckoutItemsFromOrder,
 } from '@/lib/order-payment'
+import { isCouponExpired } from '@/lib/coupon-expiry'
 import { getTenantFromCookie } from '@/lib/tenant'
 import type { CriarPedidoPayload } from '@/lib/types'
 
@@ -212,9 +214,6 @@ export async function POST(request: NextRequest) {
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant nao definido' }, { status: 400 })
     }
-    if (!tenant.isOpen) {
-      return NextResponse.json({ error: 'Estabelecimento fechado' }, { status: 403 })
-    }
 
     const checkoutRateByIp = rateLimitPublicCheckoutByIp(getIp(request), tenant.id)
     if (!checkoutRateByIp.allowed) {
@@ -235,6 +234,16 @@ export async function POST(request: NextRequest) {
     const configuracao = await prisma.configuracao.findFirst({
       where: { tenantId: tenant.id },
     })
+    const lojaStatus = resolveStoreHoursStatus({
+      manualIsOpen: tenant.isOpen,
+      scheduleEnabled: configuracao?.checkoutPublicoHorarioAtivo,
+      openTime: configuracao?.checkoutPublicoHorarioAbertura,
+      closeTime: configuracao?.checkoutPublicoHorarioFechamento,
+    })
+
+    if (!lojaStatus.isOpen) {
+      return NextResponse.json({ error: lojaStatus.message }, { status: 403 })
+    }
     const frete = 0
 
     const entregaReservaDisponivel = configuracao?.checkoutPublicoEntregaReservaPaulistano ?? true
@@ -403,7 +412,7 @@ export async function POST(request: NextRequest) {
       if (!cupom || !cupom.ativo) {
         return NextResponse.json({ error: 'Cupom invalido' }, { status: 400 })
       }
-      if (cupom.expiraEm <= agora) {
+      if (isCouponExpired(cupom.expiraEm, agora)) {
         return NextResponse.json({ error: 'Cupom expirado' }, { status: 400 })
       }
       if (cupom.usos >= cupom.maxUsos) {

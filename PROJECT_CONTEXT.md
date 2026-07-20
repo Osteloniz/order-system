@@ -19,7 +19,9 @@
 - Stock and production were then consolidated into a single canonical admin screen at `admin/estoque`; `admin/producao` now exists only as a compatibility redirect, and the batch modal there should stay list-based with per-flavor checkbox enablement for mobile safety.
 - Public checkout now has a secure Asaas-hosted online payment foundation: the order is created first in the local system, online payments use Asaas Checkout plus Webhooks for confirmation, and the old Mercado Pago fields were replaced by explicit Asaas payment fields.
 - The online-payment layer is gateway-configurable and now defaults operationally to Mercado Pago through `ONLINE_PAYMENT_GATEWAY=MERCADO_PAGO`, while Asaas remains supported for legacy links and controlled fallback without adding a new migration in this phase.
+- Public order intake now also supports a daily automatic open-hours window on top of the manual store toggle: manual close still wins, but when the schedule is enabled the menu and checkout must respect the configured Sao Paulo time range automatically.
 - In the current Mercado Pago shape, card payments still use Checkout Pro, while Pix now uses the direct payment API as the primary flow, exposing QR Code plus copy-paste data in the public confirmation without depending on hosted checkout login.
+- The direct Mercado Pago Pix payload was hardened again: its technical payer email is now derived from a short safe hash instead of the raw external reference, avoiding invalid local-parts and length issues that could make Pix creation fail even when card checkout still works.
 - Mercado Pago status synchronization no longer depends only on the webhook: the public return route can now also reconcile the payment by `payment_id` after a successful Checkout Pro redirect, reducing the chance of a paid order staying visually pending when the async notification lags or fails.
 - Public payment callbacks no longer need to carry the order access token to Asaas; a separate hashed return token is used for the gateway redirect, and the confirmation page then rotates back to a normal public order token.
 - Public order access was hardened again: new orders now persist access through an order-scoped `HttpOnly` cookie instead of exposing the token in the confirmation URL or keeping it in localStorage; header/query token input remains only as a compatibility path for controlled transitions.
@@ -29,6 +31,7 @@
 - Local sandbox validation for Asaas now also depends on a public `APP_URL` for callback acceptance; localhost callbacks are rejected by Checkout creation, so tunnel-based testing (for example Cloudflare Quick Tunnel) must update both the webhook target and the local `APP_URL`.
 - The public checkout must not offer Pix through Asaas Checkout when the authenticated Asaas account has no active Pix key; the menu and order-creation flow now verify this capability and hide/block Pix automatically.
 - The customer-facing flow should now follow the device/system theme by default, but still without exposing a manual theme switch in the public experience.
+- The public menu, tenant picker, cart and checkout now consume one shared effective store status contract, so any future change to opening-hours logic must keep those entry points aligned with the same helper instead of duplicating local checks.
 - Payment recovery now has a safer operational path: the public confirmation screen can resume the current Asaas checkout or request a renewed link, while the admin kanban can copy, revalidate, and resend payment links via WhatsApp using the same server-side checkout guard.
 - To avoid duplicate charges, the system now reuses an active hosted checkout whenever possible and blocks payment-method switches while an online link is still active; switching methods becomes possible again after expiration or when no reusable checkout remains.
 - The admin kanban now also has a payment-linked intermediate status `PRONTO_ENTREGA`: in-stock orders can jump there directly after payment approval, while `PREPARACAO` is now mainly the real production stage for `ENCOMENDA`; if approval is reverted before delivery, regular orders fall back to `ACEITO` and `ENCOMENDA` falls back to `PREPARACAO`.
@@ -57,6 +60,7 @@
 - Customers: customer history, gift tracking (`mimosEntregues`), phone, and WhatsApp data.
 - Loyalty rule: every 14 cookies purchased generates 1 `mimo`, and each delivered `mimo` should be accounted for as stock output without creating receivables.
 - Coupons and configuration: discount validation, store settings, and WhatsApp message templates.
+- Coupons now accept an optional expiration date in admin: the UI uses date-only input, leaving it blank means "sem expiracao", and the backend preserves that behavior without requiring a schema migration in this phase.
 
 ## Key Technical Files
 - `app/`: routes, pages, and API handlers.
@@ -102,6 +106,7 @@
 - Before HML/PRD validation or deploy of this feature line, apply the migration and regenerate Prisma Client.
 - Supporting local sandbox scripts now include `scripts/asaas-sandbox-webhook.mjs` for webhook sync, `scripts/asaas-checkout-smoke.mjs` for direct checkout capability tests, and `scripts/asaas-pix-key.mjs` to inspect or create a sandbox Pix key when needed.
 - Mercado Pago HML instructions now live in `docs/hml-mercado-pago-checkout-pro.md`, including the env switch, webhook secret, the Pix QR/copy-paste path, and the no-migration note for this phase.
+- The automatic public-hours control adds Prisma fields `Configuracao.checkoutPublicoHorarioAtivo`, `Configuracao.checkoutPublicoHorarioAbertura`, and `Configuracao.checkoutPublicoHorarioFechamento`, with migration `20260719193000_add_public_checkout_hours_to_configuracao`.
 - The admin kanban now also shows the active hosted-payment gateway badge (`Asaas` or `Mercado Pago`) on cards and in the order detail sheet, and it now exposes an admin-only checkout summary block so operations can quickly see which provider is being used and how many online payments are pending.
 
 ## Current Exceptions And Defaults

@@ -58,6 +58,9 @@ const configSchema = z.object({
   checkoutPublicoPagamentoCartao: z.boolean().optional(),
   checkoutPublicoPagamentoCartaoCredito: z.boolean().optional(),
   checkoutPublicoPagamentoCartaoDebito: z.boolean().optional(),
+  checkoutPublicoHorarioAtivo: z.boolean().optional(),
+  checkoutPublicoHorarioAbertura: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable().optional(),
+  checkoutPublicoHorarioFechamento: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable().optional(),
   mensagemStatusAceito: z.string().trim().min(1).max(4000).optional(),
   mensagemStatusPreparacao: z.string().trim().min(1).max(4000).optional(),
   mensagemStatusEntregue: z.string().trim().min(1).max(4000).optional()
@@ -118,6 +121,36 @@ const configSchema = z.object({
       message: 'Informe a data fixa quando a encomenda estiver travada pela configuracao',
     })
   }
+
+  if (data.checkoutPublicoHorarioAtivo) {
+    if (!data.checkoutPublicoHorarioAbertura) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['checkoutPublicoHorarioAbertura'],
+        message: 'Informe o horario de abertura quando o horario automatico estiver ativo',
+      })
+    }
+
+    if (!data.checkoutPublicoHorarioFechamento) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['checkoutPublicoHorarioFechamento'],
+        message: 'Informe o horario de fechamento quando o horario automatico estiver ativo',
+      })
+    }
+
+    if (
+      data.checkoutPublicoHorarioAbertura &&
+      data.checkoutPublicoHorarioFechamento &&
+      data.checkoutPublicoHorarioAbertura === data.checkoutPublicoHorarioFechamento
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['checkoutPublicoHorarioFechamento'],
+        message: 'Abertura e fechamento nao podem ser iguais no horario automatico',
+      })
+    }
+  }
 })
 
 // GET /api/admin/config - Retorna configuracoes
@@ -158,6 +191,9 @@ export async function GET() {
           checkoutPublicoPagamentoCartao: true,
           checkoutPublicoPagamentoCartaoCredito: true,
           checkoutPublicoPagamentoCartaoDebito: true,
+          checkoutPublicoHorarioAtivo: false,
+          checkoutPublicoHorarioAbertura: null,
+          checkoutPublicoHorarioFechamento: null,
           tenantId: admin.tenantId
         }
       })
@@ -226,6 +262,13 @@ export async function PUT(request: NextRequest) {
           checkoutPublicoPagamentoCartaoDebito: body.checkoutPublicoPagamentoCartao === false
             ? false
             : (body.checkoutPublicoPagamentoCartaoDebito ?? true),
+          checkoutPublicoHorarioAtivo: body.checkoutPublicoHorarioAtivo ?? false,
+          checkoutPublicoHorarioAbertura: body.checkoutPublicoHorarioAtivo
+            ? (body.checkoutPublicoHorarioAbertura ?? null)
+            : null,
+          checkoutPublicoHorarioFechamento: body.checkoutPublicoHorarioAtivo
+            ? (body.checkoutPublicoHorarioFechamento ?? null)
+            : null,
           mensagemStatusAceito: body.mensagemStatusAceito,
           mensagemStatusPreparacao: body.mensagemStatusPreparacao,
           mensagemStatusEntregue: body.mensagemStatusEntregue,
@@ -278,6 +321,17 @@ export async function PUT(request: NextRequest) {
               ? (body.checkoutPublicoPagamentoCartaoDebito ?? configuracao.checkoutPublicoPagamentoCartaoDebito)
               : false)
           : (body.checkoutPublicoPagamentoCartaoDebito ?? configuracao.checkoutPublicoPagamentoCartaoDebito),
+        checkoutPublicoHorarioAtivo: body.checkoutPublicoHorarioAtivo ?? configuracao.checkoutPublicoHorarioAtivo,
+        checkoutPublicoHorarioAbertura: body.checkoutPublicoHorarioAtivo !== undefined
+          ? (body.checkoutPublicoHorarioAtivo
+              ? (body.checkoutPublicoHorarioAbertura ?? configuracao.checkoutPublicoHorarioAbertura)
+              : null)
+          : (body.checkoutPublicoHorarioAbertura ?? configuracao.checkoutPublicoHorarioAbertura),
+        checkoutPublicoHorarioFechamento: body.checkoutPublicoHorarioAtivo !== undefined
+          ? (body.checkoutPublicoHorarioAtivo
+              ? (body.checkoutPublicoHorarioFechamento ?? configuracao.checkoutPublicoHorarioFechamento)
+              : null)
+          : (body.checkoutPublicoHorarioFechamento ?? configuracao.checkoutPublicoHorarioFechamento),
         mensagemStatusAceito: body.mensagemStatusAceito ?? configuracao.mensagemStatusAceito,
         mensagemStatusPreparacao: body.mensagemStatusPreparacao ?? configuracao.mensagemStatusPreparacao,
         mensagemStatusEntregue: body.mensagemStatusEntregue ?? configuracao.mensagemStatusEntregue
