@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { buildCouponExpiryDate } from '@/lib/coupon-expiry'
 
 export const runtime = 'nodejs'
 
@@ -27,7 +28,9 @@ export async function PUT(
     const tipo = body.tipo ?? cupom.tipo
     const valor = body.valor !== undefined ? Number(body.valor) : cupom.valor
     const maxUsos = body.maxUsos !== undefined ? Number(body.maxUsos) : cupom.maxUsos
-    const expiraEm = body.expiraEm ? new Date(body.expiraEm) : cupom.expiraEm
+    const expiraEm = body.expiraEm !== undefined
+      ? buildCouponExpiryDate(typeof body.expiraEm === 'string' ? body.expiraEm : null)
+      : cupom.expiraEm
     const ativo = body.ativo !== undefined ? Boolean(body.ativo) : cupom.ativo
 
     if (!codigo || (tipo !== 'FIXO' && tipo !== 'PERCENTUAL')) {

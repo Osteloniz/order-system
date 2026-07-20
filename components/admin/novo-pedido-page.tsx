@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useIsMobile } from '@/components/ui/use-mobile'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
+import { isCouponExpired } from '@/lib/coupon-expiry'
 import { formatPhoneInput, isValidPhone, normalizePhone } from '@/lib/phone'
 import type { Cliente, Configuracao, Cupom, Pedido, Produto, SeparacaoResponsavelPessoa, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -105,7 +106,7 @@ function calcularDescontoCupom(subtotal: number, cupomCodigo: string, cupons?: C
   if (!cupom.ativo) return 0
 
   const agora = Date.now()
-  if (new Date(cupom.expiraEm).getTime() <= agora) return 0
+  if (isCouponExpired(cupom.expiraEm, new Date(agora))) return 0
   if (cupom.usos >= cupom.maxUsos && cupom.codigo !== currentCouponCode) return 0
 
   const bruto = cupom.tipo === 'PERCENTUAL'

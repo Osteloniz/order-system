@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { loadShadowCommittedQuantityMap } from '@/lib/order-stock'
 import { resolvePublicCardAvailability } from '@/lib/payment-gateway'
 import { resolveProductOrderMode } from '@/lib/product-availability'
+import { resolveStoreHoursStatus } from '@/lib/store-hours'
 import { getTenantFromCookie } from '@/lib/tenant'
 
 export const runtime = 'nodejs'
@@ -24,6 +25,8 @@ function getDefaultMenuPayload() {
     cartaoDebitoHabilitado: true,
   })
 
+  const lojaStatus = resolveStoreHoursStatus({ manualIsOpen: true })
+
   return {
     estabelecimento: 'Brookie Pregiato',
     enderecoRetirada: 'Endereco de Retirada',
@@ -32,7 +35,8 @@ function getDefaultMenuPayload() {
     freteKmExcedente: 100,
     estabelecimentoLat: 0,
     estabelecimentoLng: 0,
-    isOpen: true,
+    isOpen: lojaStatus.isOpen,
+    lojaStatus,
     checkoutPublico: {
       entregas: {
         reservaPaulistano: true,
@@ -93,6 +97,9 @@ export async function GET() {
           checkoutPublicoPagamentoCartao: true,
           checkoutPublicoPagamentoCartaoCredito: true,
           checkoutPublicoPagamentoCartaoDebito: true,
+          checkoutPublicoHorarioAtivo: false,
+          checkoutPublicoHorarioAbertura: null,
+          checkoutPublicoHorarioFechamento: null,
           tenantId: tenant.id,
         },
       })
@@ -181,6 +188,13 @@ export async function GET() {
         ? await hasActiveAsaasPixKey()
         : true
 
+    const lojaStatus = resolveStoreHoursStatus({
+      manualIsOpen: tenant.isOpen,
+      scheduleEnabled: configuracao.checkoutPublicoHorarioAtivo,
+      openTime: configuracao.checkoutPublicoHorarioAbertura,
+      closeTime: configuracao.checkoutPublicoHorarioFechamento,
+    })
+
     return NextResponse.json({
       estabelecimento: configuracao.nomeEstabelecimento || 'Brookie Pregiato',
       enderecoRetirada: configuracao.enderecoRetirada || 'Endereco de Retirada',
@@ -189,7 +203,8 @@ export async function GET() {
       freteKmExcedente: configuracao.freteKmExcedente ?? 100,
       estabelecimentoLat: configuracao.estabelecimentoLat ?? 0,
       estabelecimentoLng: configuracao.estabelecimentoLng ?? 0,
-      isOpen: tenant.isOpen,
+      isOpen: lojaStatus.isOpen,
+      lojaStatus,
       checkoutPublico: {
         entregas: {
           reservaPaulistano: configuracao.checkoutPublicoEntregaReservaPaulistano ?? true,
@@ -210,6 +225,12 @@ export async function GET() {
         pagamentoOnline: {
           gateway: cardAvailability.gateway.gateway,
           cartaoDebitoSuportado: cardAvailability.gateway.cartaoDebitoSuportado,
+        },
+        horarioFuncionamento: {
+          ativo: configuracao.checkoutPublicoHorarioAtivo ?? false,
+          abertura: configuracao.checkoutPublicoHorarioAbertura ?? null,
+          fechamento: configuracao.checkoutPublicoHorarioFechamento ?? null,
+          resumo: lojaStatus.scheduleSummary,
         },
       },
       hasActiveCoupons,

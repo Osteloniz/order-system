@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isCouponExpired } from '@/lib/coupon-expiry'
 import { prisma } from '@/lib/db'
 import { getTenantFromCookie } from '@/lib/tenant'
 
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   if (!cupom || !cupom.ativo) {
     return NextResponse.json({ error: 'Cupom invalido' }, { status: 400 })
   }
-  if (cupom.expiraEm <= agora) {
+  if (isCouponExpired(cupom.expiraEm, agora)) {
     return NextResponse.json({ error: 'Cupom expirado' }, { status: 400 })
   }
   if (cupom.usos >= cupom.maxUsos) {

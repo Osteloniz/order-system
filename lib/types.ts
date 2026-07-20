@@ -11,6 +11,7 @@ export type StatusContaPagar = 'PENDENTE' | 'PAGO' | 'CANCELADO'
 export type EscopoCategoriaFinanceira = 'PAGAR' | 'RECEBER' | 'AMBOS'
 export type StatusDisponibilidadeProduto = 'DISPONIVEL' | 'SOMENTE_ENCOMENDA' | 'INDISPONIVEL'
 export type OnlinePaymentGateway = 'ASAAS' | 'MERCADO_PAGO'
+export type LojaClosureReason = 'MANUAL' | 'SCHEDULE'
 
 export interface Categoria {
   id: string
@@ -173,6 +174,21 @@ export interface Configuracao {
   checkoutPublicoPagamentoCartao?: boolean
   checkoutPublicoPagamentoCartaoCredito?: boolean
   checkoutPublicoPagamentoCartaoDebito?: boolean
+  checkoutPublicoHorarioAtivo?: boolean
+  checkoutPublicoHorarioAbertura?: string | null
+  checkoutPublicoHorarioFechamento?: string | null
+}
+
+export interface LojaFuncionamentoStatus {
+  isOpen: boolean
+  manualOpen: boolean
+  scheduleEnabled: boolean
+  openTime?: string | null
+  closeTime?: string | null
+  scheduleSummary?: string | null
+  closureReason?: LojaClosureReason | null
+  statusLabel: string
+  message: string
 }
 
 export interface RecentOrderReference {
@@ -200,6 +216,12 @@ export interface CheckoutPublicoConfig {
   pagamentoOnline: {
     gateway: OnlinePaymentGateway | null
     cartaoDebitoSuportado: boolean
+  }
+  horarioFuncionamento?: {
+    ativo: boolean
+    abertura?: string | null
+    fechamento?: string | null
+    resumo?: string | null
   }
 }
 

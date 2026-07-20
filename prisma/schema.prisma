@@ -126,6 +126,9 @@ model Configuracao {
   checkoutPublicoPagamentoCartao Boolean @default(true)
   checkoutPublicoPagamentoCartaoCredito Boolean @default(true)
   checkoutPublicoPagamentoCartaoDebito Boolean @default(true)
+  checkoutPublicoHorarioAtivo Boolean @default(false)
+  checkoutPublicoHorarioAbertura String?
+  checkoutPublicoHorarioFechamento String?
   mensagemStatusAceito String?
   mensagemStatusPreparacao String?
   mensagemStatusEntregue String?

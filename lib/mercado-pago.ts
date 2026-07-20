@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'crypto'
 import { appLogger } from '@/lib/app-logger'
 import { getAppUrl } from '@/lib/app-url'
 import type { TipoCartao, TipoPagamento } from '@/lib/types'
@@ -79,18 +79,22 @@ export function getMercadoPagoWebhookUrl() {
 }
 
 function buildMercadoPagoPayerEmail(externalReference: string) {
-  const orderReference = externalReference.trim().replace(/[^a-z0-9-_:]/gi, '').toLowerCase() || 'pedido'
+  const hashedReference =
+    createHash('sha1')
+      .update(externalReference.trim().toLowerCase() || 'pedido')
+      .digest('hex')
+      .slice(0, 24) || 'pedido'
 
   try {
     const host = new URL(getAppUrl()).hostname.replace(/^www\./i, '').trim().toLowerCase()
     if (host && host.includes('.') && host !== 'localhost') {
-      return `pedido+${orderReference}@${host}`
+      return `pedido-${hashedReference}@${host}`
     }
   } catch {
     // Fallback seguro logo abaixo.
   }
 
-  return `pedido+${orderReference}@example.com`
+  return `pedido-${hashedReference}@example.com`
 }
 
 export function getMercadoPagoLocalReuseExpiryDate() {

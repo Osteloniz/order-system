@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertSoundEnabled, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import type { Configuracao, ModoEncomendaCheckout, TipoCartao, TipoEntrega, TipoPagamento } from '@/lib/types'
 import { getDefaultStatusTemplate, hydrateConfigWithMessageDefaults, statusMessageTemplateFields, supportedStatusTemplateVariables } from '@/lib/message-templates'
+import { resolveStoreHoursStatus } from '@/lib/store-hours'
 
 function formatDateInputValue(value?: string | null) {
   if (!value) return ''
@@ -57,7 +58,17 @@ export function ConfigPage() {
   const { data: rawConfig, error: configError, isLoading } = useSWR<Configuracao>('/api/admin/config', fetcher, {
     revalidateOnFocus: false,
   })
-  const { data: tenantData, error: tenantError } = useSWR<{ isOpen: boolean; slug?: string; nome?: string }>('/api/admin/tenant', fetcher, {
+  const { data: tenantData, error: tenantError } = useSWR<{
+    isOpen: boolean
+    slug?: string
+    nome?: string
+    effectiveIsOpen?: boolean
+    closureReason?: 'MANUAL' | 'SCHEDULE' | null
+    scheduleEnabled?: boolean
+    scheduleSummary?: string | null
+    statusLabel?: string
+    statusMessage?: string
+  }>('/api/admin/tenant', fetcher, {
     revalidateOnFocus: false,
   })
   const config = rawConfig ? hydrateConfigWithMessageDefaults(rawConfig) : null
@@ -81,6 +92,9 @@ export function ConfigPage() {
   const [checkoutPublicoPagamentoCartao, setCheckoutPublicoPagamentoCartao] = useState(true)
   const [checkoutPublicoPagamentoCartaoCredito, setCheckoutPublicoPagamentoCartaoCredito] = useState(true)
   const [checkoutPublicoPagamentoCartaoDebito, setCheckoutPublicoPagamentoCartaoDebito] = useState(true)
+  const [checkoutPublicoHorarioAtivo, setCheckoutPublicoHorarioAtivo] = useState(false)
+  const [checkoutPublicoHorarioAbertura, setCheckoutPublicoHorarioAbertura] = useState('')
+  const [checkoutPublicoHorarioFechamento, setCheckoutPublicoHorarioFechamento] = useState('')
   const [mensagemStatusAceito, setMensagemStatusAceito] = useState('')
   const [mensagemStatusPreparacao, setMensagemStatusPreparacao] = useState('')
   const [mensagemStatusEntregue, setMensagemStatusEntregue] = useState('')
@@ -98,6 +112,12 @@ export function ConfigPage() {
   const tenantHydratedRef = useRef(false)
   const publicCatalogUrl = baseUrl || '/'
   const adminLoginUrl = baseUrl ? `${baseUrl}/admin/login` : '/admin/login'
+  const lojaStatus = resolveStoreHoursStatus({
+    manualIsOpen: isOpen,
+    scheduleEnabled: checkoutPublicoHorarioAtivo,
+    openTime: checkoutPublicoHorarioAbertura,
+    closeTime: checkoutPublicoHorarioFechamento,
+  })
   const permissionLabel = notificationPermission === 'granted' ? 'permitida' : notificationPermission === 'denied' ? 'bloqueada' : notificationPermission === 'default' ? 'pendente' : 'nao suportada'
   const permissionTone = notificationPermission === 'granted' ? 'border-success/25 bg-success/10 text-success dark:bg-success/20 dark:text-white' : notificationPermission === 'denied' ? 'border-destructive/25 bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-white' : 'border-warning/25 bg-warning/10 text-warning-foreground dark:bg-warning/20 dark:text-white'
 
@@ -149,6 +169,9 @@ export function ConfigPage() {
       setCheckoutPublicoPagamentoCartao(config.checkoutPublicoPagamentoCartao ?? true)
       setCheckoutPublicoPagamentoCartaoCredito(config.checkoutPublicoPagamentoCartaoCredito ?? true)
       setCheckoutPublicoPagamentoCartaoDebito(config.checkoutPublicoPagamentoCartaoDebito ?? true)
+      setCheckoutPublicoHorarioAtivo(config.checkoutPublicoHorarioAtivo ?? false)
+      setCheckoutPublicoHorarioAbertura(config.checkoutPublicoHorarioAbertura ?? '')
+      setCheckoutPublicoHorarioFechamento(config.checkoutPublicoHorarioFechamento ?? '')
       setMensagemStatusAceito(config.mensagemStatusAceito)
       setMensagemStatusPreparacao(config.mensagemStatusPreparacao)
       setMensagemStatusEntregue(config.mensagemStatusEntregue)
@@ -226,6 +249,9 @@ export function ConfigPage() {
       checkoutPublicoPagamentoCartao,
       checkoutPublicoPagamentoCartaoCredito,
       checkoutPublicoPagamentoCartaoDebito,
+      checkoutPublicoHorarioAtivo,
+      checkoutPublicoHorarioAbertura: checkoutPublicoHorarioAtivo ? checkoutPublicoHorarioAbertura || null : null,
+      checkoutPublicoHorarioFechamento: checkoutPublicoHorarioAtivo ? checkoutPublicoHorarioFechamento || null : null,
       mensagemStatusAceito: mensagemStatusAceito.trim(),
       mensagemStatusPreparacao: mensagemStatusPreparacao.trim(),
       mensagemStatusEntregue: mensagemStatusEntregue.trim()
@@ -311,7 +337,7 @@ export function ConfigPage() {
             <div className="rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Loja</p>
               <p className="mt-1 font-semibold">{nomeEstabelecimento || 'Não configurado'}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{isOpen ? 'Aberta para pedidos' : 'Fechada no checkout'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{lojaStatus.statusLabel}</p>
             </div>
             <div className="rounded-2xl border bg-background/80 p-4">
               <p className="text-xs text-muted-foreground">Alertas</p>
@@ -381,7 +407,7 @@ export function ConfigPage() {
                   <div>
                     <Label htmlFor="aberto">Aberto para pedidos</Label>
                     <p className="text-xs text-muted-foreground">
-                      Quando fechado, o cliente não consegue finalizar pedidos.
+                      Controle manual principal. Quando desligado, bloqueia o checkout independentemente do horario automatico.
                     </p>
                   </div>
                   <Switch
@@ -394,14 +420,71 @@ export function ConfigPage() {
                   />
                 </div>
 
+                <div className="rounded-xl border border-border/70 bg-background p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <Label htmlFor="horario-automatico">Horario automatico</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Se ligado, a loja abre e fecha sozinha todos os dias no horario informado.
+                      </p>
+                    </div>
+                    <Switch
+                      id="horario-automatico"
+                      checked={checkoutPublicoHorarioAtivo}
+                      onCheckedChange={(value) => {
+                        setCheckoutPublicoHorarioAtivo(value)
+                        setIsDirty(true)
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="horario-abertura">Abre as</Label>
+                      <Input
+                        id="horario-abertura"
+                        type="time"
+                        value={checkoutPublicoHorarioAbertura}
+                        disabled={!checkoutPublicoHorarioAtivo}
+                        onChange={(event) => {
+                          setCheckoutPublicoHorarioAbertura(event.target.value)
+                          setIsDirty(true)
+                        }}
+                        className="h-11 rounded-2xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="horario-fechamento">Fecha as</Label>
+                      <Input
+                        id="horario-fechamento"
+                        type="time"
+                        value={checkoutPublicoHorarioFechamento}
+                        disabled={!checkoutPublicoHorarioAtivo}
+                        onChange={(event) => {
+                          setCheckoutPublicoHorarioFechamento(event.target.value)
+                          setIsDirty(true)
+                        }}
+                        className="h-11 rounded-2xl"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Se o fechamento for menor que a abertura, o sistema entende que o atendimento vira a madrugada.
+                  </p>
+                </div>
+
                 <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">Estado atual da loja</p>
-                      <p className="mt-1 text-muted-foreground">{isOpen ? 'Checkout liberado para clientes.' : 'Checkout bloqueado ate reabrir a loja.'}</p>
+                      <p className="mt-1 text-muted-foreground">{lojaStatus.message}</p>
+                      {lojaStatus.scheduleSummary ? (
+                        <p className="mt-1 text-xs text-muted-foreground">Horario configurado: {lojaStatus.scheduleSummary}</p>
+                      ) : null}
                     </div>
-                    <Badge variant="outline" className={isOpen ? 'border-success/25 bg-success/10 text-success dark:bg-success/20 dark:text-white' : 'border-warning/25 bg-warning/10 text-warning-foreground dark:bg-warning/20 dark:text-white'}>
-                      {isOpen ? 'Aberta' : 'Fechada'}
+                    <Badge variant="outline" className={lojaStatus.isOpen ? 'border-success/25 bg-success/10 text-success dark:bg-success/20 dark:text-white' : 'border-warning/25 bg-warning/10 text-warning-foreground dark:bg-warning/20 dark:text-white'}>
+                      {lojaStatus.statusLabel}
                     </Badge>
                   </div>
                 </div>

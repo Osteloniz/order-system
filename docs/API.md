@@ -1,6 +1,6 @@
 # API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-07-17
+Ultima atualizacao: 2026-07-19
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -25,6 +25,8 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: cada produto do menu pode retornar `estoqueDisponivel`, `statusDisponibilidade` e `disponivelParaEncomenda` para o frontend respeitar venda imediata, somente encomenda ou indisponibilidade.
   - Observacao: `estoqueDisponivel` agora considera tambem um abatimento de seguranca para pedidos ja comprometidos e ainda nao refletidos como reserva formal no estoque.
   - Observacao: `checkoutPublico` agora tambem informa `pagamentoOnline`, incluindo o gateway ativo e se debito online e suportado.
+  - Observacao: a resposta agora tambem inclui `lojaStatus` e o `isOpen` efetivo, considerando o toggle manual da loja e o horario automatico diario configurado no admin.
+  - Observacao: `checkoutPublico.horarioFuncionamento` informa se o horario automatico esta ativo e qual janela diaria de atendimento foi configurada.
   - Observacao: quando o gateway online for Asaas, `pix` so deve aparecer como disponivel se a conta autenticada tiver ao menos uma chave Pix ativa.
   - Requer `tenant_slug`.
 - POST `/api/pedidos`
@@ -40,7 +42,7 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: o checkout hospedado deve refletir o valor final salvo do pedido, incluindo frete e descontos aplicados no proprio pedido, sem divergencia para o preco cheio dos itens.
   - Observacao: a validacao de disponibilidade agora tambem considera pedidos comprometidos que ainda nao tenham virado reserva formal no estoque, como protecao adicional contra oversell.
   - Observacao: se a conta Asaas nao tiver chave Pix ativa, pedidos em `PIX` devem ser bloqueados mesmo que a configuracao publica local esteja ligada.
-  - Observacao: retorna 403 se o estabelecimento estiver fechado.
+  - Observacao: retorna 403 se o estabelecimento estiver fechado, seja por fechamento manual ou por estar fora do horario automatico configurado.
 - GET `/api/cupons/validar?codigo=...&subtotal=...`
   - Valida cupom e retorna `descontoValor`.
 - GET `/api/pedidos/:id`
@@ -127,24 +129,28 @@ Produtos:
 Configuracoes:
 - GET `/api/admin/config`
 - PUT `/api/admin/config`
-  - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento?, envioAutomaticoWhatsappStatus?, mensagemStatusAceito?, mensagemStatusPreparacao?, mensagemStatusEntregue?, padraoNovoPedidoEntrega?, padraoNovoPedidoPagamento?, padraoNovoPedidoTipoCartao?, padraoNovoPedidoDescontosExpandidos?, padraoNovoPedidoObservacoesExpandidas?, padraoNovoPedidoResponsavelExpandido?, checkoutPublicoEntregaReservaPaulistano?, checkoutPublicoEntregaRetirada?, checkoutPublicoEntregaEncomenda?, checkoutPublicoEncomendaModo?, checkoutPublicoEncomendaDataFixa?, checkoutPublicoPagamentoPix?, checkoutPublicoPagamentoDinheiro?, checkoutPublicoPagamentoCartao?, checkoutPublicoPagamentoCartaoCredito?, checkoutPublicoPagamentoCartaoDebito? }`
+  - Body: `{ freteBase?, freteRaioKm?, freteKmExcedente?, estabelecimentoLat?, estabelecimentoLng?, enderecoRetirada?, nomeEstabelecimento?, envioAutomaticoWhatsappStatus?, mensagemStatusAceito?, mensagemStatusPreparacao?, mensagemStatusEntregue?, padraoNovoPedidoEntrega?, padraoNovoPedidoPagamento?, padraoNovoPedidoTipoCartao?, padraoNovoPedidoDescontosExpandidos?, padraoNovoPedidoObservacoesExpandidas?, padraoNovoPedidoResponsavelExpandido?, checkoutPublicoEntregaReservaPaulistano?, checkoutPublicoEntregaRetirada?, checkoutPublicoEntregaEncomenda?, checkoutPublicoEncomendaModo?, checkoutPublicoEncomendaDataFixa?, checkoutPublicoPagamentoPix?, checkoutPublicoPagamentoDinheiro?, checkoutPublicoPagamentoCartao?, checkoutPublicoPagamentoCartaoCredito?, checkoutPublicoPagamentoCartaoDebito?, checkoutPublicoHorarioAtivo?, checkoutPublicoHorarioAbertura?, checkoutPublicoHorarioFechamento? }`
   - Observacao: `padraoNovoPedidoTipoCartao` so deve ser enviado quando `padraoNovoPedidoPagamento = CARTAO`.
   - Observacao: pelo menos um tipo de entrega e uma forma de pagamento devem permanecer habilitados no checkout publico.
   - Observacao: quando `checkoutPublicoEncomendaModo = FIXO`, `checkoutPublicoEncomendaDataFixa` passa a ser obrigatoria.
   - Observacao: quando `checkoutPublicoPagamentoCartao = true`, pelo menos uma opcao entre credito e debito deve permanecer habilitada.
+  - Observacao: quando `checkoutPublicoHorarioAtivo = true`, `checkoutPublicoHorarioAbertura` e `checkoutPublicoHorarioFechamento` tornam-se obrigatorios no formato `HH:mm` e nao podem ser iguais.
 
 Tenant:
 - GET `/api/admin/tenant`
+  - Observacao: alem de `isOpen`, agora tambem retorna `effectiveIsOpen`, `closureReason`, `scheduleEnabled`, `scheduleSummary`, `statusLabel` e `statusMessage` para o painel refletir o estado real da loja considerando horario automatico.
 - PUT `/api/admin/tenant`
   - Body: `{ isOpen: boolean }`
 
 Cupons:
 - GET `/api/admin/cupons`
 - POST `/api/admin/cupons`
-  - Body: `{ codigo, tipo, valor, maxUsos, expiraEm }`
+  - Body: `{ codigo, tipo, valor, maxUsos, expiraEm? }`
   - Observacao: `valor` em centavos quando tipo = FIXO, ou percentual quando tipo = PERCENTUAL.
+  - Observacao: `expiraEm` agora e opcional e deve ser enviado apenas como data (`YYYY-MM-DD`); em branco, o cupom fica sem expiracao.
 - PUT `/api/admin/cupons/:id`
   - Body: `{ codigo?, tipo?, valor?, maxUsos?, expiraEm?, ativo? }`
+  - Observacao: `expiraEm` segue a mesma regra do POST e pode ser limpo para deixar o cupom sem expiracao.
 - DELETE `/api/admin/cupons/:id`
   - Observacao: falha se o cupom tiver usos > 0.
 

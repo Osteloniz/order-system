@@ -11,7 +11,7 @@ import { ProductCard } from './product-card'
 import { RecentOrders } from './recent-orders'
 import { Skeleton } from '@/components/ui/skeleton'
 import { restoreMenuScrollPosition, saveMenuScrollPosition } from '@/lib/customer-session'
-import type { CheckoutPublicoConfig, Produto, Categoria } from '@/lib/types'
+import type { CheckoutPublicoConfig, Produto, Categoria, LojaFuncionamentoStatus } from '@/lib/types'
 
 interface MenuData {
   estabelecimento: string
@@ -22,6 +22,7 @@ interface MenuData {
   estabelecimentoLat: number
   estabelecimentoLng: number
   isOpen: boolean
+  lojaStatus: LojaFuncionamentoStatus
   checkoutPublico: CheckoutPublicoConfig
   novidades: Produto[]
   indisponiveis: Produto[]
@@ -104,7 +105,7 @@ export function MenuPage() {
       {data && !data.isOpen && (
         <div className="max-w-2xl mx-auto px-4 pt-4">
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 text-destructive px-4 py-3 text-sm">
-            Estamos fechados no momento. O carrinho fica disponível, mas não é possível finalizar pedidos.
+            {data.lojaStatus?.message || 'Estamos fechados no momento. O carrinho fica disponivel, mas nao e possivel finalizar pedidos.'}
           </div>
         </div>
       )}
@@ -216,6 +217,7 @@ export function MenuPage() {
         onOpenChange={setCartOpen}
         onCheckout={handleCheckout}
         canCheckout={canCheckout}
+        closedMessage={data?.lojaStatus?.message}
         allowEncomendaFallback={data?.checkoutPublico.entregas.encomenda ?? true}
       />
     </div>

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { calcularSubtotal, calcularTotal, calcularTotalItem } from '@/lib/calc'
+import { isCouponExpired } from '@/lib/coupon-expiry'
 import { inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { shouldReserveCommonOrderStock } from '@/lib/order-stock'
 import { isStatusPedidoReservadoEncomenda } from '@/lib/order-status'
@@ -100,7 +101,7 @@ async function resolveCupom(tx: Tx, tenantId: string, cupomCodigo?: string, cupo
   if (!cupom || !cupom.ativo) {
     throw new Error('Cupom invalido')
   }
-  if (cupom.expiraEm <= agora) {
+  if (isCouponExpired(cupom.expiraEm, agora)) {
     throw new Error('Cupom expirado')
   }
   if (cupom.usos >= cupom.maxUsos && cupom.id !== cupomAtualId) {

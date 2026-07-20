@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { resolveStoreHoursStatus } from '@/lib/store-hours'
 
 export const runtime = 'nodejs'
 
@@ -38,12 +39,35 @@ export async function GET() {
       where: { id: admin.tenantId },
       select: { id: true, nome: true, slug: true, isOpen: true }
     })
+    const configuracao = await prisma.configuracao.findFirst({
+      where: { tenantId: admin.tenantId },
+      select: {
+        checkoutPublicoHorarioAtivo: true,
+        checkoutPublicoHorarioAbertura: true,
+        checkoutPublicoHorarioFechamento: true,
+      },
+    })
 
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant nao encontrado' }, { status: 404 })
     }
 
-    return NextResponse.json(tenant)
+    const funcionamento = resolveStoreHoursStatus({
+      manualIsOpen: tenant.isOpen,
+      scheduleEnabled: configuracao?.checkoutPublicoHorarioAtivo,
+      openTime: configuracao?.checkoutPublicoHorarioAbertura,
+      closeTime: configuracao?.checkoutPublicoHorarioFechamento,
+    })
+
+    return NextResponse.json({
+      ...tenant,
+      effectiveIsOpen: funcionamento.isOpen,
+      closureReason: funcionamento.closureReason,
+      scheduleEnabled: funcionamento.scheduleEnabled,
+      scheduleSummary: funcionamento.scheduleSummary,
+      statusLabel: funcionamento.statusLabel,
+      statusMessage: funcionamento.message,
+    })
   } catch (error) {
     console.error('[admin/tenant][GET] Erro ao carregar tenant:', error)
     return NextResponse.json(

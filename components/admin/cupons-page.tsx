@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarMoeda } from '@/lib/calc'
+import { formatCouponExpiryDateInput, formatCouponExpiryLabel } from '@/lib/coupon-expiry'
 import type { Cupom, TipoCupom } from '@/lib/types'
 
 const fetcher = async (url: string) => {
@@ -71,7 +72,7 @@ export function CuponsPage() {
     setTipo(cupom.tipo)
     setValor(cupom.tipo === 'FIXO' ? (cupom.valor / 100).toFixed(2).replace('.', ',') : String(cupom.valor))
     setMaxUsos(String(cupom.maxUsos))
-    setExpiraEm(cupom.expiraEm.slice(0, 16))
+    setExpiraEm(formatCouponExpiryDateInput(cupom.expiraEm))
   }, [editingId, cupons])
 
   const cuponsFiltrados = useMemo(() => {
@@ -136,19 +137,13 @@ export function CuponsPage() {
       setIsSaving(false)
       return
     }
-    if (!expiraEm) {
-      setError('Informe a data de expiracao')
-      setIsSaving(false)
-      return
-    }
-
     try {
       const payload = {
         codigo: codigo.trim().toUpperCase(),
         tipo,
         valor: valorNumero,
         maxUsos: maxUsosNumero,
-        expiraEm: new Date(expiraEm).toISOString(),
+        expiraEm: expiraEm || null,
       }
 
       const url = editingId ? `/api/admin/cupons/${editingId}` : '/api/admin/cupons'
@@ -314,12 +309,12 @@ export function CuponsPage() {
                   <Label htmlFor="expiraEm">Expira em</Label>
                   <Input
                     id="expiraEm"
-                    type="datetime-local"
+                    type="date"
                     value={expiraEm}
                     onChange={(e) => setExpiraEm(e.target.value)}
                     className="h-11 rounded-2xl"
-                    required
                   />
+                  <p className="text-xs text-muted-foreground">Opcional. Se deixar em branco, o cupom ficara sem expiracao.</p>
                 </div>
               </div>
 
@@ -413,7 +408,7 @@ export function CuponsPage() {
                       <div className="rounded-xl border border-border/70 bg-card px-3 py-2 text-sm">
                         <p className="text-xs text-muted-foreground">Expira em</p>
                         <p className="mt-1 font-semibold">
-                          {new Date(cupom.expiraEm).toLocaleString('pt-BR')}
+                          {formatCouponExpiryLabel(cupom.expiraEm)}
                         </p>
                       </div>
                     </div>
