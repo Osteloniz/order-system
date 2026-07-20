@@ -1,6 +1,6 @@
 # API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-07-19
+Ultima atualizacao: 2026-07-20
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -51,6 +51,7 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: header `x-order-access-token` e query `?token=...` seguem aceitos apenas para compatibilidade controlada.
   - Observacao: pedidos antigos sem `publicAccessTokenHash` nao recebem mais token novo automaticamente no primeiro acesso publico; a transicao agora falha fechada.
   - Observacao: pode retornar `pagamentoOnline` com o link atual do checkout/pagamento hospedado.
+  - Observacao: para Pix pendente do Mercado Pago, esta leitura agora pode reconciliar o pagamento em segundo plano e devolver o pedido ja atualizado quando o webhook estiver atrasado.
 - POST `/api/pedidos/:id/pagamento`
   - Retoma ou renova o pagamento online de um pedido.
   - Body: `{ action: 'RESUME' | 'REFRESH_LINK' | 'PIX_FALLBACK' }`
@@ -74,6 +75,7 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
   - Observacao: exige validacao da assinatura `x-signature` com o segredo configurado em `MERCADO_PAGO_WEBHOOK_SECRET`.
   - Observacao: busca o pagamento completo pela `data.id`, valida o token embutido no `external_reference` e ignora notificacoes stale.
   - Observacao: atualiza `statusPagamento` do pedido e reaproveita a mesma logica de status e estoque do kanban.
+  - Observacao: quando essa notificacao atrasar, a API publica do pedido, a listagem admin e o KDS podem executar uma reconciliacao ativa e segura para Pix pendente do Mercado Pago.
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
@@ -82,10 +84,12 @@ Autenticacao:
 
 Pedidos:
 - GET `/api/admin/pedidos?status=FEITO|ACEITO|PREPARACAO|PRONTO_ENTREGA|ENTREGUE|CANCELADO`
+  - Observacao: a leitura agora tambem pode reconciliar silenciosamente Pix pendente do Mercado Pago antes de devolver a lista, para o kanban refletir pagamentos aprovados mesmo com atraso de webhook.
 - GET `/api/admin/kds?date=YYYY-MM-DD&windowDays=0..7`
   - Retorna pedidos abertos para o painel KDS operacional.
   - Observacao: pedidos comuns entram no radar ate o fim do dia de referencia; `ENCOMENDA` aberta entra ate o horizonte configurado em `windowDays`.
   - Observacao: reaproveita os mesmos status e regras do kanban; o KDS nao cria um fluxo paralelo de negocio.
+  - Observacao: assim como o kanban, o KDS agora tambem pode reconciliar Pix pendente do Mercado Pago durante a leitura para reduzir atraso visual de status.
 - PATCH `/api/admin/pedidos/:id`
   - Edita pedido em aberto.
   - Observacao: se o pedido for online e ainda estiver pendente, mudancas em itens, desconto, frete, forma de pagamento ou dados relevantes da cobranca invalidam o checkout local anterior para que o proximo link seja gerado com o valor atualizado.
@@ -95,10 +99,8 @@ Pedidos:
   - Observacao: `REFRESH_LINK` reaproveita o checkout atual quando ainda estiver valido e so gera outro quando necessario.
   - Observacao: a troca de forma de pagamento bloqueia mudancas que possam deixar um checkout online ainda ativo e gerar cobranca duplicada.
   - Observacao: as respostas dessas acoes retornam o pedido completo para manter subtotal, desconto e total consistentes no painel admin.
-- Observacao operacional: pedidos comuns agora reservam estoque quando o compromisso fica confirmado:
-  - online: `statusPagamento = APROVADO`
-  - dinheiro: a partir de `ACEITO`
-  - entrega: continua sendo o momento da baixa definitiva
+- Observacao operacional: pedidos comuns agora reservam estoque assim que saem de `FEITO` no fluxo da loja, independentemente do metodo de pagamento.
+- Observacao operacional: a entrega continua sendo o momento da baixa definitiva.
 - PATCH `/api/admin/pedidos/:id/status`
   - Body: `{ status: StatusPedido, motivoCancelamento? }`
   - Observacao: para `CANCELADO` o motivo e obrigatorio.

@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { prisma } from '@/lib/db'
 import { serializeHostedPagamentoOnline } from '@/lib/hosted-payment'
+import {
+  buildMercadoPagoPollNotificationId,
+  shouldSyncPendingMercadoPagoPix,
+  syncMercadoPagoPaymentById,
+} from '@/lib/mercado-pago-sync'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import {
   getPublicOrderAccessToken,
@@ -119,7 +124,7 @@ export async function GET(
 
     const accessToken = getPublicOrderAccessToken(request, id)
     const customerAccessPhone = getPublicCustomerAccessPhone(request, tenant.id)
-    const pedido = await prisma.pedido.findFirst({
+    let pedido = await prisma.pedido.findFirst({
       where: { id, tenantId: tenant.id },
       select: publicPedidoSelect,
     })
@@ -135,6 +140,23 @@ export async function GET(
 
     if (!hasOrderTokenAccess && !hasCustomerPhoneAccess) {
       return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
+    }
+
+    if (shouldSyncPendingMercadoPagoPix(pedido)) {
+      try {
+        await syncMercadoPagoPaymentById({
+          paymentId: pedido.asaasPaymentId!,
+          notificationId: buildMercadoPagoPollNotificationId(pedido.asaasPaymentId!),
+          origin: 'POLL',
+        })
+
+        pedido = await prisma.pedido.findFirst({
+          where: { id, tenantId: tenant.id },
+          select: publicPedidoSelect,
+        })
+      } catch (error) {
+        console.error('[api/pedidos/[id]] Falha ao sincronizar Pix pendente do Mercado Pago:', error)
+      }
     }
 
     const response = NextResponse.json(serializePublicPedido(pedido))
