@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAdminSession } from '@/lib/auth-helpers'
+import {
+  buildMercadoPagoPollNotificationId,
+  shouldSyncPendingMercadoPagoPix,
+  syncMercadoPagoPaymentById,
+} from '@/lib/mercado-pago-sync'
 import { OPEN_ORDER_STATUSES } from '@/lib/order-status'
 import { todayInSaoPaulo } from '@/lib/sao-paulo'
 
@@ -39,7 +44,7 @@ export async function GET(request: NextRequest) {
   const referenceEndExclusive = getEndExclusive(date, 0)
   const agendaEndExclusive = getEndExclusive(date, windowDays)
 
-  const orders = await prisma.pedido.findMany({
+  let orders = await prisma.pedido.findMany({
     where: {
       tenantId: admin.tenantId,
       status: { in: [...OPEN_ORDER_STATUSES] },
@@ -60,6 +65,44 @@ export async function GET(request: NextRequest) {
       { criadoEm: 'asc' },
     ],
   })
+
+  const pendentesPixMercadoPago = orders
+    .filter((pedido) => shouldSyncPendingMercadoPagoPix(pedido))
+    .slice(0, 6)
+
+  if (pendentesPixMercadoPago.length > 0) {
+    await Promise.allSettled(
+      pendentesPixMercadoPago.map((pedido) =>
+        syncMercadoPagoPaymentById({
+          paymentId: pedido.asaasPaymentId!,
+          notificationId: buildMercadoPagoPollNotificationId(pedido.asaasPaymentId!),
+          origin: 'POLL',
+        }),
+      ),
+    )
+
+    orders = await prisma.pedido.findMany({
+      where: {
+        tenantId: admin.tenantId,
+        status: { in: [...OPEN_ORDER_STATUSES] },
+        OR: [
+          {
+            tipoEntrega: { not: 'ENCOMENDA' },
+            criadoEm: { lt: referenceEndExclusive },
+          },
+          {
+            tipoEntrega: 'ENCOMENDA',
+            encomendaPara: { lt: agendaEndExclusive },
+          },
+        ],
+      },
+      include: { itens: true },
+      orderBy: [
+        { encomendaPara: 'asc' },
+        { criadoEm: 'asc' },
+      ],
+    })
+  }
 
   return NextResponse.json({
     referenceDate: date,

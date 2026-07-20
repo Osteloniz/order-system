@@ -36,11 +36,7 @@ export function shouldReserveCommonOrderStock(context: Pick<PedidoStockContext, 
     return false
   }
 
-  if (context.pagamento === 'DINHEIRO') {
-    return context.status !== 'FEITO'
-  }
-
-  return context.statusPagamento === 'APROVADO'
+  return context.status !== 'FEITO'
 }
 
 function buildShadowCommittedOrderWhere(tenantId: string, now = new Date()): Prisma.PedidoWhereInput {
@@ -58,14 +54,7 @@ function buildShadowCommittedOrderWhere(tenantId: string, now = new Date()): Pri
       },
       {
         tipoEntrega: { not: 'ENCOMENDA' },
-        pagamento: 'DINHEIRO',
         status: { in: ['ACEITO', 'PREPARACAO', 'PRONTO_ENTREGA'] },
-      },
-      {
-        tipoEntrega: { not: 'ENCOMENDA' },
-        pagamento: { in: ['PIX', 'CARTAO'] },
-        statusPagamento: 'APROVADO',
-        status: { notIn: ['CANCELADO', 'ENTREGUE'] },
       },
       {
         tipoEntrega: 'ENCOMENDA',

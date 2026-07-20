@@ -5,6 +5,11 @@ import { prisma } from '@/lib/db'
 import type { StatusPedido } from '@/lib/types'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { calcularPedidoAdmin } from '@/lib/admin-pedidos'
+import {
+  buildMercadoPagoPollNotificationId,
+  shouldSyncPendingMercadoPagoPix,
+  syncMercadoPagoPaymentById,
+} from '@/lib/mercado-pago-sync'
 import { OPEN_ORDER_STATUSES } from '@/lib/order-status'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
@@ -141,11 +146,33 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const resultado = await prisma.pedido.findMany({
+  let resultado = await prisma.pedido.findMany({
     where,
     include: { itens: true },
     orderBy: { criadoEm: 'desc' }
   })
+
+  const pendentesPixMercadoPago = resultado
+    .filter((pedido) => shouldSyncPendingMercadoPagoPix(pedido))
+    .slice(0, 6)
+
+  if (pendentesPixMercadoPago.length > 0) {
+    await Promise.allSettled(
+      pendentesPixMercadoPago.map((pedido) =>
+        syncMercadoPagoPaymentById({
+          paymentId: pedido.asaasPaymentId!,
+          notificationId: buildMercadoPagoPollNotificationId(pedido.asaasPaymentId!),
+          origin: 'POLL',
+        }),
+      ),
+    )
+
+    resultado = await prisma.pedido.findMany({
+      where,
+      include: { itens: true },
+      orderBy: { criadoEm: 'desc' }
+    })
+  }
 
   return NextResponse.json(resultado)
 }

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { retrieveMercadoPagoPayment } from '@/lib/mercado-pago'
 import { syncOrderStockForTransition } from '@/lib/order-stock'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
@@ -48,10 +49,54 @@ function parseExternalReference(externalReference?: string | null) {
   }
 }
 
+export type PendingMercadoPagoPixSyncCandidate = {
+  status: string
+  statusPagamento: string
+  pagamento: string
+  asaasPaymentId?: string | null
+  asaasCheckoutUrl?: string | null
+  asaasPixQrCode?: string | null
+  asaasPixCopyPaste?: string | null
+  asaasLastSyncAt?: Date | string | null
+}
+
+export function shouldSyncPendingMercadoPagoPix(
+  pedido: PendingMercadoPagoPixSyncCandidate,
+  minIntervalMs = 15000,
+  now = new Date(),
+) {
+  if (pedido.status === 'CANCELADO') return false
+  if (pedido.statusPagamento !== 'PENDENTE') return false
+  if (pedido.pagamento !== 'PIX') return false
+
+  const paymentId = pedido.asaasPaymentId?.trim()
+  if (!paymentId) return false
+
+  const gateway =
+    inferHostedCheckoutGateway(pedido.asaasCheckoutUrl) ||
+    ((pedido.asaasPixQrCode || pedido.asaasPixCopyPaste) ? 'MERCADO_PAGO' : null)
+  if (gateway !== 'MERCADO_PAGO') return false
+
+  if (!pedido.asaasLastSyncAt) return true
+
+  const lastSyncAt = new Date(pedido.asaasLastSyncAt)
+  if (Number.isNaN(lastSyncAt.getTime())) return true
+
+  return now.getTime() - lastSyncAt.getTime() >= minIntervalMs
+}
+
+export function buildMercadoPagoPollNotificationId(
+  paymentId: string,
+  now = Date.now(),
+  bucketMs = 15000,
+) {
+  return `poll:${paymentId}:${Math.floor(now / bucketMs)}`
+}
+
 export async function syncMercadoPagoPaymentById(input: {
   paymentId: string
   notificationId: string
-  origin: 'WEBHOOK' | 'RETURN'
+  origin: 'WEBHOOK' | 'RETURN' | 'POLL'
 }) {
   const payment = await retrieveMercadoPagoPayment(input.paymentId)
   const externalReference = payment.external_reference?.trim() || null
@@ -90,7 +135,12 @@ export async function syncMercadoPagoPaymentById(input: {
           pedidoAtual: pedido,
           targetStatus: nextStatus,
           targetStatusPagamento: statusPagamento,
-          actorNome: input.origin === 'WEBHOOK' ? 'Mercado Pago webhook' : 'Retorno Mercado Pago',
+          actorNome:
+            input.origin === 'WEBHOOK'
+              ? 'Mercado Pago webhook'
+              : input.origin === 'RETURN'
+                ? 'Retorno Mercado Pago'
+                : 'Consulta Mercado Pago',
           pedidoNumero: numeroPedidoCurto(pedido.id) ?? pedido.id,
         })
       : {
@@ -119,12 +169,24 @@ export async function syncMercadoPagoPaymentById(input: {
         descricao:
           input.origin === 'WEBHOOK'
             ? `Status do pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} ajustado de ${pedido.status} para ${nextStatus} pelo webhook do Mercado Pago.`
-            : `Pagamento do pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} sincronizado no retorno do Mercado Pago.`,
-        actorNome: input.origin === 'WEBHOOK' ? 'Mercado Pago webhook' : 'Retorno Mercado Pago',
+            : input.origin === 'RETURN'
+              ? `Pagamento do pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} sincronizado no retorno do Mercado Pago.`
+              : `Pagamento do pedido #${numeroPedidoCurto(pedido.id) ?? pedido.id} sincronizado por consulta ativa ao Mercado Pago.`,
+        actorNome:
+          input.origin === 'WEBHOOK'
+            ? 'Mercado Pago webhook'
+            : input.origin === 'RETURN'
+              ? 'Retorno Mercado Pago'
+              : 'Consulta Mercado Pago',
         pedidoId: pedido.id,
         pedidoNumero: numeroPedidoCurto(pedido.id) ?? pedido.id,
         metadata: {
-          origem: input.origin === 'WEBHOOK' ? 'MERCADO_PAGO_WEBHOOK' : 'MERCADO_PAGO_RETURN',
+          origem:
+            input.origin === 'WEBHOOK'
+              ? 'MERCADO_PAGO_WEBHOOK'
+              : input.origin === 'RETURN'
+                ? 'MERCADO_PAGO_RETURN'
+                : 'MERCADO_PAGO_POLL',
           notificationId: input.notificationId,
           paymentId: String(payment.id),
           paymentStatus: payment.status ?? null,
