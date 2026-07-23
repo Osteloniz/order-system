@@ -65,16 +65,25 @@ export async function PATCH(
       return NextResponse.json(pedidoAtual)
     }
     const actorNome = admin.session.user?.name?.toString().trim() || null
-    const pedidoNumero = numeroPedidoCurto(pedidoAtual.id) ?? pedidoAtual.id
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+        const pedidoAtualTransacao = await tx.pedido.findFirst({
+          where: { id, tenantId: admin.tenantId },
+          include: { itens: true },
+        })
+
+        if (!pedidoAtualTransacao) {
+          throw new Error('Pedido nao encontrado')
+        }
+
+        const pedidoNumero = numeroPedidoCurto(pedidoAtualTransacao.id) ?? pedidoAtualTransacao.id
         const estoqueControle = await syncOrderStockForTransition({
           tx,
           tenantId: admin.tenantId,
-          pedidoAtual,
+          pedidoAtual: pedidoAtualTransacao,
           targetStatus: status,
-          targetStatusPagamento: pedidoAtual.statusPagamento,
+          targetStatusPagamento: pedidoAtualTransacao.statusPagamento,
           actorNome,
           pedidoNumero,
         })
@@ -95,12 +104,12 @@ export async function PATCH(
         await registrarLogOperacao(tx, {
           tenantId: admin.tenantId,
           tipo: 'PEDIDO_STATUS_ALTERADO',
-          descricao: `Status do pedido #${pedidoNumero} alterado de ${pedidoAtual.status} para ${status}.`,
+          descricao: `Status do pedido #${pedidoNumero} alterado de ${pedidoAtualTransacao.status} para ${status}.`,
           actorNome,
-          pedidoId: pedidoAtual.id,
+          pedidoId: pedidoAtualTransacao.id,
           pedidoNumero,
           metadata: {
-            statusAnterior: pedidoAtual.status,
+            statusAnterior: pedidoAtualTransacao.status,
             statusNovo: status,
             motivoCancelamento: status === 'CANCELADO' ? motivoCancelamento ?? null : null,
           },

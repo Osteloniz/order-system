@@ -589,6 +589,7 @@ export function PedidosDashboard() {
       )
       if (selectedPedido?.id === pedidoId) setSelectedPedido(pedidoAtualizado)
       await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
     } finally {
       setConfirmingPaymentId(null)
     }
@@ -747,6 +748,7 @@ export function PedidosDashboard() {
       }
 
       await mutate(pedidosUrl)
+      await mutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
       if (pedidoAtualizadoSelecionado) setSelectedPedido(pedidoAtualizadoSelecionado)
       setSelectedPedidoIds([])
       setLastAlertMessage(
