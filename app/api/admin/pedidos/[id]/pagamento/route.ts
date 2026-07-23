@@ -60,13 +60,27 @@ export async function PATCH(
   }
 
   const actorNome = admin.session.user?.name?.toString().trim() || null
-  const pedidoNumero = numeroPedidoCurto(pedido.id) ?? pedido.id
-  const nextStatus = resolveStatusAfterPaymentChange(pedido.status, parsed.data.statusPagamento, pedido.tipoEntrega)
   const atualizado = await prisma.$transaction(async (tx) => {
+    const pedidoAtualTransacao = await tx.pedido.findFirst({
+      where: { id, tenantId: admin.tenantId },
+      include: { itens: true },
+    })
+
+    if (!pedidoAtualTransacao) {
+      throw new Error('Pedido nao encontrado')
+    }
+
+    const pedidoNumero = numeroPedidoCurto(pedidoAtualTransacao.id) ?? pedidoAtualTransacao.id
+    const nextStatus = resolveStatusAfterPaymentChange(
+      pedidoAtualTransacao.status,
+      parsed.data.statusPagamento,
+      pedidoAtualTransacao.tipoEntrega,
+    )
+
     const estoqueControle = await syncOrderStockForTransition({
       tx,
       tenantId: admin.tenantId,
-      pedidoAtual: pedido,
+      pedidoAtual: pedidoAtualTransacao,
       targetStatus: nextStatus,
       targetStatusPagamento: parsed.data.statusPagamento,
       actorNome,
@@ -84,17 +98,17 @@ export async function PATCH(
       include: { itens: true },
     })
 
-    if (nextStatus !== pedido.status) {
+    if (nextStatus !== pedidoAtualTransacao.status) {
       await registrarLogOperacao(tx, {
         tenantId: admin.tenantId,
         tipo: 'PEDIDO_STATUS_ALTERADO',
-        descricao: `Status do pedido #${pedidoNumero} ajustado de ${pedido.status} para ${nextStatus} pelo status de pagamento.`,
+        descricao: `Status do pedido #${pedidoNumero} ajustado de ${pedidoAtualTransacao.status} para ${nextStatus} pelo status de pagamento.`,
         actorNome,
-        pedidoId: pedido.id,
+        pedidoId: pedidoAtualTransacao.id,
         pedidoNumero,
         metadata: {
           origem: 'PAGAMENTO_MANUAL',
-          statusAnterior: pedido.status,
+          statusAnterior: pedidoAtualTransacao.status,
           statusNovo: nextStatus,
           statusPagamento: parsed.data.statusPagamento,
         },

@@ -193,14 +193,22 @@ export async function consumeReservedStock(
   options?: StockLogOptions
 ) {
   const estoque = await getOrCreateStock(tx, tenantId, produtoId)
-  if (estoque.quantidadeReservada < quantidade) {
-    throw new Error(`Reserva insuficiente para concluir a encomenda. Reservado: ${estoque.quantidadeReservada}. Necessario: ${quantidade}.`)
+  const quantidadeReservadaConsumida = Math.min(quantidade, estoque.quantidadeReservada)
+  const quantidadeConsumirDisponivel = quantidade - quantidadeReservadaConsumida
+
+  if (quantidadeConsumirDisponivel > 0 && estoque.quantidadeDisponivel < quantidadeConsumirDisponivel) {
+    throw new Error(
+      `Estoque insuficiente para concluir a baixa. Reservado: ${estoque.quantidadeReservada}. Disponivel: ${estoque.quantidadeDisponivel}. Necessario: ${quantidade}.`,
+    )
   }
 
   const atualizado = await tx.produtoEstoque.update({
     where: { id: estoque.id },
     data: {
-      quantidadeReservada: { decrement: quantidade },
+      quantidadeReservada: { decrement: quantidadeReservadaConsumida },
+      quantidadeDisponivel: quantidadeConsumirDisponivel > 0
+        ? { decrement: quantidadeConsumirDisponivel }
+        : undefined,
     },
   })
   await registrarMovimentacaoEstoque(tx, tenantId, produtoId, atualizado, -quantidade, options)
