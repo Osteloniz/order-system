@@ -159,6 +159,10 @@ export async function GET(
       }
     }
 
+    if (!pedido) {
+      return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 })
+    }
+
     const response = NextResponse.json(serializePublicPedido(pedido))
     if (hasOrderTokenAccess) {
       setPublicOrderAccessCookie(response, pedido.id, accessToken)

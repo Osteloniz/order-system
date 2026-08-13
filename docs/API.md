@@ -181,7 +181,8 @@ Clientes:
 Financeiro:
 - GET `/api/admin/financeiro/contas-pagar?from=YYYY-MM-DD&to=YYYY-MM-DD&status=TODOS|PENDENTE|PAGO|CANCELADO`
 - POST `/api/admin/financeiro/contas-pagar`
-  - Body: `{ descricao, valor, vencimento, status?, categoriaFinanceiraId?, fornecedorFinanceiroId?, observacoes? }`
+  - Body: `{ descricao, valor, vencimento, status?, metodoPagamento?, categoriaFinanceiraId?, fornecedorFinanceiroId?, observacoes? }`
+  - `metodoPagamento` aceita `PIX`, `CREDITO`, `DEBITO` ou `BOLETO` e permanece opcional para compatibilidade com lancamentos antigos.
   - Observacao: `vencimento` e `pagoEm` aceitam ISO datetime com offset.
   - Observacao: o backend preserva `fornecedor` como texto legado e vincula `fornecedorFinanceiroId` quando houver cadastro.
 - PATCH `/api/admin/financeiro/contas-pagar/:id`
@@ -192,8 +193,9 @@ Financeiro:
   - Body: `{ nome, escopo }`
 - GET `/api/admin/fornecedores-financeiros`
 - POST `/api/admin/fornecedores-financeiros`
-  - Body: `{ nome }`
-  - Observacao: se o fornecedor ja existir para o tenant, retorna o cadastro existente.
+  - Body: `{ nome, cep?, endereco?, numero?, complemento?, estado?, cidade?, bairro?, telefone?, email? }`
+  - Apenas `nome` e obrigatorio; e-mail, quando informado, deve ser valido.
+  - Observacao: fornecedor duplicado para o tenant retorna conflito.
 
 Relatorios:
 - GET `/api/admin/relatorios?from=YYYY-MM-DD&to=YYYY-MM-DD`

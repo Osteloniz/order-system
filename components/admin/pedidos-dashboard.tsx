@@ -1273,12 +1273,12 @@ export function PedidosDashboard() {
               Venda, confirme e avance pedidos com poucos toques.
             </p>
           </div>
-          <div className="w-full xl:max-w-[34rem]">
-            <Button variant="default" size="sm" className="h-10 w-full justify-center rounded-xl text-sm font-medium" onClick={() => setNewOrderOpen(true)}>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center xl:w-auto xl:justify-end">
+            <Button variant="default" size="sm" className="h-9 w-full justify-center rounded-xl px-4 text-sm font-medium sm:w-auto" onClick={() => setNewOrderOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Novo pedido
             </Button>
-            <div className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+            <div className="grid flex-1 grid-cols-3 gap-1.5 sm:flex sm:flex-none sm:flex-wrap sm:justify-end">
               <Button variant="outline" size="sm" className="h-8 justify-center rounded-lg px-2 text-xs whitespace-nowrap" onClick={() => setStockLookupOpen(true)}>
                 <Archive className="mr-2 h-4 w-4" />
                 Estoque

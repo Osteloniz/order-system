@@ -34,12 +34,12 @@ export function ProductCard({ produto }: ProductCardProps) {
 
   return (
     <Card className={cn(
-      'overflow-hidden rounded-[24px] border-border/80 bg-card/95 py-0 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+      'overflow-hidden rounded-[18px] border-border/80 bg-card/95 py-0 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
       quantidade > 0 && 'border-primary/35 bg-primary/[0.035] ring-1 ring-primary/10',
       bloqueado && 'bg-muted/30'
     )}>
-      <CardContent className="p-3.5 sm:p-4">
-        <div className={cn('min-w-0', imagens.length > 0 && 'grid grid-cols-[92px_minmax(0,1fr)] gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4')}>
+      <CardContent className="p-3 sm:p-3.5">
+        <div className={cn('min-w-0', imagens.length > 0 && 'grid grid-cols-[84px_minmax(0,1fr)] gap-3 sm:grid-cols-[140px_minmax(0,1fr)]')}>
           {imagens.length > 0 && (
             <div className="w-full shrink-0">
               {imagens.length > 1 ? (
@@ -62,7 +62,7 @@ export function ProductCard({ produto }: ProductCardProps) {
                   <CarouselNext className="right-1 h-7 w-7" variant="secondary" />
                 </Carousel>
               ) : (
-                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-muted sm:aspect-[4/3]">
+                <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-muted sm:aspect-[4/3]">
                   <img
                     src={imagens[0]}
                     alt={`${produto.nome} - imagem`}
@@ -74,7 +74,7 @@ export function ProductCard({ produto }: ProductCardProps) {
             </div>
           )}
 
-          <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-col justify-between gap-2.5">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="break-words font-semibold leading-tight text-foreground">{produto.nome}</h3>
@@ -120,7 +120,7 @@ export function ProductCard({ produto }: ProductCardProps) {
                 <Button
                   size="sm"
                   onClick={() => adicionarItem(produto)}
-                  className="h-10 gap-1 rounded-2xl px-3"
+                  className="h-9 gap-1 rounded-xl px-3"
                   disabled={bloqueado}
                 >
                   <Plus className="h-4 w-4" />

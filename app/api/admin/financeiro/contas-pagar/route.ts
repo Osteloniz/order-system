@@ -26,6 +26,7 @@ const contaPagarSchema = z.object({
   valor: z.number().int().positive(),
   vencimento: isoDateTimeSchema,
   status: z.enum(['PENDENTE', 'PAGO', 'CANCELADO']).optional(),
+  metodoPagamento: z.enum(['PIX', 'CREDITO', 'DEBITO', 'BOLETO']).optional(),
   pagoEm: isoDateTimeSchema.optional(),
 }).strict()
 
@@ -167,6 +168,7 @@ export async function POST(request: NextRequest) {
             valor: body.valor,
             vencimento: new Date(body.vencimento),
             status,
+            metodoPagamento: body.metodoPagamento || null,
             pagoEm,
           },
           include: {
@@ -189,6 +191,7 @@ export async function POST(request: NextRequest) {
             valor: body.valor,
             vencimento: new Date(body.vencimento),
             status,
+            metodoPagamento: body.metodoPagamento || null,
             pagoEm,
           },
         })

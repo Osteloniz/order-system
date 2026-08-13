@@ -1,3 +1,4 @@
+
 // Prisma schema for Order System
 // Comentarios intencionais para facilitar leitura e manutencao.
 
@@ -62,6 +63,13 @@ enum StatusContaPagar {
   PENDENTE
   PAGO
   CANCELADO
+}
+
+enum MetodoPagamentoContaPagar {
+  PIX
+  CREDITO
+  DEBITO
+  BOLETO
 }
 
 enum EscopoCategoriaFinanceira {
@@ -395,6 +403,7 @@ model ContaPagar {
   vencimento  DateTime
   pagoEm      DateTime?
   status      StatusContaPagar  @default(PENDENTE)
+  metodoPagamento MetodoPagamentoContaPagar?
   criadoEm    DateTime          @default(now())
   atualizadoEm DateTime         @updatedAt
 
@@ -428,6 +437,15 @@ model FornecedorFinanceiro {
   id          String   @id @default(uuid())
   tenantId    String
   nome        String
+  cep         String?
+  endereco    String?
+  numero      String?
+  complemento String?
+  estado      String?
+  cidade      String?
+  bairro      String?
+  telefone    String?
+  email       String?
   criadoEm    DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 

@@ -60,14 +60,7 @@ export function LoginPage() {
   }
 
   return (
-    <div
-      className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#28110c] p-4"
-      style={{
-        backgroundImage: "linear-gradient(110deg, rgba(40,17,12,.92), rgba(64,99,26,.72)), url('/brand/brookie-logo-dark.jpg')",
-        backgroundPosition: 'center',
-        backgroundSize: 'cover',
-      }}
-    >
+    <div className="brookie-login-background relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,104,19,.24),transparent_42%)]" />
       <Card className="relative z-10 w-full max-w-[390px] border-[#E7DBB3]/35 bg-[#FFF8EE]/95 shadow-2xl backdrop-blur-md">
         <CardHeader className="space-y-2 p-5 pb-3 text-center">
