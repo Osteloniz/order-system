@@ -3,11 +3,12 @@
 import type { DragEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Archive, Bell, BellRing, Check, ChefHat, Clock, CreditCard, Filter, GripVertical, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Truck, User, Volume2, X } from 'lucide-react'
+import { Archive, Bell, BellRing, Check, ChefHat, ChevronDown, Clock, CreditCard, GripVertical, LayoutGrid, List, MessageCircle, Package, Pencil, Phone, Plus, RefreshCw, Search, ShoppingBag, SlidersHorizontal, Trash2, Truck, User, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -22,7 +23,7 @@ import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
 import { getHostedGatewayLabel, inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { buildPaymentReminderMessage, buildStatusMessage, hydrateConfigWithMessageDefaults } from '@/lib/message-templates'
-import { entregaLabels, getPagamentoLabel, statusPagamentoColors, statusPagamentoLabels } from '@/lib/order-display'
+import { entregaLabels, getPagamentoLabel, statusPagamentoLabels } from '@/lib/order-display'
 import { getNextOperationalStatus, getPreviousOperationalStatus, shouldUsePreparacaoStage } from '@/lib/order-status'
 import { buildWhatsappUrl } from '@/lib/phone'
 import { formatDateTimeInSaoPaulo, todayInSaoPaulo } from '@/lib/sao-paulo'
@@ -64,12 +65,6 @@ type EstoqueConsultaData = {
 
 function getPedidoWhatsapp(pedido: Pedido) {
   return (pedido.clienteWhatsapp || pedido.clienteTelefone || '').replace(/\D/g, '')
-}
-
-function resumirItens(pedido: Pedido) {
-  const primeirosItens = pedido.itens.slice(0, 2).map(item => `${item.quantidade}x ${item.nomeProdutoSnapshot}`).join(', ')
-  const restantes = pedido.itens.length - 2
-  return restantes > 0 ? `${primeirosItens} +${restantes}` : primeirosItens
 }
 
 function abrirWhatsappStatus(pedido: Pedido, status: StatusPedido, config?: Configuracao | null) {
@@ -116,39 +111,13 @@ function getNextStatusLabel(pedido: Pedido, nextStatus: StatusPedido | null) {
   return 'Avancar etapa'
 }
 
-function getKanbanSupportText(pedido: Pedido) {
-  if (pedido.status === 'PREPARACAO') {
-    return shouldUsePreparacaoStage(pedido)
-      ? 'Use esta etapa para encomendas que ainda precisam ser produzidas antes da liberacao.'
-      : 'Este pedido entrou em preparo manualmente.'
-  }
-  if (pedido.status === 'PRONTO_ENTREGA') {
-    return shouldUsePreparacaoStage(pedido)
-      ? 'Encomenda produzida e pagamento liberado. Falta apenas a entrega ou retirada.'
-      : 'Pedido com estoque ja liberado para sair. Falta apenas concluir a entrega ou retirada.'
-  }
-  if (pedido.status === 'ACEITO') {
-    return shouldUsePreparacaoStage(pedido)
-      ? 'Pedido conferido. Quando o pagamento for confirmado, ele segue para preparo.'
-      : 'Pedido conferido. Se o pagamento for aprovado, pode ir direto para pronto para entrega.'
-  }
-  return 'Use este bloco para tocar o pedido adiante sem repetir passos.'
-}
-
-function getPaymentMethodBadgeClass(pedido: Pedido) {
-  if (pedido.pagamento === 'DINHEIRO') {
-    return 'border-amber-500/35 bg-amber-500/15 text-amber-100'
-  }
-  return 'border-border/70 bg-background/70 text-foreground'
-}
-
 function getGatewayBadgeClass(gateway: ReturnType<typeof inferHostedCheckoutGateway>) {
   if (gateway === 'MERCADO_PAGO') {
-    return 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200'
+    return 'border-[#559eee]/35 bg-[#559eee]/10 text-[#2468a8] dark:text-[#b9dbff]'
   }
 
   if (gateway === 'ASAAS') {
-    return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-200'
+    return 'border-[#c56813]/35 bg-[#c56813]/10 text-[#94500d] dark:text-[#f2bd80]'
   }
 
   return 'border-border/70 bg-background/70 text-muted-foreground'
@@ -180,6 +149,11 @@ export function PedidosDashboard() {
   const [stockLookupOpen, setStockLookupOpen] = useState(false)
   const [stockSearch, setStockSearch] = useState('')
   const [soundUnlocked, setSoundUnlocked] = useState(false)
+  const [viewMode, setViewMode] = useState<'KANBAN' | 'LISTA'>('KANBAN')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [collapsedListStatuses, setCollapsedListStatuses] = useState<Set<StatusPedido>>(
+    () => new Set<StatusPedido>(['ENTREGUE', 'CANCELADO'])
+  )
   const seenPedidoIdsRef = useRef<Set<string>>(new Set())
   const initialPedidosLoadedRef = useRef(false)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -190,6 +164,22 @@ export function PedidosDashboard() {
   const estoqueConsultaUrl = `/api/admin/producao?from=${todayInSaoPaulo()}&to=${todayInSaoPaulo()}`
   const { data: estoqueConsulta, isLoading: isLoadingEstoqueConsulta, mutate: mutateEstoqueConsulta } = useSWR<EstoqueConsultaData>(stockLookupOpen ? estoqueConsultaUrl : null, fetcher, { refreshInterval: 15000 })
   const config = hydrateConfigWithMessageDefaults(rawConfig)
+
+  useEffect(() => {
+    const savedView = window.localStorage.getItem('admin_orders_view')
+    if (savedView === 'KANBAN' || savedView === 'LISTA') {
+      setViewMode(savedView)
+      return
+    }
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      setViewMode('LISTA')
+    }
+  }, [])
+
+  const changeViewMode = (mode: 'KANBAN' | 'LISTA') => {
+    setViewMode(mode)
+    window.localStorage.setItem('admin_orders_view', mode)
+  }
 
   const contadores = {
     novos: pedidos?.filter(p => p.status === 'FEITO').length || 0,
@@ -318,6 +308,26 @@ export function PedidosDashboard() {
       return acc
     }, {} as Record<StatusPedido, Pedido[]>)
   }, [pedidosFiltrados])
+
+  const listColumnsWithPedidos = useMemo(
+    () => kanbanColumns.filter((column) => (pedidosPorStatus[column.status]?.length ?? 0) > 0),
+    [pedidosPorStatus]
+  )
+
+  const setListPhaseOpen = (status: StatusPedido, open: boolean) => {
+    setCollapsedListStatuses((current) => {
+      const next = new Set(current)
+      if (open) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
+
+  const collapseAllListPhases = () => {
+    setCollapsedListStatuses(new Set(listColumnsWithPedidos.map((column) => column.status)))
+  }
+
+  const expandAllListPhases = () => setCollapsedListStatuses(new Set())
 
   const clearFilters = () => {
     setSearchTerm('')
@@ -852,11 +862,7 @@ export function PedidosDashboard() {
   }
 
   const renderPedidoCard = (pedido: Pedido) => {
-    const status = statusConfig[pedido.status]
-    const StatusIcon = status.icon
-    const isUpdating = updatingStatus === pedido.id
     const isSelected = selectedPedidoIds.includes(pedido.id)
-    const hostedGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
 
     return (
       <Card
@@ -868,46 +874,89 @@ export function PedidosDashboard() {
           event.dataTransfer.effectAllowed = 'move'
         }}
         onDragEnd={() => setDraggedPedidoId(null)}
-        className={`cursor-pointer border-border/70 bg-card/95 transition-all hover:-translate-y-0.5 hover:shadow-md ${draggedPedidoId === pedido.id ? 'opacity-50' : ''} ${isSelected ? 'ring-2 ring-primary/60 border-primary/50' : ''}`}
+        className={`cursor-pointer gap-0 rounded-xl border-border/70 bg-card/95 py-0 transition-all hover:-translate-y-0.5 hover:shadow-md ${draggedPedidoId === pedido.id ? 'opacity-50' : ''} ${isSelected ? 'ring-2 ring-primary/60 border-primary/50' : ''}`}
         onClick={() => { setSelectedPedido(pedido); setCancelReason('') }}
       >
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <Checkbox
-                checked={isSelected}
-                aria-label={`Selecionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
-                onCheckedChange={(checked) => togglePedidoSelection(pedido.id, checked === true)}
-                onClick={(event) => event.stopPropagation()}
-              />
-              <div className={`rounded-full p-2 ${status.color}`}><StatusIcon className="h-4 w-4" /></div>
-              <div className="min-w-0"><p className="truncate font-semibold">#{pedido.id.slice(-8).toUpperCase()}</p><p className="truncate text-sm text-muted-foreground">{pedido.clienteNome}</p></div>
+        <CardContent className="p-2.5">
+          <div className="flex items-start gap-2">
+            <Checkbox
+              checked={isSelected}
+              aria-label={`Selecionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
+              onCheckedChange={(checked) => togglePedidoSelection(pedido.id, checked === true)}
+              onClick={(event) => event.stopPropagation()}
+              className="mt-0.5"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-muted-foreground">#{pedido.id.slice(-8).toUpperCase()}</p>
+                  <p className="truncate text-sm font-semibold leading-tight">{pedido.clienteNome}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-bold leading-tight text-primary">{formatarMoeda(pedido.total)}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatarHora(pedido.criadoEm)}</p>
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="truncate">{pedido.pagamento === 'DINHEIRO' ? 'Dinheiro' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}</span>
+                {pedido.tipoEntrega === 'ENCOMENDA' ? (
+                  <span className="ml-auto inline-flex text-warning" title="Encomenda" aria-label="Encomenda">
+                    <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </div>
             </div>
-            <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
           </div>
-          <div className="rounded-lg bg-muted/45 p-3 text-sm text-muted-foreground"><p className="line-clamp-2">{resumirItens(pedido)}</p></div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-xs">{entregaLabels[pedido.tipoEntrega]}</Badge>
-            {pedido.encomendaPara && <Badge variant="secondary" className="text-xs">{new Date(pedido.encomendaPara).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Badge>}
-            {pedido.tipoEntrega === 'ENCOMENDA' ? (
-              <Badge variant="outline" className="text-xs">Produzir</Badge>
-            ) : pedido.status === 'PRONTO_ENTREGA' ? (
-              <Badge variant="outline" className="text-xs">Sai com estoque</Badge>
-            ) : null}
-            <Badge variant="outline" className={`text-xs ${getPaymentMethodBadgeClass(pedido)}`}>
-              {pedido.pagamento === 'DINHEIRO' ? 'Dinheiro' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
-            </Badge>
-            {pedido.pagamento !== 'DINHEIRO' ? (
-              <Badge variant="outline" className={`text-xs ${getGatewayBadgeClass(hostedGateway)}`}>
-                {getHostedGatewayLabel(hostedGateway)}
-              </Badge>
-            ) : null}
-            <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{statusPagamentoLabels[pedido.statusPagamento]}</Badge>
-          </div>
-          <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} {formatarHora(pedido.criadoEm)}</span><span className="font-bold text-primary">{formatarMoeda(pedido.total)}</span></div>
-          {isUpdating && <div className="flex items-center gap-2 text-xs text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" />Atualizando status...</div>}
         </CardContent>
       </Card>
+    )
+  }
+
+  const renderPedidoListRow = (pedido: Pedido) => {
+    const isSelected = selectedPedidoIds.includes(pedido.id)
+
+    return (
+      <div
+        key={`list-${pedido.id}`}
+        className={`flex items-start gap-2 rounded-xl border bg-card/95 p-2 transition-colors hover:border-primary/35 hover:bg-primary/[0.025] ${isSelected ? 'border-primary/50 ring-1 ring-primary/40' : 'border-border/70'}`}
+      >
+        <Checkbox
+          checked={isSelected}
+          aria-label={`Selecionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
+          onCheckedChange={(checked) => togglePedidoSelection(pedido.id, checked === true)}
+          className="mt-1"
+        />
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          aria-label={`Abrir detalhes do pedido ${pedido.id.slice(-8).toUpperCase()}`}
+          onClick={() => { setSelectedPedido(pedido); setCancelReason('') }}
+        >
+          <div className="min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground">#{pedido.id.slice(-8).toUpperCase()}</p>
+                <p className="truncate text-sm font-semibold leading-tight">{pedido.clienteNome}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-bold leading-tight text-primary">{formatarMoeda(pedido.total)}</p>
+                <p className="text-[10px] text-muted-foreground">{formatarHora(pedido.criadoEm)}</p>
+              </div>
+            </div>
+            <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+              <CreditCard className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{pedido.pagamento === 'DINHEIRO' ? 'Dinheiro' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}</span>
+              {pedido.tipoEntrega === 'ENCOMENDA' ? (
+                <span className="ml-auto inline-flex shrink-0 text-warning" title="Encomenda" aria-label="Encomenda">
+                  <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </button>
+      </div>
     )
   }
 
@@ -926,141 +975,207 @@ export function PedidosDashboard() {
     const paymentActionLoading = paymentActionPedidoId === pedido.id
     const hostedGateway = inferHostedCheckoutGateway(pedido.asaasCheckoutUrl)
     const hostedGatewayLabel = getHostedGatewayLabel(hostedGateway)
+    const itemQuantity = pedido.itens.reduce((acc, item) => acc + item.quantidade, 0)
+    const paymentLabel = pedido.pagamento === 'DINHEIRO' ? 'Dinheiro' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)
 
     return (
       <>
-        <SheetHeader className="border-b border-border/70 pb-4">
-          <div className="space-y-3 pr-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-primary/75">Kanban operacional</p>
-                <SheetTitle className="mt-1 break-words text-left">Pedido #{pedido.id.slice(-8).toUpperCase()}</SheetTitle>
+        <SheetHeader className="border-b border-border/70 pb-3">
+          <div className="pr-6 text-left">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <SheetTitle className="truncate text-base">Pedido #{pedido.id.slice(-8).toUpperCase()}</SheetTitle>
+                <p className="mt-0.5 truncate text-sm font-medium">{pedido.clienteNome}</p>
               </div>
-              <Badge className={status.color}>{status.label}</Badge>
+              <div className="shrink-0 text-right">
+                <p className="font-bold text-primary">{formatarMoeda(pedido.total)}</p>
+                <Badge className={`mt-1 h-5 rounded-md px-1.5 text-[10px] ${status.color}`}>{status.label}</Badge>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{entregaLabels[pedido.tipoEntrega]}</Badge>
-              <Badge variant="outline" className={getPaymentMethodBadgeClass(pedido)}>
-                {pedido.pagamento === 'DINHEIRO' ? 'Dinheiro no recebimento' : getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}
-              </Badge>
-              {pedido.pagamento !== 'DINHEIRO' ? (
-                <Badge variant="outline" className={getGatewayBadgeClass(hostedGateway)}>
-                  {hostedGatewayLabel}
-                </Badge>
-              ) : null}
-              <Badge className={statusPagamentoColors[pedido.statusPagamento]}>{paymentStatusLabel}</Badge>
-              {pedido.tipoEntrega === 'ENCOMENDA' ? <Badge variant="outline">Agendado</Badge> : null}
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
+                {paymentLabel} · {paymentStatusLabel}
+              </span>
+              {pedido.tipoEntrega === 'ENCOMENDA' ? (
+                <span className="inline-flex min-w-0 items-center gap-1 text-warning">
+                  <ShoppingBag className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{getPedidoPrimaryDateLabel(pedido)}</span>
+                </span>
+              ) : (
+                <span className="truncate">{entregaLabels[pedido.tipoEntrega]}</span>
+              )}
             </div>
           </div>
         </SheetHeader>
 
-        <div className="mt-6 space-y-5 pb-4">
-          <Card className="overflow-hidden border-primary/20 bg-[linear-gradient(145deg,rgba(99,102,241,0.12),rgba(34,197,94,0.05)_52%,rgba(15,23,42,0.04))]">
-            <CardContent className="space-y-5 p-5">
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.24em] text-primary/75">Resumo rápido</p>
-                <h2 className="break-words text-2xl font-semibold">{pedido.clienteNome}</h2>
-                <p className="text-sm text-muted-foreground">{getPedidoPrimaryDateLabel(pedido)}</p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border bg-background/80 p-4">
-                  <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="mt-1 text-xl font-bold text-primary">{formatarMoeda(pedido.total)}</p>
-                </div>
-                <div className="rounded-2xl border bg-background/80 p-4">
-                  <p className="text-xs text-muted-foreground">Pagamento</p>
-                  <p className="mt-1 font-semibold">{getPagamentoLabel(pedido.pagamento, pedido.tipoCartao)}</p>
-                </div>
-                <div className="rounded-2xl border bg-background/80 p-4">
-                  <p className="text-xs text-muted-foreground">Itens</p>
-                  <p className="mt-1 font-semibold">{pedido.itens.reduce((acc, item) => acc + item.quantidade, 0)} unidade(s)</p>
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-3">
+        <div className="mt-3 space-y-3 pb-4">
+          <Card className="gap-0 rounded-xl border-border/70 py-0">
+            <CardContent className="flex gap-1.5 p-2">
                 {pedido.clienteTelefone ? (
-                  <Button asChild variant="outline" className="w-full rounded-2xl">
+                  <Button asChild variant="outline" size="sm" className="h-8 min-w-0 flex-1 rounded-lg px-2 text-xs">
                     <a href={`tel:${pedido.clienteTelefone}`}>
-                      <Phone className="mr-2 h-4 w-4" />
+                      <Phone className="h-3.5 w-3.5" />
                       Ligar
                     </a>
                   </Button>
                 ) : null}
-                <Button variant="outline" className="w-full rounded-2xl" onClick={() => handleSendPaymentReminder(pedido)} disabled={!whatsappDisponivel}>
-                  <MessageCircle className="mr-2 h-4 w-4" />
+                <Button variant="outline" size="sm" className="h-8 min-w-0 flex-1 rounded-lg px-2 text-xs" onClick={() => handleSendPaymentReminder(pedido)} disabled={!whatsappDisponivel}>
+                  <MessageCircle className="h-3.5 w-3.5" />
                   Cobrar
                 </Button>
                 {canEdit ? (
-                  <Button variant="outline" className="w-full rounded-2xl" onClick={() => setEditingPedido(pedido)}>
-                    <Pencil className="mr-2 h-4 w-4" />
+                  <Button variant="outline" size="sm" className="h-8 min-w-0 flex-1 rounded-lg px-2 text-xs" onClick={() => setEditingPedido(pedido)}>
+                    <Pencil className="h-3.5 w-3.5" />
                     Editar
+                  </Button>
+                ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-0 rounded-xl border-border/70 py-0">
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="text-sm">Ações do pedido</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 p-3 pt-0">
+              {nextStatus ? (
+                <div>
+                  <Button className="h-9 w-full rounded-lg" onClick={() => handleUpdateStatus(pedido, nextStatus)} disabled={updatingStatus === pedido.id}>
+                    {updatingStatus === pedido.id ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {nextStatusLabel}
+                  </Button>
+                </div>
+              ) : null}
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {canResendStatus ? (
+                  <Button variant="outline" size="sm" className="h-8 w-full rounded-lg text-xs" onClick={() => handleResendCurrentStatusMessage(pedido)}>
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Reenviar status
+                  </Button>
+                ) : null}
+                {canConfirmPayment ? (
+                  <Button variant="outline" size="sm" className="h-8 w-full rounded-lg text-xs" onClick={() => handleConfirmPayment(pedido.id)} disabled={confirmingPaymentId === pedido.id}>
+                    {confirmingPaymentId === pedido.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                    Confirmar pagamento
                   </Button>
                 ) : null}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-border/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Progresso e ações</CardTitle>
-              <CardDescription>{getKanbanSupportText(pedido)}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {nextStatus ? (
-                <div className="space-y-2">
-                  <Button className="h-11 w-full rounded-2xl" onClick={() => handleUpdateStatus(pedido, nextStatus)} disabled={updatingStatus === pedido.id}>
-                    {updatingStatus === pedido.id ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {nextStatusLabel}
-                  </Button>
-                  <p className="text-center text-xs text-muted-foreground">Atualiza o status e pode abrir o WhatsApp automaticamente.</p>
+          <details className="group rounded-xl border border-border/70 bg-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2"><Package className="h-4 w-4" />Itens e valores</span>
+              <span className="inline-flex items-center gap-2 text-xs font-normal text-muted-foreground">{itemQuantity} un. · {formatarMoeda(pedido.total)}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span>
+            </summary>
+            <div className="space-y-2 border-t border-border/60 p-3">
+              {pedido.itens.map((item) => (
+                <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium">{item.quantidade}x {item.nomeProdutoSnapshot}</p>
+                    <p className="text-xs text-muted-foreground">{formatarMoeda(item.precoUnitarioSnapshot)} cada</p>
+                  </div>
+                  <span className="shrink-0 font-semibold">{formatarMoeda(item.totalItem)}</span>
+                </div>
+              ))}
+              <Separator />
+              <div className="flex justify-between text-xs"><span>Subtotal</span><span>{formatarMoeda(pedido.subtotal)}</span></div>
+              {pedido.frete > 0 ? <div className="flex justify-between text-xs"><span>Frete</span><span>{formatarMoeda(pedido.frete)}</span></div> : null}
+              {pedido.descontoValor && pedido.descontoValor > 0 ? (
+                <div className="flex justify-between text-xs text-success"><span>{pedido.cupomCodigoSnapshot ? 'Desconto' : 'Valor promocional'}</span><span>-{formatarMoeda(pedido.descontoValor)}</span></div>
+              ) : null}
+              {pedido.cupomCodigoSnapshot ? <div className="flex justify-between text-xs"><span>Cupom</span><span>{pedido.cupomCodigoSnapshot}</span></div> : null}
+              <div className="flex justify-between border-t border-border/70 pt-2 font-bold"><span>Total</span><span className="text-primary">{formatarMoeda(pedido.total)}</span></div>
+            </div>
+          </details>
+
+          <details className="group rounded-xl border border-border/70 bg-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2"><User className="h-4 w-4" />Cliente e entrega</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="space-y-3 border-t border-border/60 p-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Contato</p>
+                  <p className="truncate font-medium">{pedido.clienteNome}</p>
+                  <p className="break-all text-xs text-muted-foreground">{pedido.clienteTelefone ? formatarTelefone(pedido.clienteTelefone) : 'Celular não informado'}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Entrega</p>
+                  <p className="font-medium">{entregaLabels[pedido.tipoEntrega]}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {pedido.tipoEntrega === 'RESERVA_PAULISTANO'
+                      ? `Bloco ${pedido.clienteBloco || '-'} • Apto ${pedido.clienteApartamento || '-'}`
+                      : pedido.tipoEntrega === 'RETIRADA'
+                        ? pedido.enderecoRetirada
+                        : `Entrega em ${pedido.encomendaPara ? formatDateTimeInSaoPaulo(pedido.encomendaPara) : '-'}`}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1.5 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+                <p>Pedido feito em {formatDateTimeInSaoPaulo(pedido.criadoEm)}</p>
+                {pedido.responsavelPedido ? <p className="break-words">Responsável: {pedido.responsavelPedido}</p> : null}
+                {pedido.destinatariosPedido ? <p className="break-words">Separar para: {pedido.destinatariosPedido}</p> : null}
+                {pedido.levadoEm ? <p>Levado em {formatDateTimeInSaoPaulo(pedido.levadoEm)}</p> : null}
+                {pedido.observacoesPedido ? <p className="rounded-lg bg-muted/30 p-2 text-foreground">{pedido.observacoesPedido}</p> : null}
+              </div>
+            </div>
+          </details>
+
+          <details className="group rounded-xl border border-border/70 bg-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2"><CreditCard className="h-4 w-4" />Ajustar pagamento</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="space-y-3 border-t border-border/60 p-3">
+              {pedido.status !== 'CANCELADO' ? (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Status do pagamento</Label>
+                  <Select value={pedido.statusPagamento} onValueChange={(value) => handleUpdatePaymentStatus(pedido.id, value as Pedido['statusPagamento'])}>
+                    <SelectTrigger className="h-9 w-full rounded-lg bg-background" disabled={confirmingPaymentId === pedido.id}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NAO_APLICAVEL">Na entrega</SelectItem>
+                      <SelectItem value="PENDENTE">Pendente</SelectItem>
+                      <SelectItem value="APROVADO">Aprovado</SelectItem>
+                      <SelectItem value="RECUSADO">Recusado</SelectItem>
+                      <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                      <SelectItem value="REEMBOLSADO">Reembolsado</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : null}
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                {canResendStatus ? (
-                  <Button variant="outline" className="w-full rounded-2xl" onClick={() => handleResendCurrentStatusMessage(pedido)}>
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Reenviar status
-                  </Button>
-                ) : null}
-                {canConfirmPayment ? (
-                  <Button variant="outline" className="w-full rounded-2xl" onClick={() => handleConfirmPayment(pedido.id)} disabled={confirmingPaymentId === pedido.id}>
-                    {confirmingPaymentId === pedido.id ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                    Confirmar pagamento
-                  </Button>
-                ) : null}
-              </div>
-
               {onlinePaymentAvailable ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Link de pagamento</p>
-                  <div className="rounded-xl border border-border/70 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
-                    Cobranca online atual: <span className="font-semibold text-foreground">{hostedGatewayLabel}</span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                <div className="space-y-2 border-t border-border/60 pt-3">
+                  <p className="text-xs text-muted-foreground">Link atual: <span className="font-semibold text-foreground">{hostedGatewayLabel}</span></p>
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="outline"
-                      className="w-full rounded-2xl"
+                      size="sm"
+                      className="h-8 rounded-lg text-xs"
                       onClick={() => handleCopyPaymentLink(pedido)}
                       disabled={paymentActionLoading}
                     >
-                      {paymentActionLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                      {paymentActionLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
                       Copiar link
                     </Button>
                     <Button
                       variant="outline"
-                      className="w-full rounded-2xl"
+                      size="sm"
+                      className="h-8 rounded-lg text-xs"
                       onClick={() => void handleRefreshPaymentLink(pedido)}
                       disabled={paymentActionLoading}
                     >
-                      {paymentActionLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Gerar ou validar link
+                      <RefreshCw className={`h-3.5 w-3.5 ${paymentActionLoading ? 'animate-spin' : ''}`} />
+                      Validar link
                     </Button>
                   </div>
                   <Button
                     variant="outline"
-                    className="w-full rounded-2xl"
+                    size="sm"
+                    className="h-8 w-full rounded-lg text-xs"
                     onClick={() => {
                       setPaymentMethodDialogPedido(pedido)
                       setPaymentMethodValue(
@@ -1075,15 +1190,19 @@ export function PedidosDashboard() {
                     }}
                     disabled={paymentActionLoading || pedido.statusPagamento === 'APROVADO'}
                   >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Trocar forma de pagamento
+                    <Pencil className="h-3.5 w-3.5" />Trocar forma
                   </Button>
                 </div>
               ) : null}
+            </div>
+          </details>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Mover manualmente</p>
-                <div className="grid gap-2 sm:grid-cols-2">
+          <details className="group rounded-xl border border-border/70 bg-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
+              <span>Mover manualmente</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="grid grid-cols-2 gap-2 border-t border-border/60 p-3">
                   {kanbanColumns
                     .filter((column) => column.status !== pedido.status && canMovePedido(pedido, column.status))
                     .map((column) => (
@@ -1091,216 +1210,53 @@ export function PedidosDashboard() {
                         key={column.status}
                         type="button"
                         variant="outline"
-                        className="w-full rounded-2xl"
+                        size="sm"
+                        className="h-8 w-full rounded-lg text-xs"
                         onClick={() => handleUpdateStatus(pedido, column.status)}
                         disabled={updatingStatus === pedido.id}
                       >
                         {column.title}
                       </Button>
                     ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </details>
 
-          {pedido.status !== 'CANCELADO' ? (
-            <Card className="border-border/70">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <CreditCard className="h-4 w-4" />
-                  Pagamento
-                </CardTitle>
-                <CardDescription>Ajuste fino do recebimento quando precisar sair do fluxo padrão.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="rounded-2xl border bg-muted/20 p-4">
-                  <p className="text-xs text-muted-foreground">Status atual</p>
-                  <p className="mt-1 font-semibold">{paymentStatusLabel}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Status do pagamento</Label>
-                  <Select
-                    value={pedido.statusPagamento}
-                    onValueChange={(value) => handleUpdatePaymentStatus(pedido.id, value as Pedido['statusPagamento'])}
-                  >
-                    <SelectTrigger className="w-full rounded-2xl bg-background" disabled={confirmingPaymentId === pedido.id}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NAO_APLICAVEL">Na entrega</SelectItem>
-                      <SelectItem value="PENDENTE">Pendente</SelectItem>
-                      <SelectItem value="APROVADO">Aprovado</SelectItem>
-                      <SelectItem value="RECUSADO">Recusado</SelectItem>
-                      <SelectItem value="CANCELADO">Cancelado</SelectItem>
-                      <SelectItem value="REEMBOLSADO">Reembolsado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <Card className="border-border/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Package className="h-4 w-4" />
-                Itens e fechamento
-              </CardTitle>
-              <CardDescription>Veja rapidamente a composicao e o total antes de agir.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {pedido.itens.map((item) => (
-                <div key={item.id} className="flex items-start justify-between gap-3 rounded-2xl border bg-background/70 p-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="break-words font-medium">{item.quantidade}x {item.nomeProdutoSnapshot}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatarMoeda(item.precoUnitarioSnapshot)} cada</p>
-                  </div>
-                  <span className="shrink-0 font-semibold">{formatarMoeda(item.totalItem)}</span>
-                </div>
-              ))}
-              <Separator />
-              <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatarMoeda(pedido.subtotal)}</span></div>
-              {pedido.frete > 0 ? <div className="flex justify-between text-sm"><span>Frete</span><span>{formatarMoeda(pedido.frete)}</span></div> : null}
-              {pedido.descontoValor && pedido.descontoValor > 0 ? (
-                <div className="flex justify-between text-sm text-success">
-                  <span>{pedido.cupomCodigoSnapshot ? 'Desconto' : 'Valor promocional'}</span>
-                  <span>-{formatarMoeda(pedido.descontoValor)}</span>
-                </div>
-              ) : null}
-              {pedido.cupomCodigoSnapshot ? <div className="flex justify-between text-sm"><span>Cupom</span><span>{pedido.cupomCodigoSnapshot}</span></div> : null}
-              <div className="flex justify-between border-t border-border/70 pt-3 text-base font-bold">
-                <span>Total</span>
-                <span className="text-primary">{formatarMoeda(pedido.total)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <User className="h-4 w-4" />
-                Cliente, entrega e observações
-              </CardTitle>
-              <CardDescription>Contexto completo para atendimento sem duplicidade visual.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border bg-background/75 p-4">
-                  <p className="text-xs text-muted-foreground">Contato</p>
-                  <p className="mt-1 break-words font-semibold">{pedido.clienteNome}</p>
-                  <p className="mt-2 break-all text-sm text-muted-foreground">
-                    {pedido.clienteTelefone ? formatarTelefone(pedido.clienteTelefone) : 'Celular não informado'}
-                  </p>
-                </div>
-                <div className="rounded-2xl border bg-background/75 p-4">
-                  <p className="text-xs text-muted-foreground">Entrega</p>
-                  <p className="mt-1 font-semibold">{entregaLabels[pedido.tipoEntrega]}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {pedido.tipoEntrega === 'RESERVA_PAULISTANO'
-                      ? `Bloco ${pedido.clienteBloco || '-'} • Apto ${pedido.clienteApartamento || '-'}`
-                      : pedido.tipoEntrega === 'RETIRADA'
-                        ? pedido.enderecoRetirada
-                        : `Entrega em ${pedido.encomendaPara ? formatDateTimeInSaoPaulo(pedido.encomendaPara) : '-'}`
-                    }
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3 rounded-2xl border bg-muted/20 p-4 text-sm">
-                <div className="flex items-start gap-2">
-                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span>Pedido feito em {formatDateTimeInSaoPaulo(pedido.criadoEm)}</span>
-                </div>
-                {pedido.responsavelPedido ? (
-                  <div className="flex items-start gap-2">
-                    <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="break-words">Responsavel: {pedido.responsavelPedido}</span>
-                  </div>
+          {(canCancel || canDelete || pedido.status === 'CANCELADO') ? (
+            <details className="group rounded-xl border border-destructive/30 bg-destructive/[0.03]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold text-destructive">
+                <span>Ações administrativas</span>
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="space-y-2 border-t border-destructive/20 p-3">
+                {pedido.status === 'CANCELADO' ? <p className="text-xs text-muted-foreground">Motivo: {pedido.motivoCancelamento || 'Não informado'}</p> : null}
+                {canCancel ? (
+                  <>
+                    <Textarea placeholder="Motivo do cancelamento" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} rows={2} className="rounded-lg text-sm" />
+                    <Button variant="destructive" size="sm" className="h-8 w-full rounded-lg text-xs" onClick={() => handleCancelPedido(pedido.id)} disabled={isCancelling || !cancelReason.trim()}>
+                      {isCancelling ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}Cancelar pedido
+                    </Button>
+                  </>
                 ) : null}
-                {pedido.destinatariosPedido ? (
-                  <div className="flex items-start gap-2">
-                    <Package className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="break-words">Separar para: {pedido.destinatariosPedido}</span>
-                  </div>
-                ) : null}
-                {pedido.levadoEm ? (
-                  <div className="flex items-start gap-2">
-                    <Truck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span>Levado em {formatDateTimeInSaoPaulo(pedido.levadoEm)}</span>
-                  </div>
-                ) : null}
-                {pedido.observacoesPedido ? (
-                  <div className="rounded-xl border bg-background/75 p-3 text-muted-foreground">
-                    {pedido.observacoesPedido}
-                  </div>
+                {canDelete ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild><Button variant="outline" size="sm" className="h-8 w-full rounded-lg border-destructive/40 text-xs text-destructive">Excluir pedido</Button></AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir pedido definitivamente?</AlertDialogTitle>
+                        <AlertDialogDescription>Esta ação remove o pedido da base e não é possível desfazer. Pedidos pagos só podem ser excluídos quando estão cancelados.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel><X className="mr-0 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Voltar</span></AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeletePedido(pedido.id)} disabled={deletingPedidoId === pedido.id}>
+                          {deletingPedidoId === pedido.id ? <RefreshCw className="mr-0 h-4 w-4 animate-spin md:mr-2" /> : <Trash2 className="mr-0 h-4 w-4 md:mr-2" />}
+                          <span className="hidden md:inline">{deletingPedidoId === pedido.id ? 'Excluindo...' : 'Excluir'}</span>
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 ) : null}
               </div>
-            </CardContent>
-          </Card>
-
-          {canCancel ? (
-            <Card className="border-destructive/35 bg-destructive/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <X className="h-4 w-4" />
-                  Acoes sensiveis
-                </CardTitle>
-                <CardDescription>Cancele ou exclua somente quando tiver certeza da operacao.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Textarea
-                  placeholder="Informe o motivo do cancelamento"
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                  rows={3}
-                  className="rounded-2xl"
-                />
-                <Button variant="destructive" className="w-full rounded-2xl" onClick={() => handleCancelPedido(pedido.id)} disabled={isCancelling || !cancelReason.trim()}>
-                  {isCancelling ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Cancelar pedido
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {pedido.status === 'CANCELADO' ? (
-            <Card className="border-destructive/35 bg-destructive/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <X className="h-4 w-4" />
-                  Pedido cancelado
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Motivo: {pedido.motivoCancelamento || 'Nao informado'}</p>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {canDelete ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full rounded-2xl">Excluir pedido</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Excluir pedido definitivamente?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acao remove o pedido da base e nao e possivel desfazer. Pedidos pagos so podem ser excluidos quando estao cancelados.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>
-                    <X className="mr-0 h-4 w-4 md:mr-2" />
-                    <span className="hidden md:inline">Voltar</span>
-                  </AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDeletePedido(pedido.id)} disabled={deletingPedidoId === pedido.id}>
-                    {deletingPedidoId === pedido.id ? <RefreshCw className="mr-0 h-4 w-4 animate-spin md:mr-2" /> : <Trash2 className="mr-0 h-4 w-4 md:mr-2" />}
-                    <span className="hidden md:inline">{deletingPedidoId === pedido.id ? 'Excluindo...' : 'Excluir'}</span>
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            </details>
           ) : null}
         </div>
       </>
@@ -1308,37 +1264,37 @@ export function PedidosDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/14 p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl space-y-2">
-            <h1 className="text-2xl font-bold md:text-3xl">Pedidos</h1>
-            <p className="text-sm text-muted-foreground md:text-base">
-              Arraste os cards entre as etapas e acompanhe a operacao sem perder velocidade no atendimento.
+    <div className="space-y-3 md:space-y-4">
+      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/14 via-background to-secondary/12 p-3 shadow-sm md:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="max-w-2xl">
+            <h1 className="text-xl font-bold md:text-2xl">Pedidos</h1>
+            <p className="mt-1 text-xs text-muted-foreground md:text-sm">
+              Venda, confirme e avance pedidos com poucos toques.
             </p>
           </div>
           <div className="w-full xl:max-w-[34rem]">
-            <Button variant="default" size="sm" className="h-12 w-full justify-center rounded-2xl text-sm font-medium" onClick={() => setNewOrderOpen(true)}>
+            <Button variant="default" size="sm" className="h-10 w-full justify-center rounded-xl text-sm font-medium" onClick={() => setNewOrderOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Novo pedido
             </Button>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <Button variant="outline" size="sm" className="h-11 justify-center rounded-2xl px-3 whitespace-nowrap" onClick={() => setStockLookupOpen(true)}>
+            <div className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+              <Button variant="outline" size="sm" className="h-8 justify-center rounded-lg px-2 text-xs whitespace-nowrap" onClick={() => setStockLookupOpen(true)}>
                 <Archive className="mr-2 h-4 w-4" />
                 Estoque
               </Button>
               {alertsEnabled && !soundUnlocked && (
-                <Button variant="outline" size="sm" className="h-11 justify-center rounded-2xl px-3 whitespace-nowrap" onClick={handleUnlockSound}>
+                <Button variant="outline" size="sm" className="h-8 justify-center rounded-lg px-2 text-xs whitespace-nowrap" onClick={handleUnlockSound}>
                   <Volume2 className="mr-2 h-4 w-4" />
                   Ativar som
                 </Button>
               )}
-              <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" className="h-11 justify-center rounded-2xl px-3" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
+              <Button variant={alertsEnabled ? 'default' : 'outline'} size="sm" className="h-8 justify-center rounded-lg px-2 text-xs" onClick={alertsEnabled ? handleDisableAlerts : handleEnableAlerts}>
                 {alertsEnabled ? <BellRing className="mr-2 h-4 w-4" /> : <Bell className="mr-2 h-4 w-4" />}
                 <span className="sm:hidden">{alertsEnabled ? 'Alertas on' : 'Alertas'}</span>
                 <span className="hidden sm:inline">{alertsEnabled ? 'Alertas ativos' : 'Ativar alertas'}</span>
               </Button>
-              <Button variant="outline" size="sm" className="h-11 justify-center rounded-2xl px-3 whitespace-nowrap" onClick={handleRefresh}>
+              <Button variant="outline" size="sm" className="h-8 justify-center rounded-lg px-2 text-xs whitespace-nowrap" onClick={handleRefresh}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Atualizar
               </Button>
@@ -1347,27 +1303,30 @@ export function PedidosDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
         {resumoCards.map((card) => (
-          <Card key={card.key} className={`border-border/70 bg-card/95 ${card.key === 'total' ? 'col-span-2 md:col-span-1' : ''}`}>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground sm:text-sm">{card.label}</p>
-              <p className="text-2xl font-bold">{card.value}</p>
+          <Card key={card.key} className="gap-0 rounded-xl border-border/70 bg-card/95 py-0">
+            <CardContent className="p-2.5 sm:p-3">
+              <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">{card.label}</p>
+              <p className="mt-0.5 text-xl font-bold">{card.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card className="border-border/70 bg-card/95">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-semibold">Checkout online no admin</p>
-              <p className="text-sm text-muted-foreground">
-                Leitura rapida dos links gerados para saber se os pedidos estao saindo em Mercado Pago, legado Asaas ou fluxo manual.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
+      <details className="group rounded-xl border border-border/70 bg-card/90">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm">
+          <div className="min-w-0">
+            <span className="font-semibold">Pagamentos online</span>
+            <span className="ml-2 text-xs text-muted-foreground">{hostedCheckoutResumo.onlinePendentes} pendente(s)</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Badge variant="outline" className="h-5 rounded-md px-1.5 text-[10px]">MP {hostedCheckoutResumo.mercadoPago}</Badge>
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </div>
+        </summary>
+        <div className="border-t border-border/60 p-3">
+          <div className="flex flex-wrap gap-1.5">
               <Badge variant="outline" className={getGatewayBadgeClass('MERCADO_PAGO')}>
                 Mercado Pago {hostedCheckoutResumo.mercadoPago}
               </Badge>
@@ -1381,69 +1340,60 @@ export function PedidosDashboard() {
                   Manual {hostedCheckoutResumo.manual}
                 </Badge>
               ) : null}
-            </div>
           </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-border/70 bg-background/70 p-2.5">
               <p className="text-xs text-muted-foreground">Pagamentos online pendentes</p>
-              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.onlinePendentes}</p>
+              <p className="mt-1 text-xl font-bold">{hostedCheckoutResumo.onlinePendentes}</p>
             </div>
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+            <div className="rounded-lg border border-border/70 bg-background/70 p-2.5">
               <p className="text-xs text-muted-foreground">Pagamentos online aprovados</p>
-              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.onlineAprovados}</p>
+              <p className="mt-1 text-xl font-bold">{hostedCheckoutResumo.onlineAprovados}</p>
             </div>
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+            <div className="rounded-lg border border-border/70 bg-background/70 p-2.5">
               <p className="text-xs text-muted-foreground">Pedidos em dinheiro</p>
-              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.dinheiro}</p>
+              <p className="mt-1 text-xl font-bold">{hostedCheckoutResumo.dinheiro}</p>
             </div>
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+            <div className="rounded-lg border border-border/70 bg-background/70 p-2.5">
               <p className="text-xs text-muted-foreground">Sem link hospedado</p>
-              <p className="mt-1 text-2xl font-bold">{hostedCheckoutResumo.manual}</p>
+              <p className="mt-1 text-xl font-bold">{hostedCheckoutResumo.manual}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
-      <Card className="border-primary/15 bg-card/90">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Filter className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="font-semibold">Busca e filtros</p>
-                  <p className="text-sm text-muted-foreground">Encontre rapido por cliente, item, pagamento e data da operacao.</p>
-                </div>
-              </div>
+      <Card className="gap-0 rounded-xl border-primary/15 bg-card/90 py-0">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar cliente, item ou numero"
+                className="h-9 rounded-lg pl-9"
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Button type="button" variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'} size="sm" className="h-9 rounded-lg px-2.5" onClick={() => setFiltersOpen((current) => !current)}>
+              <SlidersHorizontal className="h-4 w-4" />
+              <span className="hidden sm:inline">Filtros</span>
+            </Button>
+          </div>
+
+          {filtersOpen ? (
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>Exibindo {pedidosFiltrados.length} de {pedidos?.length || 0} pedidos.</span>
               {hasActiveFilters ? (
-                <Button variant="outline" size="sm" onClick={clearFilters}>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}>
                   Limpar filtros
                 </Button>
               ) : null}
             </div>
-          </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             <div className="space-y-2">
-              <Label>Buscar pedido</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Numero, nome, telefone, bloco ou item"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
+              <Label className="text-xs">Status</Label>
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusPedido | 'TODOS')}>
                 <SelectTrigger className="w-full bg-background">
                   <SelectValue />
@@ -1460,7 +1410,7 @@ export function PedidosDashboard() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Pagamento</Label>
+              <Label className="text-xs">Pagamento</Label>
               <Select value={paymentFilter} onValueChange={(value) => setPaymentFilter(value as 'TODOS' | Pedido['pagamento'])}>
                 <SelectTrigger className="w-full bg-background">
                   <SelectValue />
@@ -1474,7 +1424,7 @@ export function PedidosDashboard() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Status pag.</Label>
+              <Label className="text-xs">Status pag.</Label>
               <Select value={paymentStatusFilter} onValueChange={(value) => setPaymentStatusFilter(value as 'TODOS' | Pedido['statusPagamento'])}>
                 <SelectTrigger className="w-full bg-background">
                   <SelectValue />
@@ -1491,14 +1441,13 @@ export function PedidosDashboard() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Dia da tela</Label>
+              <Label className="text-xs">Dia da tela</Label>
               <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-            Pedidos em aberto de dias anteriores continuam visiveis nesta tela. Encomendas abertas tambem aparecem antes do dia agendado para facilitar o controle.
           </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -1511,63 +1460,132 @@ export function PedidosDashboard() {
         </Card>
       )}
 
-      <Card className={selectedPedidoIds.length > 0 ? 'border-primary/35 bg-primary/5' : 'border-dashed border-border/70'}>
-        <CardContent className="flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-              {selectedPedidoIds.length > 0 ? `${selectedPedidoIds.length} pedido(s) selecionado(s)` : 'Selecione pedidos para agir em lote'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {selectedPedidoIds.length > 0
-                ? `${selectedPedidosAvancaveis.length} podem avancar, ${selectedPedidosRetornaveis.length} podem retornar e ${selectedPedidosPagamentoPendente.length} podem ter pagamento confirmado.`
-                : 'Use o checkbox de cada card ou selecione todos os pedidos filtrados.'}
-            </p>
+      {selectedPedidoIds.length > 0 ? (
+        <section className="overflow-hidden rounded-xl border border-primary/35 bg-primary/[0.055]" aria-label="Ações dos pedidos selecionados">
+          <div className="flex items-center justify-between gap-2 border-b border-primary/15 px-2.5 py-2">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold">{selectedPedidoIds.length} selecionado(s)</p>
+              <p className="truncate text-[10px] text-muted-foreground">Escolha uma ação em lote</p>
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 rounded-md px-2 text-xs" onClick={handleClearSelection}>
+              <X className="h-3.5 w-3.5" />
+              Limpar
+            </Button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
-            <Button variant="outline" size="sm" onClick={handleSelectAllFiltered} disabled={pedidosFiltrados.length === 0}>
+          <div className="flex gap-1.5 overflow-x-auto p-2">
+            <Button variant="outline" size="sm" className="h-8 shrink-0 rounded-lg px-2.5 text-xs" onClick={handleSelectAllFiltered} disabled={pedidosFiltrados.length === 0}>
               Selecionar filtrados
             </Button>
-            <Button variant="outline" size="sm" onClick={handleClearSelection} disabled={selectedPedidoIds.length === 0}>
-              Limpar selecao
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleBulkReturnStatus} disabled={selectedPedidosRetornaveis.length === 0 || bulkActionLoading !== null}>
-              {bulkActionLoading === 'return' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
-              Retornar etapa
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleBulkAdvanceStatus} disabled={selectedPedidosAvancaveis.length === 0 || bulkActionLoading !== null}>
-              {bulkActionLoading === 'advance' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-              Avancar etapa
-            </Button>
-            <Button size="sm" onClick={handleBulkMarkDelivered} disabled={selectedPedidosEntregaveis.length === 0 || bulkActionLoading !== null}>
-              {bulkActionLoading === 'deliver' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}
-              Tudo entregue
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleBulkConfirmPayment} disabled={selectedPedidosPagamentoPendente.length === 0 || bulkActionLoading !== null}>
-              {bulkActionLoading === 'payment' ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-              Confirmar pagamentos
-            </Button>
+            {selectedPedidosRetornaveis.length > 0 ? (
+              <Button variant="outline" size="sm" className="h-8 shrink-0 rounded-lg px-2.5 text-xs" onClick={handleBulkReturnStatus} disabled={bulkActionLoading !== null}>
+                {bulkActionLoading === 'return' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5 rotate-90" />}
+                Retornar ({selectedPedidosRetornaveis.length})
+              </Button>
+            ) : null}
+            {selectedPedidosAvancaveis.length > 0 ? (
+              <Button variant="outline" size="sm" className="h-8 shrink-0 rounded-lg px-2.5 text-xs" onClick={handleBulkAdvanceStatus} disabled={bulkActionLoading !== null}>
+                {bulkActionLoading === 'advance' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                Avançar ({selectedPedidosAvancaveis.length})
+              </Button>
+            ) : null}
+            {selectedPedidosEntregaveis.length > 0 ? (
+              <Button size="sm" className="h-8 shrink-0 rounded-lg px-2.5 text-xs" onClick={handleBulkMarkDelivered} disabled={bulkActionLoading !== null}>
+                {bulkActionLoading === 'deliver' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
+                Entregar ({selectedPedidosEntregaveis.length})
+              </Button>
+            ) : null}
+            {selectedPedidosPagamentoPendente.length > 0 ? (
+              <Button variant="outline" size="sm" className="h-8 shrink-0 rounded-lg px-2.5 text-xs" onClick={handleBulkConfirmPayment} disabled={bulkActionLoading !== null}>
+                {bulkActionLoading === 'payment' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                Pagamento ({selectedPedidosPagamentoPendente.length})
+              </Button>
+            ) : null}
           </div>
-        </CardContent>
-      </Card>
+        </section>
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <span>{pedidosFiltrados.length} pedido(s) na visualização</span>
+          {viewMode === 'LISTA' && listColumnsWithPedidos.length > 0 ? (
+            <>
+              <Button type="button" variant="ghost" size="sm" className="h-7 rounded-md px-2 text-[11px]" onClick={collapseAllListPhases}>
+                Recolher
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="h-7 rounded-md px-2 text-[11px]" onClick={expandAllListPhases}>
+                Expandir
+              </Button>
+            </>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 rounded-lg border border-border/70 bg-card p-0.5">
+          <Button type="button" variant={viewMode === 'LISTA' ? 'default' : 'ghost'} size="sm" className="h-7 rounded-md px-2 text-xs" onClick={() => changeViewMode('LISTA')}>
+            <List className="h-3.5 w-3.5" />
+            Lista
+          </Button>
+          <Button type="button" variant={viewMode === 'KANBAN' ? 'default' : 'ghost'} size="sm" className="h-7 rounded-md px-2 text-xs" onClick={() => changeViewMode('KANBAN')}>
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Kanban
+          </Button>
+        </div>
+      </div>
 
       {isLoading ? (
-        <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-max gap-4">{[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-96 w-[280px] sm:w-[320px]" />)}</div>
+        <div className={viewMode === 'LISTA' ? 'space-y-2' : 'overflow-x-auto pb-2'}>
+          {viewMode === 'LISTA'
+            ? [1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[74px] w-full rounded-xl" />)
+            : <div className="flex min-w-max gap-3">{[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-80 w-[270px] sm:w-[300px]" />)}</div>}
+        </div>
+      ) : viewMode === 'LISTA' ? (
+        <div className="space-y-3">
+          {pedidosFiltrados.length ? listColumnsWithPedidos.map((column) => {
+            const phasePedidos = pedidosPorStatus[column.status] ?? []
+            const PhaseIcon = statusConfig[column.status].icon
+            const isOpen = !collapsedListStatuses.has(column.status)
+
+            return (
+              <Collapsible key={`list-phase-${column.status}`} open={isOpen} onOpenChange={(open) => setListPhaseOpen(column.status, open)}>
+                <section className="overflow-hidden rounded-xl border border-border/70 bg-card/45" aria-labelledby={`list-phase-title-${column.status}`}>
+                  <CollapsibleTrigger asChild>
+                    <button type="button" className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-muted/35" aria-expanded={isOpen}>
+                      <span className={`flex h-6 w-6 items-center justify-center rounded-md ${statusConfig[column.status].color}`}>
+                        <PhaseIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <h2 id={`list-phase-title-${column.status}`} className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-foreground">
+                        {column.title}
+                      </h2>
+                      <span className="rounded-md bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{phasePedidos.length}</span>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="space-y-1.5 border-t border-border/60 p-1.5">
+                      {phasePedidos.map(renderPedidoListRow)}
+                    </div>
+                  </CollapsibleContent>
+                </section>
+              </Collapsible>
+            )
+          }) : (
+            <div className="rounded-xl border border-dashed border-border/70 bg-card/60 px-4 py-8 text-center text-sm text-muted-foreground">
+              Nenhum pedido encontrado com os filtros atuais.
+            </div>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-max snap-x snap-mandatory gap-4">
+          <div className="flex min-w-max snap-x snap-mandatory gap-3">
           {kanbanColumns.map(column => {
             const columnPedidos = pedidosPorStatus[column.status] ?? []
             const StatusIcon = statusConfig[column.status].icon
             return (
-              <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[360px] w-[85vw] max-w-[320px] shrink-0 snap-start rounded-2xl border p-3 sm:w-[320px] xl:w-[calc((100vw-24rem)/6)] xl:min-w-[220px] ${statusConfig[column.status].columnClass}`}>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2"><div className={`rounded-full p-2 ${statusConfig[column.status].color}`}><StatusIcon className="h-4 w-4" /></div><div><h2 className="font-semibold">{column.title}</h2><p className="text-xs text-muted-foreground">{column.hint}</p></div></div>
+              <div key={column.status} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => handleDrop(event, column.status)} className={`min-h-[320px] w-[82vw] max-w-[300px] shrink-0 snap-start rounded-xl border p-2.5 sm:w-[300px] xl:w-[calc((100vw-24rem)/6)] xl:min-w-[210px] ${statusConfig[column.status].columnClass}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2"><div className={`rounded-lg p-1.5 ${statusConfig[column.status].color}`}><StatusIcon className="h-3.5 w-3.5" /></div><div><h2 className="text-sm font-semibold">{column.title}</h2><p className="text-[10px] text-muted-foreground">{column.hint}</p></div></div>
                   <Badge variant="secondary">{columnPedidos.length}</Badge>
                 </div>
-                <div className="space-y-3">
-                  {columnPedidos.length === 0 ? <Card className="border-dashed bg-background/50"><CardContent className="py-8 text-center text-sm text-muted-foreground">Nenhum pedido</CardContent></Card> : columnPedidos.map(renderPedidoCard)}
+                <div className="space-y-2">
+                  {columnPedidos.length === 0 ? <Card className="gap-0 border-dashed bg-background/50 py-0"><CardContent className="py-6 text-center text-xs text-muted-foreground">Nenhum pedido</CardContent></Card> : columnPedidos.map(renderPedidoCard)}
                 </div>
               </div>
             )
@@ -1577,14 +1595,14 @@ export function PedidosDashboard() {
       )}
 
       <Sheet open={!!selectedPedido} onOpenChange={() => { setSelectedPedido(null); setCancelReason('') }}>
-        <SheetContent className="w-full overflow-y-auto px-4 sm:max-w-lg">
+        <SheetContent className="w-full overflow-y-auto px-3 sm:max-w-lg sm:px-4">
           {selectedPedido ? renderSelectedPedidoSheet(selectedPedido) : null}
         </SheetContent>
       </Sheet>
 
       <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto overflow-x-hidden p-3 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
-          <DialogHeader>
+        <DialogContent className="max-h-[96dvh] w-[calc(100vw-0.35rem)] max-w-[calc(100vw-0.35rem)] overflow-y-auto overflow-x-hidden p-2 sm:max-w-none sm:p-4 lg:w-[min(calc(100vw-2rem),1120px)]">
+          <DialogHeader className="sr-only">
             <DialogTitle>Novo pedido manual</DialogTitle>
           </DialogHeader>
           <NovoPedidoAdminPage
@@ -1722,21 +1740,23 @@ export function PedidosDashboard() {
       </Dialog>
 
       <Dialog open={!!editingPedido} onOpenChange={(open) => { if (!open) setEditingPedido(null) }}>
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto overflow-x-hidden p-3 sm:max-w-none sm:p-6 lg:w-[min(calc(100vw-3rem),1120px)]">
-          <DialogHeader>
-            <DialogTitle>Editar pedido</DialogTitle>
+        <DialogContent className="flex h-[min(94dvh,860px)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] flex-col overflow-hidden p-0 sm:max-w-none lg:w-[min(calc(100vw-3rem),1120px)]">
+          <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-3 pr-12 text-left">
+            <DialogTitle className="text-base">Editar pedido</DialogTitle>
           </DialogHeader>
-          {editingPedido && (
-            <NovoPedidoAdminPage
-              compact
-              initialPedido={editingPedido}
-              onSaved={(pedido) => {
-                mutate(pedidosUrl)
-                setSelectedPedido(pedido)
-                setEditingPedido(null)
-              }}
-            />
-          )}
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2 sm:p-4">
+            {editingPedido && (
+              <NovoPedidoAdminPage
+                compact
+                initialPedido={editingPedido}
+                onSaved={(pedido) => {
+                  mutate(pedidosUrl)
+                  setSelectedPedido(pedido)
+                  setEditingPedido(null)
+                }}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

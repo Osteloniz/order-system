@@ -7,7 +7,7 @@ export function PublicThemeEnforcer() {
   const { setTheme } = useTheme()
 
   useEffect(() => {
-    setTheme('system')
+    setTheme('light')
   }, [setTheme])
 
   return null

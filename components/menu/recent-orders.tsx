@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { Clock, Loader2, Phone, ReceiptText, RefreshCw, Search } from 'lucide-react'
+import { ChevronDown, Clock, Loader2, Phone, ReceiptText, RefreshCw, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,6 +63,7 @@ export function RecentOrders() {
   const [telefone, setTelefone] = useState('')
   const [submittedPhone, setSubmittedPhone] = useState('')
   const [formError, setFormError] = useState('')
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     const profile = getCustomerProfile()
@@ -74,6 +75,7 @@ export function RecentOrders() {
 
     setTelefone(formatPhoneInput(initialContact))
     setSubmittedPhone(initialContact)
+    setExpanded(true)
   }, [])
 
   const normalizedPhone = normalizePhone(telefone)
@@ -104,19 +106,33 @@ export function RecentOrders() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl px-4 pt-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ReceiptText className="h-4 w-4 text-primary" />
-          <h2 className="font-semibold">Seus ultimos pedidos</h2>
+    <section className="mx-auto max-w-5xl px-4 pt-4">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-[22px] border border-border/70 bg-card/90 px-4 py-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-card"
+        aria-expanded={expanded}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
+            <ReceiptText className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-semibold leading-tight">Acompanhar pedido</h2>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {submittedPhone ? `Pedidos de ${formatPhoneInput(submittedPhone)}` : 'Consulte seus pedidos pelo telefone'}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground dark:text-white/80">
-          <Clock className="h-3 w-3" />
-          {submittedPhone ? 'neste telefone' : 'busca por telefone'}
+        <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground dark:text-white/80">
+          {submittedPhone ? <Clock className="h-3 w-3" /> : null}
+          <span>{expanded ? 'Fechar' : 'Abrir'}</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </div>
-      </div>
+      </button>
 
-      <form onSubmit={handleSearch} className="rounded-2xl border border-border/70 bg-card/95 p-3">
+      {expanded ? <div className="mt-3 rounded-[22px] border border-border/70 bg-card/80 p-3 shadow-sm">
+      <form onSubmit={handleSearch}>
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
             <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -179,11 +195,12 @@ export function RecentOrders() {
             ))}
           </div>
         ) : !isLoading && !error ? (
-          <div className="mt-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground dark:text-white/80">
+          <div className="mt-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm text-muted-foreground dark:text-white/80">
             Nao encontramos pedidos recentes para esse numero neste momento.
           </div>
         ) : null
       ) : null}
+      </div> : null}
     </section>
   )
 }

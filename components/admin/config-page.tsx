@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState, useEffect, useRef } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Bell, CalendarClock, Copy, CreditCard, Link2, MapPin, MessageCircle, PackageCheck, QrCode, RotateCcw, Save, Loader2, Settings, Shield, Sparkles, Store, Volume2, Wallet } from 'lucide-react'
+import { Bell, CalendarClock, Copy, CreditCard, Link2, MapPin, MessageCircle, PackageCheck, QrCode, RotateCcw, Save, Loader2, Settings, Shield, Store, Volume2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -318,40 +318,20 @@ export function ConfigPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/18 via-background to-secondary/16 p-5 shadow-sm md:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <Badge className="mb-3 bg-primary/90 text-primary-foreground hover:bg-primary/90">
-              <Sparkles className="mr-1 h-3 w-3" /> Ajustes do painel
-            </Badge>
-            <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
-              <Settings className="h-7 w-7 text-primary" />
-              Configurações
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Centralize os dados do estabelecimento, textos do WhatsApp, links de operação e alertas deste navegador.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-background/80 p-4">
-              <p className="text-xs text-muted-foreground">Loja</p>
-              <p className="mt-1 font-semibold">{nomeEstabelecimento || 'Não configurado'}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{lojaStatus.statusLabel}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/80 p-4">
-              <p className="text-xs text-muted-foreground">Alertas</p>
-              <p className="mt-1 font-semibold">{alertsEnabled ? 'Ativos' : 'Desativados'}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Permissao {permissionLabel}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/80 p-4">
-              <p className="text-xs text-muted-foreground">Mensagens</p>
-              <p className="mt-1 font-semibold">{envioAutomaticoWhatsappStatus ? 'Envio automático ligado' : 'Envio manual'}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Fluxo de status do pedido</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-3 [&_input]:rounded-lg [&_input]:h-9 [&_button]:rounded-lg [&_textarea]:rounded-lg [&_.rounded-2xl]:rounded-xl">
+      <header className="flex items-start justify-between gap-3">
+        <div><div className="flex items-center gap-2"><Settings className="h-5 w-5 text-primary" /><h1 className="text-xl font-bold">Configurações</h1></div><p className="mt-0.5 text-xs text-muted-foreground">Loja, pedidos, checkout e comunicação.</p></div>
+        <Badge variant="outline" className={lojaStatus.isOpen ? 'border-primary/25 bg-primary/[0.06] text-primary' : 'border-warning/30 bg-warning/10'}>{lojaStatus.statusLabel}</Badge>
+      </header>
+
+      <nav className="flex gap-1.5 overflow-x-auto rounded-xl border border-border/70 bg-card p-1.5 text-xs" aria-label="Seções das configurações">
+        <a href="#config-loja" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Loja</a>
+        <a href="#config-pedidos" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Pedidos</a>
+        <a href="#config-checkout" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Checkout</a>
+        <a href="#config-whatsapp" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">WhatsApp</a>
+        <a href="#config-links" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Links</a>
+        <a href="#config-alertas" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Alertas</a>
+      </nav>
 
       {(configError || tenantError) && (
         <Card className="max-w-4xl border-destructive/40 bg-destructive/5">
@@ -361,8 +341,8 @@ export function ConfigPage() {
         </Card>
       )}
 
-      <Card className="max-w-6xl overflow-hidden">
-        <CardHeader>
+      <Card id="config-loja" className="max-w-6xl scroll-mt-3 gap-0 overflow-hidden rounded-xl py-0">
+        <CardHeader className="p-3">
           <CardTitle className="flex items-center gap-2">
             <Store className="h-5 w-5" />
             Dados do Estabelecimento
@@ -371,7 +351,7 @@ export function ConfigPage() {
             Ajuste o nome exibido, o endereço de retirada e o comportamento geral da loja.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
               <div className="min-w-0 space-y-4 rounded-2xl border border-border/70 bg-background/65 p-4">
@@ -491,7 +471,7 @@ export function ConfigPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-background/65 p-4">
+            <div id="config-pedidos" className="scroll-mt-3 rounded-2xl border border-border/70 bg-background/65 p-4">
               <div className="mb-4">
                 <Label className="text-base">Padrão para novos pedidos manuais</Label>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -645,7 +625,7 @@ export function ConfigPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-background/65 p-4">
+            <div id="config-checkout" className="scroll-mt-3 rounded-2xl border border-border/70 bg-background/65 p-4">
               <div className="mb-4">
                 <Label className="text-base">Checkout público</Label>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -841,7 +821,7 @@ export function ConfigPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-border/70 bg-muted/20 p-4">
+            <div id="config-whatsapp" className="scroll-mt-3 overflow-hidden rounded-2xl border border-border/70 bg-muted/20 p-4">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-base font-semibold">
@@ -931,8 +911,8 @@ export function ConfigPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={isSubmitting}>
+            <div className="sticky bottom-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-border/70 bg-background/95 p-2 shadow-lg backdrop-blur">
+              <Button type="submit" className="h-9" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-0 md:mr-2 animate-spin" />
@@ -961,9 +941,9 @@ export function ConfigPage() {
         </CardContent>
       </Card>
 
-      <div className="grid max-w-6xl gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <Card>
-        <CardHeader>
+      <div className="grid max-w-6xl gap-3 xl:grid-cols-[1.15fr_0.85fr]">
+      <Card id="config-links" className="scroll-mt-3 gap-0 rounded-xl py-0">
+        <CardHeader className="p-3">
           <CardTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5" />
             Links de Acesso
@@ -972,7 +952,7 @@ export function ConfigPage() {
             Use o link do catálogo para clientes. O acesso admin fica separado e interno.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 p-3 pt-0">
           <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium">
               <Link2 className="h-4 w-4 text-primary" />
@@ -1013,8 +993,8 @@ export function ConfigPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <Card id="config-alertas" className="scroll-mt-3 gap-0 rounded-xl py-0">
+        <CardHeader className="p-3">
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
             Alertas e permissões
@@ -1023,7 +1003,7 @@ export function ConfigPage() {
             Configure os avisos de novos pedidos neste navegador.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 p-3 pt-0">
           <div className={alertMessage ? `rounded-xl border p-3 ${permissionTone}` : `rounded-xl border p-3 ${permissionTone}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>

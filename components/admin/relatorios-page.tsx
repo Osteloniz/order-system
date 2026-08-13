@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { BarChart3, CheckCircle2, Download, PackageCheck, ReceiptText, RefreshCw, Search, Sparkles, TrendingUp, XCircle } from 'lucide-react'
+import { BarChart3, CheckCircle2, ChevronDown, Download, PackageCheck, ReceiptText, RefreshCw, Search, Sparkles, TrendingUp, XCircle } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -383,49 +383,20 @@ export function RelatoriosPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/18 p-5 shadow-sm md:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <Badge className="mb-3 bg-secondary text-secondary-foreground hover:bg-secondary">
-              <Sparkles className="mr-1 h-3 w-3" /> Inteligencia do dia
-            </Badge>
-            <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
-              <BarChart3 className="h-7 w-7 text-primary" />
-              Relatorios
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Acompanhe faturamento, ticket medio, sabores mais vendidos e exporte os dados para planilha.
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Periodo padrao da tela: semana atual, de domingo a sabado.
-            </p>
-          </div>
-          <div className="w-full max-w-3xl space-y-3 lg:max-w-none lg:flex-1">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>De</Label>
-                <Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Ate</Label>
-                <Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} />
-              </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              <Button type="button" className="w-full whitespace-nowrap" onClick={handleAplicarPeriodo} disabled={!periodoPendente}>
-                <Search className="mr-2 h-4 w-4" /> Buscar periodo
-              </Button>
-              <Button type="button" variant="outline" className="w-full whitespace-nowrap" onClick={periodoPendente ? handleLimparPeriodo : () => mutate()}>
-                <RefreshCw className="mr-2 h-4 w-4" /> {periodoPendente ? 'Limpar periodo' : 'Atualizar'}
-              </Button>
-              <Button type="button" variant="outline" className="w-full whitespace-nowrap" onClick={handleExportProdutos} disabled={!data?.produtos.length}>
-                <Download className="mr-2 h-4 w-4" /> Exportar Excel
-              </Button>
-            </div>
-          </div>
+    <div className="space-y-3">
+      <header className="flex items-start justify-between gap-3">
+        <div><div className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" /><h1 className="text-xl font-bold">Relatórios</h1></div><p className="mt-0.5 text-xs text-muted-foreground">Vendas, resultado e operação do período.</p></div>
+        <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 rounded-lg" onClick={handleExportProdutos} disabled={!data?.produtos.length}><Download className="h-4 w-4" /> Exportar</Button>
+      </header>
+
+      <section className="rounded-xl border border-border/70 bg-card p-2.5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[145px_145px_auto_auto] sm:items-end">
+          <div className="space-y-1"><Label className="text-[11px]">De</Label><Input type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} className="h-9 rounded-lg" /></div>
+          <div className="space-y-1"><Label className="text-[11px]">Até</Label><Input type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} className="h-9 rounded-lg" /></div>
+          <Button type="button" size="sm" className="h-9 rounded-lg" onClick={handleAplicarPeriodo} disabled={!periodoPendente}><Search className="h-4 w-4" /> Buscar</Button>
+          <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={periodoPendente ? handleLimparPeriodo : () => mutate()}><RefreshCw className="h-4 w-4" /> {periodoPendente ? 'Limpar' : 'Atualizar'}</Button>
         </div>
-      </div>
+      </section>
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -437,16 +408,15 @@ export function RelatoriosPage() {
           <Skeleton className="h-32" />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {cardsVisaoGeral.map((card) => {
             const Icon = card.icon
             return (
-              <Card key={card.key} className={card.className}>
-                <CardContent className="p-5">
-                  <Icon className={`mb-3 h-5 w-5 ${card.iconClass}`} />
-                  <p className="text-sm text-muted-foreground">{card.title}</p>
-                  <p className="text-3xl font-bold">{card.value}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">{card.detail}</p>
+              <Card key={card.key} className={`${card.className} w-[170px] shrink-0 gap-0 rounded-xl py-0`}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${card.iconClass}`} /><p className="truncate text-[11px] text-muted-foreground">{card.title}</p></div>
+                  <p className="mt-1 truncate text-lg font-bold">{card.value}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{card.detail}</p>
                 </CardContent>
               </Card>
             )
@@ -498,8 +468,10 @@ export function RelatoriosPage() {
       </Card>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <details className="group rounded-xl border border-border/70 bg-card">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold"><span className="flex-1">Custos por fornecedor</span><Badge variant="outline">{data?.fornecedores.length ?? 0}</Badge><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+      <Card className="gap-0 rounded-none border-0 border-t border-border/60 py-0 shadow-none">
+        <CardHeader className="hidden">
           <CardTitle>Custos por fornecedor</CardTitle>
           <Badge variant="outline">{data?.fornecedores.length ?? 0} fornecedor(es)</Badge>
         </CardHeader>
@@ -537,9 +509,12 @@ export function RelatoriosPage() {
           <p className="mt-3 text-xs text-muted-foreground">Os nomes agora ficam padronizados a partir do cadastro de fornecedores do contas a pagar.</p>
         </CardContent>
       </Card>
+      </details>
 
-      <Card className="overflow-hidden">
-        <CardHeader>
+      <details className="group rounded-xl border border-border/70 bg-card">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold"><span className="flex-1">Panorama financeiro</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+      <Card className="gap-0 overflow-hidden rounded-none border-0 border-t border-border/60 py-0 shadow-none">
+        <CardHeader className="hidden">
           <CardTitle>Panorama financeiro</CardTitle>
         </CardHeader>
         <CardContent>
@@ -570,9 +545,12 @@ export function RelatoriosPage() {
           </p>
         </CardContent>
       </Card>
+      </details>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <details className="group rounded-xl border border-border/70 bg-card" open>
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold"><span className="flex-1">Sabores e valores</span><Badge variant="outline">{data?.produtos.length ?? 0}</Badge><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+      <Card className="gap-0 rounded-none border-0 border-t border-border/60 py-0 shadow-none">
+        <CardHeader className="hidden">
           <CardTitle>Sabores e valores</CardTitle>
           <Button type="button" variant="outline" size="sm" onClick={handleExportProdutos} disabled={!data?.produtos.length}>
             <Download className="mr-2 h-4 w-4" /> Exportar tabela
@@ -620,9 +598,12 @@ export function RelatoriosPage() {
           )}
         </CardContent>
       </Card>
+      </details>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <details className="group rounded-xl border border-border/70 bg-card">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold"><span className="flex-1">Pagamentos pendentes</span><Badge variant="outline">{pedidosPendentes.length}</Badge><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+      <Card className="gap-0 rounded-none border-0 border-t border-border/60 py-0 shadow-none">
+        <CardHeader className="hidden">
           <CardTitle>Pedidos com pagamento pendente</CardTitle>
           <Badge variant="outline">{pedidosPendentes.length} pendente(s)</Badge>
         </CardHeader>
@@ -676,9 +657,12 @@ export function RelatoriosPage() {
           )}
         </CardContent>
       </Card>
+      </details>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <details className="group rounded-xl border border-border/70 bg-card" open>
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold"><span className="flex-1">Pedidos do período</span><Badge variant="outline">{pedidosFiltrados.length}</Badge><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+      <Card className="gap-0 rounded-none border-0 border-t border-border/60 py-0 shadow-none">
+        <CardHeader className="hidden">
           <CardTitle>Pedidos do periodo</CardTitle>
           <Badge variant="outline">{pedidosFiltrados.length} pedido(s)</Badge>
         </CardHeader>
@@ -861,6 +845,7 @@ export function RelatoriosPage() {
           )}
         </CardContent>
       </Card>
+      </details>
     </div>
   )
 }

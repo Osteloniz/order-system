@@ -537,15 +537,15 @@ export function KdsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[32px] border border-border/70 bg-gradient-to-br from-primary/18 via-card to-secondary/10">
-        <div className="flex flex-col gap-6 px-5 py-5 md:px-7 md:py-7 xl:flex-row xl:items-end xl:justify-between">
+      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-primary/18 via-card to-secondary/10">
+        <div className="flex flex-col gap-5 px-4 py-5 md:px-7 md:py-7 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <ChefHat className="h-3.5 w-3.5" />
               KDS operacional
             </div>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight">Execucao de pedidos</h1>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Execucao de pedidos</h1>
               <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
                 Painel rapido para producao, separacao e fechamento. Ele reaproveita as regras do kanban, mas com leitura mais direta para celular e tablet.
               </p>
@@ -602,7 +602,7 @@ export function KdsPage() {
         </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {[
           { label: 'Aceite agora', value: resumo.aceite, tone: 'border-warning/35 bg-warning/8' },
           { label: 'Separando', value: resumo.separando, tone: 'border-accent/35 bg-accent/8' },
@@ -612,9 +612,9 @@ export function KdsPage() {
           { label: 'Agenda', value: resumo.agenda, tone: 'border-secondary/35 bg-secondary/8' },
         ].map((item) => (
           <Card key={item.label} className={cn('border-border/70 bg-card/95', item.tone)}>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">{item.label}</p>
-              <p className="mt-1 text-3xl font-bold">{item.value}</p>
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-xs text-muted-foreground sm:text-sm">{item.label}</p>
+              <p className="mt-1 text-2xl font-bold sm:text-3xl">{item.value}</p>
             </CardContent>
           </Card>
         ))}
@@ -756,18 +756,18 @@ export function KdsPage() {
       </Card>
 
       {isLoading ? (
-        <div className="grid gap-4 xl:grid-cols-4">
-          <Skeleton className="h-[360px] rounded-[28px]" />
-          <Skeleton className="h-[360px] rounded-[28px]" />
-          <Skeleton className="h-[360px] rounded-[28px]" />
-          <Skeleton className="h-[360px] rounded-[28px]" />
+        <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 xl:mx-0 xl:grid xl:grid-cols-4 xl:overflow-visible xl:px-0">
+          <Skeleton className="h-[360px] w-[86vw] max-w-[360px] shrink-0 snap-start rounded-[28px] xl:w-auto xl:max-w-none" />
+          <Skeleton className="h-[360px] w-[86vw] max-w-[360px] shrink-0 snap-start rounded-[28px] xl:w-auto xl:max-w-none" />
+          <Skeleton className="h-[360px] w-[86vw] max-w-[360px] shrink-0 snap-start rounded-[28px] xl:w-auto xl:max-w-none" />
+          <Skeleton className="h-[360px] w-[86vw] max-w-[360px] shrink-0 snap-start rounded-[28px] xl:w-auto xl:max-w-none" />
         </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-4">
+        <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 xl:mx-0 xl:grid xl:grid-cols-4 xl:overflow-visible xl:px-0">
           {lanes.map((lane) => {
             const Icon = lane.icon
             return (
-              <Card key={lane.status} className={cn('border-border/70 bg-card/95', lane.tone)}>
+              <Card key={lane.status} className={cn('w-[86vw] max-w-[360px] shrink-0 snap-start border-border/70 bg-card/95 xl:w-auto xl:max-w-none', lane.tone)}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
