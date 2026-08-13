@@ -100,11 +100,7 @@ Admin: http://localhost:3000/admin
 - `prisma/`: schema Prisma
 - `scripts/`: scripts auxiliares (deploy/migrations)
 
-## Fluxo Admin
-1. Acesse `/admin/login`
-2. Digite as credenciais:
-   - Usuário: `admin`
-   - Senha: `admin123`
+
 3. Acesso ao dashboard com abas:
    - **Todos**: todos os pedidos
    - **Novos**: pedidos com status "Pedido Recebido"
