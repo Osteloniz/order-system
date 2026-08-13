@@ -9,7 +9,7 @@
 ## Current Product Shape
 - Customer flow: tenant selection -> menu -> cart -> checkout -> confirmation.
 - Admin flow: login -> orders -> production, stock, finance, customers, and configuration.
-- Authentication uses NextAuth credentials.
+- Authentication uses NextAuth credentials with e-mail-only login, an exact two-person allowlist, mandatory TOTP MFA, encrypted authenticator secrets, single-use recovery codes, session versioning and persistent audit-based throttling.
 - Database uses Prisma over Postgres with production-oriented migration scripts.
 - Local development is expected to run on Node.js `22.22.3`.
 - Products can now be manually marked as `novidade` in admin so the public menu can highlight them in a dedicated section without removing them from their normal categories.
@@ -61,6 +61,7 @@
 - Admin navigation is organized mobile-first: `Início`, `Pedidos`, `Nova venda` and `KDS` are immediate actions, while `Cadastros`, `Financeiro` and `Gestão` are compact contextual groups that open automatically for the current route.
 - Customer management now uses a list-first contract: the admin `/admin/clientes` page no longer renders an edit form below the customer list. Selecting a row opens a bounded modal with separate `Resumo` and `Editar cadastro` tabs; new-customer creation uses the same modal shell.
 - Manual order entry uses a fixed-height customer selector with a stationary search field and internally scrolling compact rows, so the operator does not need to discover hidden content by scrolling the whole dialog. The selected-customer summary is shown only once in the order review.
+- The restricted login now uses the official Brookie background and mark, and the browser/PWA identity uses the same official brand asset. Administrative access is limited to exactly two real people; first access is restricted to MFA enrollment, and later sessions require password plus a TOTP-compatible authenticator code.
 
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.
@@ -106,6 +107,7 @@
 7. Validate PRD after deploy.
 
 ## Current Migration Notes
+- Admin MFA and access hardening add active/session-version fields, encrypted TOTP enrollment state, replay protection, recovery-code hashes and MFA audit events through migration `20260813103000_add_admin_mfa_hardening`. Apply and validate this migration in HML before any PRD action.
 - The product-highlight feature adds Prisma field `Produto.novidade`.
 - Migration created: `20260715110000_add_produto_novidade_flag`.
 - The stock-aware menu flow also adds Prisma field `Produto.disponivelParaEncomenda`.

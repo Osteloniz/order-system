@@ -2,12 +2,14 @@
 
 import { createContext, useContext, useCallback, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn, signOut, useSession } from 'next-auth/react'
+import { getSession, signIn, signOut, useSession } from 'next-auth/react'
 
 interface AdminAuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
-  login: (data: { username: string; password: string }) => Promise<{ success: boolean; error?: string }>
+  mfaVerified: boolean
+  mfaEnrollmentRequired: boolean
+  login: (data: { username: string; password: string; code?: string }) => Promise<{ success: boolean; error?: string; enrollmentRequired?: boolean }>
   logout: () => Promise<void>
 }
 
@@ -15,16 +17,19 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const isLoading = status === 'loading'
   const isAuthenticated = status === 'authenticated'
+  const mfaVerified = Boolean((session?.user as any)?.mfaVerified)
+  const mfaEnrollmentRequired = Boolean((session?.user as any)?.mfaEnrollmentRequired)
 
-  const login = useCallback(async (data: { username: string; password: string }) => {
+  const login = useCallback(async (data: { username: string; password: string; code?: string }) => {
     try {
       const res = await signIn('credentials', {
         redirect: false,
         username: data.username,
-        password: data.password
+        password: data.password,
+        code: data.code || '',
       })
 
       if (res?.error) {
@@ -34,7 +39,11 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: genericError }
       }
 
-      return { success: true }
+      const session = await getSession()
+      return {
+        success: true,
+        enrollmentRequired: Boolean((session?.user as any)?.mfaEnrollmentRequired),
+      }
     } catch {
       return { success: false, error: 'Erro de conexão' }
     }
@@ -50,7 +59,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, [router])
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated, isLoading, mfaVerified, mfaEnrollmentRequired, login, logout }}>
       {children}
     </AdminAuthContext.Provider>
   )

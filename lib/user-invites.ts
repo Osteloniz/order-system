@@ -10,6 +10,7 @@ import {
   normalizeEmail,
 } from '@/lib/auth-security'
 import { resolveInviteStatus } from '@/lib/invite-status'
+import { assertAllowedAdminEmail, getAdminUserLimit } from '@/lib/admin-allowlist'
 
 export async function createUserInvite(params: {
   tenantId: string
@@ -17,6 +18,13 @@ export async function createUserInvite(params: {
   createdBy?: string | null
 }) {
   const normalizedEmail = normalizeEmail(params.email)
+  assertAllowedAdminEmail(normalizedEmail)
+  const currentUserCount = await prisma.adminUser.count({
+    where: { tenantId: params.tenantId, ativo: true },
+  })
+  if (currentUserCount >= getAdminUserLimit()) {
+    throw new Error('ADMIN_USER_LIMIT_REACHED')
+  }
   const existingUser = await prisma.adminUser.findFirst({
     where: {
       tenantId: params.tenantId,
@@ -133,6 +141,7 @@ export async function registerInvitedUser(params: {
   }
 
   const invite = validation.invite
+  assertAllowedAdminEmail(invite.emailNormalizado)
   const username = await buildUniqueUsernameForTenant(invite.tenantId, invite.emailNormalizado)
   const passwordHash = await hashPassword(params.password)
 
@@ -155,6 +164,13 @@ export async function registerInvitedUser(params: {
 
     if (existingUser) {
       throw new Error('EMAIL_ALREADY_REGISTERED')
+    }
+
+    const activeUsers = await tx.adminUser.count({
+      where: { tenantId: refreshed.tenantId, ativo: true },
+    })
+    if (activeUsers >= getAdminUserLimit()) {
+      throw new Error('ADMIN_USER_LIMIT_REACHED')
     }
 
     const user = await tx.adminUser.create({

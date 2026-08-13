@@ -97,8 +97,8 @@ export function InviteRegisterPage() {
     setError('')
 
     if (!validation.valid) return
-    if (password.length < 8) {
-      setError('A senha precisa ter pelo menos 8 caracteres.')
+    if (password.length < 12) {
+      setError('A senha precisa ter pelo menos 12 caracteres.')
       return
     }
     if (password !== confirmPassword) {
@@ -199,7 +199,7 @@ export function InviteRegisterPage() {
                   onChange={event => setPassword(event.target.value)}
                   className="pl-9"
                   disabled={!validation.valid || isSubmitting || Boolean(successIdentifier)}
-                  placeholder="Minimo de 8 caracteres"
+                  placeholder="Minimo de 12 caracteres"
                 />
               </div>
             </div>

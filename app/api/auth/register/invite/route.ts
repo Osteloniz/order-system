@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 const registerInviteSchema = z.object({
   token: z.string().trim().min(20),
   nome: z.string().trim().min(2).max(120),
-  password: z.string().min(8).max(128),
+  password: z.string().min(12).max(128),
 }).strict()
 
 function getIp(request: NextRequest) {
@@ -63,12 +63,14 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Erro ao criar usuario'
     const status =
       message === 'INVITE_NOT_AVAILABLE' || message === 'EMAIL_ALREADY_REGISTERED'
+        || message === 'ADMIN_EMAIL_NOT_ALLOWED' || message === 'ADMIN_USER_LIMIT_REACHED'
         ? 409
         : 500
 
     return NextResponse.json({
       error:
         message === 'INVITE_NOT_AVAILABLE' || message === 'EMAIL_ALREADY_REGISTERED'
+          || message === 'ADMIN_EMAIL_NOT_ALLOWED' || message === 'ADMIN_USER_LIMIT_REACHED'
           ? 'Convite invalido ou indisponivel'
           : 'Erro ao criar usuario',
     }, { status })

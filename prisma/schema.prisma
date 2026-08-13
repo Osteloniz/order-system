@@ -84,6 +84,11 @@ enum AuthAuditAction {
   INVITE_CREATED
   INVITE_USED
   USER_CREATED
+  MFA_ENROLLMENT_STARTED
+  MFA_ENABLED
+  MFA_CHALLENGE_SUCCESS
+  MFA_CHALLENGE_FAILURE
+  MFA_RECOVERY_CODE_USED
 }
 
 enum LogOperacaoTipo {
@@ -467,6 +472,14 @@ model AdminUser {
   email      String?
   emailNormalizado String?
   passwordHash String
+  ativo      Boolean  @default(true)
+  sessionVersion Int  @default(1)
+  totpSecretEncrypted String?
+  totpPendingSecretEncrypted String?
+  totpPendingExpiresAt DateTime?
+  totpEnabledAt DateTime?
+  totpLastUsedStep BigInt?
+  recoveryCodeHashes Json?
   criadoEm   DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 

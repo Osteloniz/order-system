@@ -59,7 +59,10 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro ao criar convite'
-    const status = message.includes('Ja existe um usuario') ? 409 : 500
-    return NextResponse.json({ error: message }, { status })
+    const policyError = message === 'ADMIN_EMAIL_NOT_ALLOWED' || message === 'ADMIN_USER_LIMIT_REACHED'
+    const status = message.includes('Ja existe um usuario') || policyError ? 409 : 500
+    return NextResponse.json({
+      error: policyError ? 'O acesso esta limitado aos administradores previamente autorizados.' : message,
+    }, { status })
   }
 }

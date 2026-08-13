@@ -22,8 +22,12 @@ async function ensureConfiguracao(tenantId, nome) {
 }
 
 async function main() {
-  const rawPassword = process.env.SEED_ADMIN_PASSWORD || 'admin123'
-  const passwordHash = await bcrypt.hash(rawPassword, 10)
+  const rawPassword = process.env.SEED_ADMIN_PASSWORD?.trim()
+  const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase()
+  if (!rawPassword || rawPassword.length < 12 || !adminEmail || !adminEmail.includes('@')) {
+    throw new Error('SEED_ADMIN_PASSWORD (minimo 12 caracteres) e SEED_ADMIN_EMAIL sao obrigatorios para executar o seed.')
+  }
+  const passwordHash = await bcrypt.hash(rawPassword, 12)
 
   const tenantDoces = await prisma.tenant.upsert({
     where: { slug: 'brookie-pregiato' },
@@ -33,11 +37,18 @@ async function main() {
 
   await prisma.adminUser.upsert({
     where: { tenantId_username: { tenantId: tenantDoces.id, username: 'admin' } },
-    update: { nome: 'Admin' },
+    update: {
+      nome: 'Admin',
+      email: adminEmail,
+      emailNormalizado: adminEmail,
+      ativo: true,
+    },
     create: {
       tenantId: tenantDoces.id,
       nome: 'Admin',
       username: 'admin',
+      email: adminEmail,
+      emailNormalizado: adminEmail,
       passwordHash
     }
   })

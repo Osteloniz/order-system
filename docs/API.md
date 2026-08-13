@@ -1,6 +1,6 @@
 # API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-07-20
+Ultima atualizacao: 2026-08-13
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -79,8 +79,18 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
-- Login via `/admin/login` (usa `/api/auth` internamente).
+- Login via `/admin/login` (usa `/api/auth` internamente), somente por e-mail autorizado, senha e TOTP/codigo de recuperacao depois da ativacao.
+- O primeiro login valido sem MFA cria uma sessao restrita exclusivamente a `/admin/seguranca`.
 - As rotas antigas `/api/admin/login`, `/api/admin/logout`, `/api/admin/session` estao desativadas (410).
+
+Seguranca da conta:
+- GET `/api/admin/security/mfa`
+  - Retorna apenas o estado de ativacao MFA do usuario autenticado; nunca retorna o segredo persistido.
+- POST `/api/admin/security/mfa`
+  - Inicia ou reinicia o vinculo TOTP e retorna QR Code e chave manual para a sessao restrita do proprio usuario.
+- PUT `/api/admin/security/mfa`
+  - Body: `{ code: string }`.
+  - Confirma o TOTP, ativa o segundo fator, invalida sessoes anteriores e retorna os codigos de recuperacao uma unica vez.
 
 Pedidos:
 - GET `/api/admin/pedidos?status=FEITO|ACEITO|PREPARACAO|PRONTO_ENTREGA|ENTREGUE|CANCELADO`
