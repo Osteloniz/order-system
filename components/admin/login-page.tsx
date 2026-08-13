@@ -130,7 +130,7 @@ export function LoginPage() {
                 />
               </div>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                No primeiro acesso, deixe em branco para vincular o Google Authenticator.
+                No primeiro acesso, deixe em branco para vincular o Google Authenticator. Nos proximos, aguarde um codigo novo; cada codigo aceito so pode ser usado uma vez.
               </p>
             </div>
 
