@@ -140,8 +140,8 @@ export function LogsPage() {
             <p className="text-sm text-muted-foreground">Produções</p>
             <p className="text-2xl font-bold">{data?.resumo.producoes ?? 0}</p>
           </div>
-          <div className="rounded-xl border border-sky-300/35 bg-sky-50 p-4">
-            <Warehouse className="mb-3 h-5 w-5 text-sky-700" />
+          <div className="rounded-xl border border-[#559eee]/35 bg-[#559eee]/10 p-4">
+            <Warehouse className="mb-3 h-5 w-5 text-[#2468a8] dark:text-[#b9dbff]" />
             <p className="text-sm text-muted-foreground">Baixas na entrega</p>
             <p className="text-2xl font-bold">{data?.resumo.baixasEntrega ?? 0}</p>
           </div>

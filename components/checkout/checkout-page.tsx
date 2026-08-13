@@ -518,7 +518,7 @@ export function CheckoutPage() {
           </CardContent>
         </Card>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 pb-20 sm:pb-0">
           {forceEncomenda ? (
             <div className="rounded-2xl border border-warning/35 bg-warning/15 p-4 text-sm text-warning">
               Este carrinho tem item(ns) disponivel(is) somente sob encomenda. Por isso, o checkout foi travado em
@@ -936,16 +936,21 @@ export function CheckoutPage() {
             </div>
           ) : null}
 
-          <Button type="submit" className="h-14 w-full rounded-2xl text-base" disabled={isSubmitting || itensIndisponiveis.length > 0 || lojaFechada}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Enviando pedido...
-              </>
-            ) : (
-              `Confirmar ${getEntregaTitle(tipoEntrega)} - ${formatarMoeda(total)}`
-            )}
-          </Button>
+          <div className="fixed inset-x-3 bottom-3 z-30 mx-auto max-w-2xl rounded-[22px] border border-border/80 bg-background/94 p-2 shadow-[0_16px_45px_rgba(66,28,20,0.18)] backdrop-blur-xl supports-[padding:max(0px)]:bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:sticky sm:inset-x-auto sm:bottom-3">
+            <Button type="submit" className="h-14 w-full rounded-2xl text-base" disabled={isSubmitting || itensIndisponiveis.length > 0 || lojaFechada}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Enviando pedido...
+                </>
+              ) : (
+                <span className="flex w-full items-center justify-between gap-3">
+                  <span>Confirmar {getEntregaTitle(tipoEntrega)}</span>
+                  <span className="font-bold">{formatarMoeda(total)}</span>
+                </span>
+              )}
+            </Button>
+          </div>
         </form>
       </main>
     </div>

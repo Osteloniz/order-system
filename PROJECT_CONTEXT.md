@@ -4,7 +4,7 @@
 - Online order system for food/confectionery operations.
 - Customer-facing menu and checkout plus an admin backoffice.
 - Built with Next.js App Router, React 19, Prisma, and Postgres/Neon.
-- The current visual direction is a cleaner operational palette with off-white surfaces, strong dark text, and a blue-lavender accent family led by `#5B6CFA`.
+- The current visual direction uses warm off-white surfaces (`#FFF8EE` / `#FFFDF8`), strong brown text (`#421C14`), operational green (`#40631A`), orange emphasis (`#C56813`) and blue only as a supporting information color.
 
 ## Current Product Shape
 - Customer flow: tenant selection -> menu -> cart -> checkout -> confirmation.
@@ -53,6 +53,14 @@
   - `descontinuado = true` means the item disappears from the public menu and from new product selections, but remains in history.
 - Manual admin order entry now lists all non-discontinued products, even if they are temporarily unavailable in the public catalog.
 - Direct customer CRUD is now stricter about duplicate phones: creating a new customer with an existing phone returns a conflict instead of silently overwriting the existing record.
+- The latest sales-UX pass keeps the existing business rules but improves scanning and speed: the public menu now prioritizes product discovery with search, compact product cards, a collapsible order tracker and a two-column desktop catalog; checkout keeps its final total/action visible on mobile; manual admin order entry has denser product controls and a clearer `Produtos -> Revisar` sequence; KDS lanes swipe horizontally on mobile instead of forcing a long vertical stack. The main orders dashboard now offers persisted `Lista` and `Kanban` views and defaults to the denser list on first mobile use. Summary cards in both views only expose order identity, customer, total/time, payment method and an informational bag icon for `ENCOMENDA`; operational phases organize the list and only phases with orders are rendered. Each list phase can be expanded or collapsed, with delivered/cancelled phases collapsed initially, while items, payment status and progression actions stay inside order details.
+- Order bulk actions now use a compact contextual strip that only exposes applicable actions for the current selection. The order editor uses a bounded modal with one internal scroll area, one visible title and denser product controls, avoiding the previous nested-scroll and duplicated-header behavior.
+- Product management now follows the same list-first contract: compact rows carry thumbnail, price, category and availability, while create/edit runs in a bounded modal with a sticky action bar. Stock/production uses dense balance rows, collapsed manual adjustment controls, a bounded batch-production modal and collapsible production history. Reports use horizontally scrollable KPIs and collapsible analytical sections. Configuration uses a compact section navigator plus a sticky save state instead of one visually undifferentiated long form.
+- The order detail drawer now uses one compact header and a single primary-action block; item totals, customer/delivery data, payment adjustments, manual status movement and administrative actions remain available in collapsed sections instead of repeating the same information across large cards.
+- The official Brookie visual kit is now represented in `public/brand/` and documented in `docs/BROOKIE_BRAND_UI.md`. The admin has a dedicated `/admin/inicio` home with daily operational signals, quick actions and the official logo; `/admin` intentionally remains the orders screen to preserve existing bookmarks and habits.
+- Admin navigation is organized mobile-first: `Início`, `Pedidos`, `Nova venda` and `KDS` are immediate actions, while `Cadastros`, `Financeiro` and `Gestão` are compact contextual groups that open automatically for the current route.
+- Customer management now uses a list-first contract: the admin `/admin/clientes` page no longer renders an edit form below the customer list. Selecting a row opens a bounded modal with separate `Resumo` and `Editar cadastro` tabs; new-customer creation uses the same modal shell.
+- Manual order entry uses a fixed-height customer selector with a stationary search field and internally scrolling compact rows, so the operator does not need to discover hidden content by scrolling the whole dialog. The selected-customer summary is shown only once in the order review.
 
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.
@@ -71,6 +79,7 @@
 - `PROMPTINICIAL.md`: cross-chat continuity prompt, expected working style, and update rule for future conversations.
 - `docs/API.md`: route inventory.
 - `docs/admin-mobile-order-flow-handoff.md`: current admin mobile UX decisions, validation workflow, cleanup notes, and next-chat handoff.
+- `docs/BROOKIE_BRAND_UI.md`: official palette, imported brand assets, and UI usage guidance.
 - `SECURITY_AUTH.md`: auth and invite rules.
 
 ## Domain Notes

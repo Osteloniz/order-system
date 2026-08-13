@@ -51,7 +51,7 @@ export default function ProtectedLayout({
   return (
     <div className="flex min-h-dvh overflow-x-hidden bg-background">
       <AdminSidebar collapsed={sidebarCollapsed} onToggleCollapsed={handleToggleSidebar} />
-      <main className={`min-w-0 flex-1 overflow-x-hidden px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+4.5rem)] transition-[margin] duration-200 md:p-8 md:pt-8 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
+      <main className={`min-w-0 flex-1 overflow-x-hidden px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+3.75rem)] transition-[margin] duration-200 md:p-5 md:pt-5 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
         {children}
       </main>
     </div>

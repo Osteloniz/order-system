@@ -15,6 +15,7 @@ import {
 import { useCart } from '@/contexts/cart-context'
 import { formatarMoeda } from '@/lib/calc'
 import type { Produto } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 interface ProductCardProps {
   produto: Produto
@@ -32,17 +33,21 @@ export function ProductCard({ produto }: ProductCardProps) {
       : []
 
   return (
-    <Card className="overflow-hidden transition-shadow hover:shadow-md">
-      <CardContent className="p-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+    <Card className={cn(
+      'overflow-hidden rounded-[24px] border-border/80 bg-card/95 py-0 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+      quantidade > 0 && 'border-primary/35 bg-primary/[0.035] ring-1 ring-primary/10',
+      bloqueado && 'bg-muted/30'
+    )}>
+      <CardContent className="p-3.5 sm:p-4">
+        <div className={cn('min-w-0', imagens.length > 0 && 'grid grid-cols-[92px_minmax(0,1fr)] gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4')}>
           {imagens.length > 0 && (
-            <div className="w-full sm:w-40 sm:shrink-0">
+            <div className="w-full shrink-0">
               {imagens.length > 1 ? (
                 <Carousel className="w-full">
                   <CarouselContent>
                     {imagens.map((url, index) => (
                       <CarouselItem key={`${produto.id}-${index}`}>
-                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-muted">
+                        <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-muted sm:aspect-[4/3]">
                           <img
                             src={url}
                             alt={`${produto.nome} - imagem ${index + 1}`}
@@ -53,11 +58,11 @@ export function ProductCard({ produto }: ProductCardProps) {
                       </CarouselItem>
                     ))}
                   </CarouselContent>
-                  <CarouselPrevious className="left-2" variant="secondary" />
-                  <CarouselNext className="right-2" variant="secondary" />
+                  <CarouselPrevious className="left-1 h-7 w-7" variant="secondary" />
+                  <CarouselNext className="right-1 h-7 w-7" variant="secondary" />
                 </Carousel>
               ) : (
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-muted">
+                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-muted sm:aspect-[4/3]">
                   <img
                     src={imagens[0]}
                     alt={`${produto.nome} - imagem`}
@@ -69,10 +74,10 @@ export function ProductCard({ produto }: ProductCardProps) {
             </div>
           )}
 
-          <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold text-foreground truncate">{produto.nome}</h3>
+                <h3 className="break-words font-semibold leading-tight text-foreground">{produto.nome}</h3>
                 {produto.novidade ? (
                   <Badge className="border border-primary/25 bg-primary/14 text-primary hover:bg-primary/14 dark:border-primary/35 dark:bg-primary/30 dark:text-white">
                     Novidade
@@ -104,39 +109,41 @@ export function ProductCard({ produto }: ProductCardProps) {
                   Sem estoque e sem liberacao para encomenda agora.
                 </p>
               ) : null}
-              <p className="text-primary font-bold mt-2">
-                {formatarMoeda(produto.preco)}
-              </p>
             </div>
 
-            <div className="flex flex-col items-end justify-between self-end sm:self-auto">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">A partir de</p>
+                <p className="text-base font-bold text-primary sm:text-lg">{formatarMoeda(produto.preco)}</p>
+              </div>
               {quantidade === 0 ? (
                 <Button
                   size="sm"
                   onClick={() => adicionarItem(produto)}
-                  className="gap-1"
+                  className="h-10 gap-1 rounded-2xl px-3"
                   disabled={bloqueado}
                 >
                   <Plus className="h-4 w-4" />
-                  {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? 'Adicionar encomenda' : 'Adicionar'}
+                  {statusDisponibilidade === 'SOMENTE_ENCOMENDA' ? 'Encomendar' : 'Adicionar'}
                 </Button>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-2xl border border-primary/25 bg-background/85 p-1">
                   <Button
                     size="icon"
                     variant="outline"
-                    className="h-8 w-8 bg-transparent"
+                    className="h-8 w-8 rounded-xl border-0 bg-transparent"
                     onClick={() => atualizarQuantidade(produto.id, quantidade - 1)}
+                    aria-label={`Remover uma unidade de ${produto.nome}`}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-6 text-center font-medium">{quantidade}</span>
+                  <span className="w-6 text-center text-sm font-bold text-primary">{quantidade}</span>
                   <Button
                     size="icon"
-                    variant="outline"
-                    className="h-8 w-8 bg-transparent"
+                    className="h-8 w-8 rounded-xl"
                     disabled={bloqueado}
                     onClick={() => atualizarQuantidade(produto.id, quantidade + 1)}
+                    aria-label={`Adicionar uma unidade de ${produto.nome}`}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>

@@ -4,9 +4,10 @@ import { useMemo, useState } from 'react'
 import useSWR, { mutate } from 'swr'
 import {
   Check,
+  ChevronRight,
+  ImageIcon,
   Loader2,
   Package,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -15,7 +16,6 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -232,98 +232,61 @@ export function ProdutosPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/16 p-5 shadow-sm md:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <Package className="h-3.5 w-3.5" />
-              Catalogo operacional
-            </div>
-            <h1 className="mt-3 flex items-center gap-2 text-2xl font-bold md:text-3xl">
-              <Package className="h-7 w-7 text-primary" />
-              Produtos
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Ajuste nome, descricao, preco, status e imagens mantendo o catalogo pronto para venda e para o time no mobile.
-            </p>
+    <div className="space-y-3">
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-bold">Produtos</h1>
           </div>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Total</p>
-              <p className="mt-1 text-2xl font-bold">{resumo.total}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">No catalogo</p>
-              <p className="mt-1 text-2xl font-bold text-primary">{resumo.ativos}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Indisponiveis</p>
-              <p className="mt-1 text-2xl font-bold text-secondary">{resumo.indisponiveis}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Descontinuados</p>
-              <p className="mt-1 text-2xl font-bold text-destructive">{resumo.descontinuados}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Categorias</p>
-              <p className="mt-1 text-2xl font-bold">{resumo.categorias}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Novidades</p>
-              <p className="mt-1 text-2xl font-bold text-primary">{resumo.novidades}</p>
-            </div>
-          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">Catálogo, preço e disponibilidade.</p>
         </div>
-      </section>
+        <Button size="sm" className="h-9 shrink-0 rounded-lg" onClick={openNewDialog}>
+          <Plus className="h-4 w-4" />
+          Novo
+        </Button>
+      </header>
 
-      <Card className="border-border/70 bg-card/95">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_220px] xl:flex-1">
-              <div className="space-y-2">
-                <Label>Buscar produto</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Nome, descricao ou categoria"
-                    className="h-11 rounded-2xl pl-9"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-                  <SelectTrigger className="h-11 rounded-2xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TODOS">Todos</SelectItem>
-                    <SelectItem value="ATIVOS">Disponiveis no catalogo</SelectItem>
-                    <SelectItem value="INDISPONIVEIS">Indisponiveis no momento</SelectItem>
-                    <SelectItem value="DESCONTINUADOS">Somente descontinuados</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:w-auto">
-              <Button className="h-11 rounded-2xl" onClick={openNewDialog}>
-                <Plus className="mr-2 h-4 w-4" />
-                Novo produto
-              </Button>
-              <Button className="h-11 rounded-2xl" variant="outline" onClick={() => mutate('/api/admin/produtos')}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Atualizar
-              </Button>
-            </div>
+      <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs">
+        <span className="shrink-0 rounded-lg border bg-card px-2.5 py-1.5"><strong>{resumo.total}</strong> total</span>
+        <span className="shrink-0 rounded-lg border border-primary/25 bg-primary/[0.06] px-2.5 py-1.5 text-primary"><strong>{resumo.ativos}</strong> disponíveis</span>
+        <span className="shrink-0 rounded-lg border bg-card px-2.5 py-1.5"><strong>{resumo.indisponiveis}</strong> indisponíveis</span>
+        <span className="shrink-0 rounded-lg border bg-card px-2.5 py-1.5"><strong>{resumo.descontinuados}</strong> descontinuados</span>
+        <span className="shrink-0 rounded-lg border bg-card px-2.5 py-1.5"><strong>{resumo.categorias}</strong> categorias</span>
+      </div>
+
+      <section className="rounded-xl border border-border/70 bg-card p-2.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_42px] gap-2 sm:grid-cols-[minmax(0,1fr)_190px_42px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar produto" className="h-9 rounded-lg pl-9" />
           </div>
-          <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-            Exibindo {produtosFiltrados.length} de {produtos?.length ?? 0} produto(s).
-          </div>
-        </CardContent>
-      </Card>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+            <SelectTrigger className="hidden h-9 rounded-lg sm:flex"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos</SelectItem>
+              <SelectItem value="ATIVOS">Disponíveis</SelectItem>
+              <SelectItem value="INDISPONIVEIS">Indisponíveis</SelectItem>
+              <SelectItem value="DESCONTINUADOS">Descontinuados</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => mutate('/api/admin/produtos')} aria-label="Atualizar produtos">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="mt-2 sm:hidden">
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+            <SelectTrigger className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos</SelectItem>
+              <SelectItem value="ATIVOS">Disponíveis</SelectItem>
+              <SelectItem value="INDISPONIVEIS">Indisponíveis</SelectItem>
+              <SelectItem value="DESCONTINUADOS">Descontinuados</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="mt-2 px-1 text-[11px] text-muted-foreground">{produtosFiltrados.length} de {produtos?.length ?? 0} produto(s)</p>
+      </section>
 
       {message ? (
         <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">
@@ -356,135 +319,78 @@ export function ProdutosPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-xl border border-border/70 bg-card" aria-label="Lista de produtos">
           {produtosFiltrados.map((produto) => (
-            <Card key={produto.id} className="overflow-hidden border-border/70 bg-card/98 shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="break-words font-semibold">{produto.nome}</h3>
-                        <Badge variant="outline" className="text-xs">
-                          {produto.categoriaNome}
-                        </Badge>
-                        {produto.novidade ? (
-                          <Badge className="border-0 bg-primary text-primary-foreground hover:bg-primary">
-                            <Sparkles className="mr-1 h-3.5 w-3.5" />
-                            Novidade
-                          </Badge>
-                        ) : null}
-                        {produto.disponivelParaEncomenda ? (
-                          <Badge className="border-0 bg-warning/20 text-warning-foreground hover:bg-warning/20">
-                            <ShoppingBasket className="mr-1 h-3.5 w-3.5" />
-                            Aceita encomenda
-                          </Badge>
-                        ) : null}
-                        {produto.descontinuado ? (
-                          <Badge className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/10" variant="outline">
-                            Descontinuado
-                          </Badge>
-                        ) : !produto.ativo ? (
-                          <Badge className="bg-secondary/15 text-secondary hover:bg-secondary/15" variant="outline">
-                            Indisponivel no catalogo
-                          </Badge>
-                        ) : null}
-                      </div>
-                      {produto.descricao ? (
-                        <p className="mt-2 text-sm text-muted-foreground">{produto.descricao}</p>
-                      ) : (
-                        <p className="mt-2 text-sm text-muted-foreground">Sem descricao cadastrada.</p>
-                      )}
-                    </div>
-                    <p className="text-2xl font-bold text-primary">{formatarMoeda(produto.preco)}</p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl border border-primary/20 bg-primary/8 p-3">
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <p className="mt-1 font-semibold">
-                        {produto.descontinuado ? 'Descontinuado' : produto.ativo ? 'Disponivel no catalogo' : 'Indisponivel no catalogo'}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs text-muted-foreground">Encomenda</p>
-                      <p className="mt-1 font-semibold">{produto.disponivelParaEncomenda ? 'Liberada' : 'Nao liberar'}</p>
-                    </div>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs text-muted-foreground">Imagens</p>
-                      <p className="mt-1 font-semibold">{produto.imagens?.length || (produto.imagemUrl ? 1 : 0)}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
-                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 px-3 py-2">
-                      <Switch
-                        checked={produto.ativo}
-                        onCheckedChange={() => handleToggleAtivo(produto)}
-                        disabled={produto.descontinuado}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {produto.descontinuado ? 'Produto descontinuado' : 'Disponivel no catalogo'}
-                      </span>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Button variant="outline" className="h-11 rounded-2xl" onClick={() => openEditDialog(produto)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-11 rounded-2xl border-destructive/25 text-destructive hover:text-destructive"
-                        onClick={() => openDeleteDialog(produto)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div key={produto.id} className="flex items-center gap-2.5 border-b border-border/60 p-2.5 last:border-b-0">
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-left" onClick={() => openEditDialog(produto)}>
+                <span
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/25 bg-cover bg-center"
+                  style={(produto.imagens?.[0] || produto.imagemUrl) ? { backgroundImage: `url(${produto.imagens?.[0] || produto.imagemUrl})` } : undefined}
+                >
+                  {!(produto.imagens?.[0] || produto.imagemUrl) ? <ImageIcon className="h-5 w-5 text-muted-foreground" /> : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-semibold">{produto.nome}</span>
+                    {produto.novidade ? <Sparkles className="h-3.5 w-3.5 shrink-0 text-warning" aria-label="Novidade" /> : null}
+                    {produto.disponivelParaEncomenda ? <ShoppingBasket className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="Aceita encomenda" /> : null}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{produto.categoriaNome}</span>
+                  <span className="mt-1 flex items-center gap-1.5 text-[10px]">
+                    <span className={produto.descontinuado ? 'text-destructive' : produto.ativo ? 'text-primary' : 'text-warning-foreground'}>
+                      {produto.descontinuado ? 'Descontinuado' : produto.ativo ? 'Disponível' : 'Indisponível'}
+                    </span>
+                    <span className="text-muted-foreground">· {produto.imagens?.length || (produto.imagemUrl ? 1 : 0)} imagem(ns)</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-sm font-bold text-primary">{formatarMoeda(produto.preco)}</span>
+                  <ChevronRight className="ml-auto mt-1 h-4 w-4 text-muted-foreground" />
+                </span>
+              </button>
+              <Switch checked={produto.ativo} onCheckedChange={() => handleToggleAtivo(produto)} disabled={produto.descontinuado} aria-label={`Disponibilidade de ${produto.nome}`} />
+            </div>
           ))}
-        </div>
+        </section>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-y-auto rounded-[1.6rem] p-4 sm:max-w-2xl sm:p-6">
-          <DialogHeader>
-            <DialogTitle>{editingProduto ? 'Editar produto' : 'Novo produto'}</DialogTitle>
+        <DialogContent className="flex h-[min(92dvh,760px)] w-[calc(100vw-0.75rem)] max-w-2xl flex-col overflow-hidden rounded-2xl p-0">
+          <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-3 pr-12 text-left">
+            <DialogTitle className="text-base">{editingProduto ? 'Editar produto' : 'Novo produto'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="nome">Nome</Label>
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="nome" className="text-xs">Nome</Label>
                 <Input
                   id="nome"
                   value={formData.nome}
                   onChange={(e) => setFormData((p) => ({ ...p, nome: e.target.value }))}
-                  className="h-11 rounded-2xl"
+                  className="h-9 rounded-lg"
                   required
                 />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="descricao">Descricao</Label>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="descricao" className="text-xs">Descrição</Label>
                 <Textarea
                   id="descricao"
                   value={formData.descricao}
                   onChange={(e) => setFormData((p) => ({ ...p, descricao: e.target.value }))}
-                  rows={3}
-                  className="rounded-2xl"
+                  rows={2}
+                  className="rounded-lg"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="categoria">Categoria</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="categoria" className="text-xs">Categoria</Label>
                 <Select
                   value={formData.categoriaId}
                   onValueChange={(value) => setFormData((p) => ({ ...p, categoriaId: value }))}
                 >
-                  <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectTrigger className="h-9 rounded-lg">
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,74 +403,80 @@ export function ProdutosPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="preco">Preco (R$)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="preco" className="text-xs">Preço (R$)</Label>
                 <Input
                   id="preco"
                   value={formData.preco}
                   onChange={(e) => setFormData((p) => ({ ...p, preco: e.target.value }))}
                   placeholder="0,00"
-                  className="h-11 rounded-2xl"
+                  className="h-9 rounded-lg"
                   required
                 />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="imagens">Imagens (URLs, uma por linha)</Label>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="imagens" className="text-xs">Imagens (uma URL por linha)</Label>
                 <Textarea
                   id="imagens"
                   value={formData.imagensText}
                   onChange={(e) => setFormData((p) => ({ ...p, imagensText: e.target.value }))}
                   placeholder="https://exemplo.com/imagem-1.jpg&#10;https://exemplo.com/imagem-2.jpg"
-                  rows={4}
-                  className="rounded-2xl"
+                  rows={3}
+                  className="rounded-lg"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+              <Label htmlFor="ativo" className="text-xs">Disponível no catálogo</Label>
               <Switch
                 id="ativo"
                 checked={formData.ativo}
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, ativo: checked }))}
                 disabled={formData.descontinuado}
               />
-              <Label htmlFor="ativo">Disponivel no catalogo para o cliente</Label>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+              <Label htmlFor="descontinuado" className="text-xs">Descontinuar e ocultar</Label>
               <Switch
                 id="descontinuado"
                 checked={formData.descontinuado}
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, descontinuado: checked }))}
               />
-              <Label htmlFor="descontinuado">Descontinuar produto e esconder de novas selecoes</Label>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+              <Label htmlFor="novidade" className="text-xs">Destacar como novidade</Label>
               <Switch
                 id="novidade"
                 checked={formData.novidade}
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, novidade: checked }))}
               />
-              <Label htmlFor="novidade">Destacar como novidade no menu</Label>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+              <Label htmlFor="disponivelParaEncomenda" className="text-xs">Permitir sob encomenda</Label>
               <Switch
                 id="disponivelParaEncomenda"
                 checked={formData.disponivelParaEncomenda}
                 onCheckedChange={(checked) => setFormData((p) => ({ ...p, disponivelParaEncomenda: checked }))}
               />
-              <Label htmlFor="disponivelParaEncomenda">Permitir pedido sob encomenda quando faltar estoque</Label>
+            </div>
             </div>
 
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => setDialogOpen(false)}>
+            <DialogFooter className="shrink-0 gap-2 border-t border-border/70 bg-background/95 p-3">
+              {editingProduto ? (
+                <Button type="button" variant="ghost" size="sm" className="mr-auto h-9 rounded-lg text-destructive hover:text-destructive" onClick={() => { setDialogOpen(false); openDeleteDialog(editingProduto) }}>
+                  <Trash2 className="h-4 w-4" /> Excluir
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setDialogOpen(false)}>
                 <X className="mr-2 h-4 w-4" />
                 Cancelar
               </Button>
-              <Button type="submit" className="h-11 rounded-2xl" disabled={isSubmitting || !formData.nome.trim()}>
+              <Button type="submit" size="sm" className="h-9 rounded-lg" disabled={isSubmitting || !formData.nome.trim()}>
                 {isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -578,7 +490,7 @@ export function ProdutosPage() {
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] rounded-[1.4rem] sm:max-w-md">
+        <AlertDialogContent className="w-[calc(100vw-0.75rem)] max-w-md rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -586,13 +498,13 @@ export function ProdutosPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-2xl">
+            <AlertDialogCancel className="rounded-lg">
               <X className="mr-2 h-4 w-4" />
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

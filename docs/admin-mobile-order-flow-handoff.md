@@ -137,6 +137,40 @@
 - This continuation did not change `prisma/schema.prisma` or create new migrations.
 - Before opening PR / preparing PRD, the next chat should prioritize final visual QA in local/HML and confirm user approval.
 
+## Sales UX Pass — 2026-08-12
+
+- Preserved the current warm Brookie palette: cream surfaces, dark brown text, green primary actions, orange emphasis and blue support states.
+- Public menu:
+  - added product search by name/description;
+  - compacted cards for faster mobile scanning;
+  - moved recent-order lookup into a collapsible surface so products appear earlier;
+  - made the cart action safer around mobile-area insets;
+  - expanded desktop content to two product columns.
+- Public checkout now keeps the final action and total visible at the bottom on mobile.
+- Manual admin order entry now uses denser product cards, larger quantity targets, one clear mobile review action and explicit `Produtos` / `Revisar` steps.
+- KDS now uses two-column counters and horizontally swipeable operational lanes on mobile, while retaining the four-column desktop view.
+- The admin shell and order surfaces received a second density pass: smaller page/sidebar padding, shorter controls and fewer oversized cards.
+- The main orders dashboard now supports persisted `Lista` and `Kanban` views. On a first mobile visit it opens in `Lista`; desktop keeps `Kanban` unless the operator chooses otherwise.
+- The compact list is grouped by operational phase and keeps only order identity, customer, total/time and payment method visible. An informational bag icon marks `ENCOMENDA`; items, payment status, delivery details and progression actions stay inside the order detail sheet.
+- Kanban cards follow the same reduced summary contract so switching views does not reintroduce visual noise.
+- The order detail drawer no longer repeats status, customer, total, payment and item count across a badge header plus a large summary card. These values now share one compact header; the next operational action remains visible and secondary detail/edit areas are collapsible.
+- The sidebar now follows task priority on mobile: the four recurring operational routes remain visible and the longer catalog, finance and management areas stay folded unless active.
+- A new `/admin/inicio` route provides a branded operational home without replacing `/admin`, which remains the stable orders route for backward compatibility.
+- Official Brookie artwork is used in the sidebar and home through optimized Next.js images stored under `public/brand/`.
+- Customer CRUD now follows the same list-first mobile pattern: compact rows open a dedicated modal, with relationship/history in `Resumo` and mutable fields in `Editar cadastro`.
+- The new-order customer selector has a fixed modal frame, fixed search/tab controls and a separately scrolling result list; customer details are no longer repeated below the selected-customer block.
+- The orders `Lista` renders only non-empty operational phases. Every phase can be expanded or collapsed, delivered/cancelled start collapsed, and compact global controls expand or collapse all visible phases.
+- Bulk order actions use a single compact horizontal strip with only applicable actions. The edit-order dialog owns one bounded scroll area and no longer repeats its title inside the embedded mobile flow.
+- Products, stock/production, reports and configuration now share the compact mobile-first administration pattern: list-first operational data, bounded edit/production dialogs, secondary information behind expandable sections and persistent access to the primary save action.
+- Advanced filters stay folded behind `Filtros`, the hosted-payment summary is collapsible, and bulk actions only occupy space when orders are selected.
+- Manual order entry now presents payment methods in a compact two-column grid and further reduces spacing in customer, delivery, catalog and review sections.
+- No Prisma schema or migration change was required.
+- Validation:
+  - targeted ESLint passed with no warnings;
+  - `npm run build` passed on Node `22.22.3`;
+  - public menu/search/cart/checkout were visually exercised at mobile and desktop viewports;
+  - authenticated admin visual QA still requires an authenticated local/HML session.
+
 ## Later Payment-Flow Continuity Notes
 
 ### Asaas Hosted Checkout Consistency

@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { ChevronDown, CreditCard, Minus, Plus, QrCode, Save, Search, ShoppingBag, Wallet, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, CreditCard, Minus, Plus, QrCode, Save, Search, ShoppingBag, Wallet, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,6 +41,10 @@ type ClienteQuickForm = {
   clienteBloco: string
   clienteApartamento: string
   observacoes: string
+}
+
+function getClienteInitials(nome: string) {
+  return nome.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]?.toUpperCase() ?? '').join('')
 }
 
 function normalizeSeparacaoResponsavel(
@@ -659,45 +663,48 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     <div className="space-y-2">
       <Label>Cliente cadastrado</Label>
       {clienteSelecionado ? (
-        <div className="rounded-2xl border border-primary/20 bg-primary/[0.08] p-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/[0.07] p-3">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-primary">{clienteSelecionado.nome}</p>
-              <p className="text-sm text-primary/80">
-                {clienteSelecionado.telefone ? formatarTelefone(clienteSelecionado.telefone) : 'Sem celular'}
-              </p>
-              {clienteSelecionado.totalPedidos !== undefined ? (
-                <p className="mt-1 text-xs text-muted-foreground">{clienteSelecionado.totalPedidos} pedido(s) no cadastro</p>
-              ) : null}
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-background text-xs font-bold text-primary">
+                {getClienteInitials(clienteSelecionado.nome)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-primary">{clienteSelecionado.nome}</p>
+                <p className="truncate text-xs text-primary/75">
+                  {clienteSelecionado.telefone ? formatarTelefone(clienteSelecionado.telefone) : 'Sem celular'}
+                  {clienteSelecionado.clienteBloco ? ` · Bloco ${clienteSelecionado.clienteBloco}` : ''}
+                </p>
+              </div>
             </div>
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={clearSelectedCliente}>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg" aria-label="Remover cliente" onClick={clearSelectedCliente}>
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-3 flex gap-2">
-            <Button type="button" variant="outline" className="flex-1 rounded-2xl" onClick={() => {
+          <div className="mt-2 flex gap-1.5">
+            <Button type="button" variant="outline" size="sm" className="flex-1 rounded-lg" onClick={() => {
               setClienteModalTab('buscar')
               setClienteModalOpen(true)
             }}>
               Trocar cliente
             </Button>
-            <Button type="button" variant="outline" className="rounded-2xl" onClick={openNovoClienteModal}>
+            <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={openNovoClienteModal}>
               Novo cliente
             </Button>
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 p-4">
-          <p className="text-sm text-muted-foreground">Busque um cadastro existente ou crie um novo sem sair do pedido.</p>
-          <div className="mt-3 flex gap-2">
-            <Button type="button" className="flex-1 rounded-2xl" onClick={() => {
+        <div className="rounded-xl border border-dashed border-border/70 bg-background/70 p-3">
+          <p className="text-xs text-muted-foreground">Associe um cliente ou siga com os dados do pedido.</p>
+          <div className="mt-2 flex gap-1.5">
+            <Button type="button" size="sm" className="flex-1 rounded-lg" onClick={() => {
               setClienteModalTab('buscar')
               setClienteModalError('')
               setClienteModalOpen(true)
             }}>
               Buscar cliente
             </Button>
-            <Button type="button" variant="outline" className="rounded-2xl" onClick={openNovoClienteModal}>
+            <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={openNovoClienteModal}>
               Cadastrar
             </Button>
           </div>
@@ -707,49 +714,22 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   )
 
   const renderClienteForm = () => (
-    <div className="space-y-4">
-      {renderClienteLookup()}
-      {clienteSelecionado ? (
-        <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="min-w-0 rounded-xl border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">Nome</p>
-              <p className="truncate font-semibold">{clienteSelecionado.nome}</p>
-            </div>
-            <div className="min-w-0 rounded-xl border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">Contato principal</p>
-              <p className="truncate font-semibold">
-                {clienteSelecionado.telefone ? formatarTelefone(clienteSelecionado.telefone) : 'Nao informado'}
-              </p>
-            </div>
-            {(clienteSelecionado.clienteBloco || clienteSelecionado.clienteApartamento) ? (
-              <div className="min-w-0 rounded-xl border bg-muted/20 p-3 sm:col-span-2">
-                <p className="text-xs text-muted-foreground">Localizacao padrao</p>
-                <p className="font-semibold">
-                  {clienteSelecionado.clienteBloco ? `Bloco ${clienteSelecionado.clienteBloco}` : 'Sem bloco'}
-                  {clienteSelecionado.clienteApartamento ? ` • Apto ${clienteSelecionado.clienteApartamento}` : ''}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <div>{renderClienteLookup()}</div>
   )
 
   const renderEntregaPagamentoForm = () => (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="space-y-2">
         <Label>Data do pedido</Label>
-        <Input type="datetime-local" value={dataPedido} onChange={(event) => setDataPedido(event.target.value)} className="h-11 rounded-2xl" />
+        <Input type="datetime-local" value={dataPedido} onChange={(event) => setDataPedido(event.target.value)} className="h-9 rounded-lg" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Entrega</Label>
           <select
             value={tipoEntrega}
             onChange={(event) => setTipoEntrega(event.target.value as TipoEntrega)}
-            className="h-11 w-full rounded-2xl border border-input bg-background px-3 text-sm"
+            className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
             <option value="RESERVA_PAULISTANO">Condominio (Reserva Paulistano)</option>
             <option value="RETIRADA">Retirada</option>
@@ -758,61 +738,61 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         </div>
         <div className="space-y-2">
           <Label>Pagamento</Label>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
               onClick={() => handleSelectPagamento('DINHEIRO')}
               className={cn(
-                'flex items-start gap-3 rounded-2xl border p-4 text-left transition',
+                'flex min-h-16 items-start gap-2 rounded-lg border p-2.5 text-left transition',
                 pagamentoSelecionado === 'DINHEIRO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'
               )}
             >
               <Wallet className="mt-0.5 h-4 w-4 text-primary" />
               <div>
                 <p className="font-medium">Dinheiro</p>
-                <p className="text-xs text-muted-foreground">Pagamento na entrega ou retirada.</p>
+                <p className="line-clamp-1 text-[10px] text-muted-foreground">Na entrega ou retirada.</p>
               </div>
             </button>
             <button
               type="button"
               onClick={() => handleSelectPagamento('PIX')}
               className={cn(
-                'flex items-start gap-3 rounded-2xl border p-4 text-left transition',
+                'flex min-h-16 items-start gap-2 rounded-lg border p-2.5 text-left transition',
                 pagamentoSelecionado === 'PIX' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'
               )}
             >
               <QrCode className="mt-0.5 h-4 w-4 text-primary" />
               <div>
                 <p className="font-medium">PIX</p>
-                <p className="text-xs text-muted-foreground">Status fica pendente ate confirmacao.</p>
+                <p className="line-clamp-1 text-[10px] text-muted-foreground">Pendente ate confirmar.</p>
               </div>
             </button>
             <button
               type="button"
               onClick={() => handleSelectPagamento('CARTAO_CREDITO')}
               className={cn(
-                'flex items-start gap-3 rounded-2xl border p-4 text-left transition',
+                'flex min-h-16 items-start gap-2 rounded-lg border p-2.5 text-left transition',
                 pagamentoSelecionado === 'CARTAO_CREDITO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'
               )}
             >
               <CreditCard className="mt-0.5 h-4 w-4 text-primary" />
               <div>
                 <p className="font-medium">Cartao credito</p>
-                <p className="text-xs text-muted-foreground">Taxa prevista de 3,09%.</p>
+                <p className="text-[10px] text-muted-foreground">Taxa 3,09%.</p>
               </div>
             </button>
             <button
               type="button"
               onClick={() => handleSelectPagamento('CARTAO_DEBITO')}
               className={cn(
-                'flex items-start gap-3 rounded-2xl border p-4 text-left transition',
+                'flex min-h-16 items-start gap-2 rounded-lg border p-2.5 text-left transition',
                 pagamentoSelecionado === 'CARTAO_DEBITO' ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-background hover:border-primary/35'
               )}
             >
               <CreditCard className="mt-0.5 h-4 w-4 text-primary" />
               <div>
                 <p className="font-medium">Cartao debito</p>
-                <p className="text-xs text-muted-foreground">Taxa prevista de 0,89%.</p>
+                <p className="text-[10px] text-muted-foreground">Taxa 0,89%.</p>
               </div>
             </button>
           </div>
@@ -822,11 +802,11 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
           <>
             <div className="space-y-2">
               <Label>Bloco</Label>
-              <Input value={bloco} onChange={(event) => setBloco(event.target.value)} placeholder="Ex: A" className="h-11 rounded-2xl" />
+              <Input value={bloco} onChange={(event) => setBloco(event.target.value)} placeholder="Ex: A" className="h-9 rounded-lg" />
             </div>
             <div className="space-y-2">
               <Label>Apartamento</Label>
-              <Input value={apartamento} onChange={(event) => setApartamento(event.target.value)} placeholder="Ex: 101" className="h-11 rounded-2xl" />
+              <Input value={apartamento} onChange={(event) => setApartamento(event.target.value)} placeholder="Ex: 101" className="h-9 rounded-lg" />
             </div>
           </>
         )}
@@ -834,7 +814,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         {tipoEntrega === 'ENCOMENDA' && (
           <div className="space-y-2 sm:col-span-2">
             <Label>Data da encomenda</Label>
-            <Input type="date" value={encomendaData} onChange={(event) => setEncomendaData(event.target.value)} className="h-11 rounded-2xl" />
+            <Input type="date" value={encomendaData} onChange={(event) => setEncomendaData(event.target.value)} className="h-9 rounded-lg" />
           </div>
         )}
       </div>
@@ -1112,24 +1092,24 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
   )
 
   const renderCatalogo = () => (
-    <div className="space-y-4">
-      <Card className="overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="space-y-3 bg-gradient-to-br from-background via-background to-primary/[0.05]">
+    <div className="space-y-3">
+      <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0 shadow-sm">
+        <CardHeader className="space-y-2 bg-gradient-to-br from-background via-background to-primary/[0.05] p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle>Catalogo rapido</CardTitle>
-              <CardDescription>Buscar, tocar e ajustar. Sem formulario na frente dos produtos.</CardDescription>
+              <CardTitle className="text-base">Produtos</CardTitle>
+              <CardDescription className="text-xs">Busque e toque para adicionar.</CardDescription>
             </div>
             <Badge variant="secondary">{produtosFiltrados.length}</Badge>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={productSearch}
                 onChange={(event) => setProductSearch(event.target.value)}
                 placeholder="Buscar sabor ou categoria"
-                className="h-11 rounded-2xl pl-9"
+                className="h-9 rounded-lg pl-9"
               />
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -1139,7 +1119,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
                   type="button"
                   onClick={() => setSelectedCategoria(categoria.nome)}
                   className={cn(
-                    'shrink-0 rounded-full border px-3 py-2 text-sm transition-colors',
+                    'shrink-0 rounded-full border px-2.5 py-1.5 text-xs transition-colors',
                     selectedCategoria === categoria.nome
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-background text-foreground hover:bg-muted/40'
@@ -1153,7 +1133,7 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
         </CardHeader>
       </Card>
 
-      <div className="space-y-3">
+      <div className={cn('grid md:grid-cols-2', compact ? 'gap-2' : 'gap-3')}>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Carregando produtos...</p>
         ) : produtosFiltrados.length === 0 ? (
@@ -1167,45 +1147,49 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
               <Card
                 key={produto.id}
                 className={cn(
-                  'gap-0 border-border/70 py-0 shadow-sm transition-colors',
-                  quantidade > 0 ? 'border-primary/30 bg-primary/[0.03]' : 'bg-card'
+                  'gap-0 border-border/70 py-0 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+                  compact ? 'rounded-lg' : 'rounded-xl',
+                  quantidade > 0 ? 'border-primary/35 bg-primary/[0.045] ring-1 ring-primary/10' : 'bg-card'
                 )}
               >
-                <CardContent className="p-4">
+                <CardContent className={cn('flex h-full flex-col', compact ? 'p-2.5' : 'p-3')}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{produto.nome}</p>
-                        {!produto.ativo ? <Badge variant="outline">Indisponivel no catalogo</Badge> : null}
-                        {produto.disponivelParaEncomenda ? <Badge variant="outline">Aceita encomenda</Badge> : null}
+                        <p className={cn('font-medium', compact && 'text-sm')}>{produto.nome}</p>
+                        {!produto.ativo ? <Badge variant="outline" className={cn(compact && 'h-5 px-1.5 text-[10px]')}>Indisponivel no catalogo</Badge> : null}
+                        {produto.disponivelParaEncomenda ? <Badge variant="outline" className={cn(compact && 'h-5 px-1.5 text-[10px]')}>Aceita encomenda</Badge> : null}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {produto.categoriaNome || 'Sem categoria'} • {formatarMoeda(produto.preco)}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {produto.categoriaNome || 'Sem categoria'}
                       </p>
                     </div>
-                    {quantidade > 0 ? <Badge>{quantidade}x</Badge> : null}
+                    <div className="shrink-0 text-right">
+                      <p className="font-bold text-primary">{formatarMoeda(produto.preco)}</p>
+                      {quantidade > 0 ? <Badge className="mt-1">{quantidade}x</Badge> : null}
+                    </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-3">
+                  <div className={cn('mt-auto flex items-center gap-2', compact ? 'pt-2' : 'pt-3')}>
                     {quantidade === 0 ? (
-                      <Button type="button" className="h-10 rounded-2xl px-4" onClick={() => addProduct(produto)}>
+                      <Button type="button" size="sm" className={cn('w-full rounded-lg px-3', compact ? 'h-8 text-xs' : 'h-9')} onClick={() => addProduct(produto)}>
                         <Plus className="mr-2 h-4 w-4" />
-                        Adicionar
+                        Adicionar ao pedido
                       </Button>
                     ) : (
                       <>
-                        <div className="grid flex-1 grid-cols-[44px_1fr_44px] gap-2 sm:max-w-[220px]">
-                          <Button type="button" variant="outline" size="icon" className="rounded-xl" onClick={() => changeQuantity(produto.id, -1)}>
+                        <div className={cn('grid flex-1 gap-1.5', compact ? 'grid-cols-[34px_1fr_34px]' : 'grid-cols-[38px_1fr_38px]')}>
+                          <Button type="button" variant="outline" size="icon-sm" className={cn('rounded-lg', compact ? 'h-8 w-8' : 'h-9 w-9')} onClick={() => changeQuantity(produto.id, -1)}>
                             <Minus className="h-4 w-4" />
                           </Button>
-                          <div className="flex items-center justify-center rounded-xl border bg-background text-sm font-semibold">
+                          <div className={cn('flex items-center justify-center rounded-lg border bg-background text-sm font-semibold', compact ? 'h-8' : 'h-9')}>
                             {quantidade}
                           </div>
-                          <Button type="button" variant="outline" size="icon" className="rounded-xl" onClick={() => changeQuantity(produto.id, 1)}>
+                          <Button type="button" size="icon-sm" className={cn('rounded-lg', compact ? 'h-8 w-8' : 'h-9 w-9')} onClick={() => changeQuantity(produto.id, 1)}>
                             <Plus className="h-4 w-4" />
                           </Button>
                         </div>
-                        <Button type="button" variant="ghost" className="rounded-xl px-3 text-muted-foreground" onClick={() => setProductQuantity(produto, 0)}>
-                          Limpar
+                        <Button type="button" variant="ghost" size="icon-sm" className={cn('shrink-0 rounded-lg text-muted-foreground', compact ? 'h-8 w-8' : 'h-9 w-9')} onClick={() => setProductQuantity(produto, 0)} aria-label={`Remover ${produto.nome} do pedido`}>
+                          <X className="h-4 w-4" />
                         </Button>
                       </>
                     )}
@@ -1227,20 +1211,20 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     content: ReactNode
   ) => (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <Card className="border-border/70 shadow-sm">
-        <CardHeader className="pb-3">
+      <Card className="gap-0 rounded-xl border-border/70 py-0 shadow-sm">
+        <CardHeader className="p-3">
           <CollapsibleTrigger className="flex w-full items-start justify-between gap-3 text-left">
             <div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription className="mt-1">{description}</CardDescription>
+              <CardTitle className="text-base">{title}</CardTitle>
+              <CardDescription className="mt-1 text-xs">{description}</CardDescription>
             </div>
-            <div className="rounded-xl border border-border/70 bg-background/70 p-2">
+            <div className="rounded-lg border border-border/70 bg-background/70 p-1.5">
               <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
             </div>
           </CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
-          <CardContent>{content}</CardContent>
+          <CardContent className="p-3 pt-0">{content}</CardContent>
         </CollapsibleContent>
       </Card>
     </Collapsible>
@@ -1248,137 +1232,136 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
   const renderClienteModal = () => (
     <Dialog open={clienteModalOpen} onOpenChange={setClienteModalOpen}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-[1.6rem] border-border/80 p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b border-border/70 px-5 py-4">
-          <DialogTitle>Clientes</DialogTitle>
-          <DialogDescription>
-            Busque um cliente existente ou cadastre um novo sem sair do pedido.
-          </DialogDescription>
+      <DialogContent className="flex h-[min(90dvh,720px)] w-[calc(100vw-0.75rem)] max-w-2xl flex-col overflow-hidden rounded-2xl border-border/80 p-0">
+        <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-3 pr-10 text-left">
+          <DialogTitle className="text-base">Cliente do pedido</DialogTitle>
+          <DialogDescription className="text-xs">Selecione um cadastro ou crie um novo sem sair da venda.</DialogDescription>
         </DialogHeader>
-        <div className="p-5">
-          <Tabs value={clienteModalTab} onValueChange={(value) => setClienteModalTab(value as ClienteModalTab)} className="space-y-4">
-            <TabsList className="grid h-11 w-full grid-cols-2 rounded-2xl p-1">
-              <TabsTrigger value="buscar" className="rounded-xl">Buscar cliente</TabsTrigger>
-              <TabsTrigger value="novo" className="rounded-xl">Novo cliente</TabsTrigger>
+        <div className="flex min-h-0 flex-1 flex-col p-3">
+          <Tabs value={clienteModalTab} onValueChange={(value) => setClienteModalTab(value as ClienteModalTab)} className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="grid h-9 shrink-0 w-full grid-cols-2 rounded-lg p-0.5">
+              <TabsTrigger value="buscar" className="rounded-md text-xs">Selecionar</TabsTrigger>
+              <TabsTrigger value="novo" className="rounded-md text-xs">Novo cliente</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="buscar" className="space-y-4">
-              <div className="space-y-2">
-                <Label>Buscar por nome, telefone ou WhatsApp</Label>
+            <TabsContent value="buscar" className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="shrink-0 space-y-1.5 pb-2">
+                <Label className="text-xs">Nome, telefone ou WhatsApp</Label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={searchCliente}
                     onChange={(event) => setSearchCliente(event.target.value)}
                     placeholder="Digite para localizar o cliente"
-                    className="h-11 rounded-2xl pl-9"
+                    className="h-9 rounded-lg pl-9"
                   />
                 </div>
               </div>
 
-              <div className="max-h-[45dvh] space-y-3 overflow-y-auto pr-1">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border/70 bg-background/55">
                 {isLoadingClientes ? (
-                  <p className="text-sm text-muted-foreground">Carregando clientes...</p>
+                  <p className="p-4 text-sm text-muted-foreground">Carregando clientes...</p>
                 ) : clientes?.length ? (
                   clientes.map((cliente) => (
                     <button
                       key={cliente.id}
                       type="button"
                       onClick={() => selectCliente(cliente)}
-                      className="w-full rounded-2xl border border-border/70 bg-background/80 p-4 text-left transition hover:border-primary/35 hover:bg-primary/[0.04]"
+                      className="flex w-full items-center gap-2.5 border-b border-border/60 px-3 py-2.5 text-left transition last:border-b-0 hover:bg-primary/[0.05]"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold">{cliente.nome}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {cliente.telefone ? formatarTelefone(cliente.telefone) : 'Sem celular'}
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant="secondary">{cliente.totalPedidos ?? 0} pedido(s)</Badge>
-                            {cliente.clienteBloco ? <Badge variant="outline">Bloco {cliente.clienteBloco}</Badge> : null}
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-                          Selecionar
-                        </div>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card text-xs font-bold text-primary">
+                        {getClienteInitials(cliente.nome)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{cliente.nome}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {cliente.telefone ? formatarTelefone(cliente.telefone) : 'Sem celular'}
+                          {cliente.clienteBloco ? ` · Bloco ${cliente.clienteBloco}` : ''}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[10px] text-muted-foreground">{cliente.totalPedidos ?? 0} pedido(s)</p>
+                        <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                          Usar <Check className="h-3.5 w-3.5" />
+                        </span>
                       </div>
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    Nenhum cliente encontrado. Voce pode cadastrar um novo na aba ao lado.
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    Nenhum cliente encontrado. Cadastre na aba “Novo cliente”.
                   </div>
                 )}
               </div>
             </TabsContent>
 
-            <TabsContent value="novo" className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Nome</Label>
+            <TabsContent value="novo" className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Nome</Label>
                   <Input
                     value={clienteQuickForm.nome}
                     onChange={(event) => setClienteQuickForm((current) => ({ ...current, nome: event.target.value }))}
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-lg"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Telefone</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Telefone</Label>
                   <Input
                     value={clienteQuickForm.telefone}
                     onChange={(event) => setClienteQuickForm((current) => ({ ...current, telefone: formatPhoneInput(event.target.value) }))}
                     placeholder="(47) 99999-9999"
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-lg"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>WhatsApp</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">WhatsApp</Label>
                   <Input
                     value={clienteQuickForm.whatsapp}
                     onChange={(event) => setClienteQuickForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))}
                     placeholder="(47) 99999-9999"
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-lg"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Bloco</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Bloco</Label>
                   <Input
                     value={clienteQuickForm.clienteBloco}
                     onChange={(event) => setClienteQuickForm((current) => ({ ...current, clienteBloco: event.target.value }))}
                     placeholder="Ex: A"
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-lg"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Apartamento</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Apartamento</Label>
                   <Input
                     value={clienteQuickForm.clienteApartamento}
                     onChange={(event) => setClienteQuickForm((current) => ({ ...current, clienteApartamento: event.target.value }))}
                     placeholder="Ex: 101"
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-lg"
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Observacoes</Label>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Observações</Label>
                   <Textarea
                     value={clienteQuickForm.observacoes}
                     onChange={(event) => setClienteQuickForm((current) => ({ ...current, observacoes: event.target.value }))}
-                    className="min-h-24 rounded-2xl"
+                    className="min-h-20 rounded-lg"
                   />
                 </div>
               </div>
 
               {clienteModalError ? (
-                <p className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">
                   {clienteModalError}
                 </p>
               ) : null}
 
-              <div className="flex gap-2">
-                <Button type="button" className="flex-1 rounded-2xl" onClick={saveClienteRapido} disabled={savingCliente || !clienteQuickForm.nome.trim()}>
+              <div className="sticky bottom-0 mt-3 flex gap-2 border-t border-border/60 bg-background/95 py-3 backdrop-blur">
+                <Button type="button" className="h-9 flex-1 rounded-lg" onClick={saveClienteRapido} disabled={savingCliente || !clienteQuickForm.nome.trim()}>
                   {savingCliente ? 'Salvando...' : 'Cadastrar e usar no pedido'}
                 </Button>
-                <Button type="button" variant="outline" className="rounded-2xl" onClick={() => setClienteModalTab('buscar')}>
+                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => setClienteModalTab('buscar')}>
                   Voltar
                 </Button>
               </div>
@@ -1465,64 +1448,74 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
     <Tabs
       value={mobileTab}
       onValueChange={(value) => setMobileTab(value as MobileTab)}
-      className={cn('space-y-4', compact ? 'pb-4' : 'pb-28')}
+      className={cn('space-y-3', compact ? 'pb-3' : 'pb-20')}
     >
       <div
         className={cn(
           'sticky top-0 z-30 backdrop-blur',
           compact
-            ? 'rounded-[1.4rem] border border-border/70 bg-background/96 px-4 py-3'
-            : '-mx-3 border-b border-border/70 bg-background/95 px-3 pb-3 pt-1'
+            ? 'rounded-xl border border-border/70 bg-background/96 px-2.5 py-2'
+            : '-mx-3 border-b border-border/70 bg-background/95 px-3 pb-2 pt-0'
         )}
       >
-        <div className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-bold">{isEditing ? 'Editar pedido' : 'Novo pedido'}</h1>
-              <p className="text-sm text-muted-foreground">Fluxo mobile: catalogo primeiro, fechamento depois.</p>
-            </div>
-            <div className="rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-right">
+        <div className="space-y-2">
+          <div className={cn('flex items-start gap-3', compact ? 'justify-end' : 'justify-between')}>
+            {!compact ? (
+              <div>
+                <h1 className="text-lg font-bold">{isEditing ? 'Editar pedido' : 'Nova venda'}</h1>
+                <p className="text-xs text-muted-foreground">Produtos primeiro, revisao depois.</p>
+              </div>
+            ) : null}
+            <div className="rounded-lg border border-primary/20 bg-primary/[0.08] px-2.5 py-1.5 text-right">
               <p className="text-xs text-primary/70">{totalItens} item(ns)</p>
               <p className="font-semibold text-primary">{formatarMoeda(total)}</p>
             </div>
           </div>
-          <TabsList className="grid h-11 w-full grid-cols-2 rounded-2xl p-1">
-            <TabsTrigger value="catalogo" className="rounded-xl">Catalogo</TabsTrigger>
-            <TabsTrigger value="finalizar" className="rounded-xl">Finalizar</TabsTrigger>
+          <TabsList className="grid h-10 w-full grid-cols-2 rounded-xl p-0.5">
+            <TabsTrigger value="catalogo" className="gap-2 rounded-xl">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-[10px] font-bold">1</span>
+              Produtos
+            </TabsTrigger>
+            <TabsTrigger value="finalizar" className="gap-2 rounded-xl">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-[10px] font-bold">2</span>
+              Revisar
+            </TabsTrigger>
           </TabsList>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary" className="max-w-full truncate">{clienteResumo}</Badge>
-            <Badge variant="secondary">{entregaResumo}</Badge>
-            <Badge variant="secondary">{pagamentoResumo}</Badge>
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+            <span className="max-w-[40%] truncate font-medium text-foreground">{clienteResumo}</span>
+            <span>•</span>
+            <span className="truncate">{entregaResumo}</span>
+            <span>•</span>
+            <span className="truncate">{pagamentoResumo}</span>
           </div>
         </div>
       </div>
 
-      <TabsContent value="catalogo" className="space-y-4">
+      <TabsContent value="catalogo" className="space-y-3">
         {renderCatalogo()}
       </TabsContent>
 
-      <TabsContent value="finalizar" className="space-y-4">
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle>Resumo</CardTitle>
-            <CardDescription>Confira os itens e deixe o fechamento redondo antes de salvar.</CardDescription>
+      <TabsContent value="finalizar" className="space-y-3">
+        <Card className="gap-0 rounded-xl border-border/70 py-0 shadow-sm">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-base">Resumo</CardTitle>
+            <CardDescription className="text-xs">Confira itens e total.</CardDescription>
           </CardHeader>
-          <CardContent>{renderResumo(false)}</CardContent>
+          <CardContent className="p-3 pt-0">{renderResumo(false)}</CardContent>
         </Card>
 
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle>Cliente</CardTitle>
+        <Card className="gap-0 rounded-xl border-border/70 py-0 shadow-sm">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-base">Cliente</CardTitle>
           </CardHeader>
-          <CardContent>{renderClienteForm()}</CardContent>
+          <CardContent className="p-3 pt-0">{renderClienteForm()}</CardContent>
         </Card>
 
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle>Entrega e pagamento</CardTitle>
+        <Card className="gap-0 rounded-xl border-border/70 py-0 shadow-sm">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-base">Entrega e pagamento</CardTitle>
           </CardHeader>
-          <CardContent>{renderEntregaPagamentoForm()}</CardContent>
+          <CardContent className="p-3 pt-0">{renderEntregaPagamentoForm()}</CardContent>
         </Card>
 
         {renderExpandableCard(
@@ -1552,28 +1545,27 @@ export function NovoPedidoAdminPage({ compact = false, initialPedido = null, onC
 
       <div
         className={cn(
-          'z-40 border-border/80 bg-background/95 p-3 backdrop-blur',
+          'z-40 border-border/80 bg-background/95 p-2 backdrop-blur',
           compact
-            ? 'sticky bottom-0 mt-4 rounded-[1.4rem] border shadow-lg'
+            ? 'sticky bottom-0 mt-3 rounded-xl border shadow-lg'
             : 'fixed inset-x-0 bottom-0 border-t supports-[padding:max(0px)]:pb-[max(0.75rem,env(safe-area-inset-bottom))]'
         )}
       >
         {mobileTab === 'catalogo' ? (
-          <div className="mx-auto grid max-w-5xl gap-2 sm:grid-cols-2">
-            <Button type="button" variant="outline" className="h-12 w-full rounded-2xl" onClick={() => setMobileTab('finalizar')}>
+          <div className="mx-auto max-w-5xl">
+            <Button type="button" className="h-11 w-full rounded-xl px-3" onClick={() => setMobileTab('finalizar')}>
               <ShoppingBag className="mr-2 h-4 w-4" />
-              Ver pedido
-            </Button>
-            <Button type="button" className="h-12 w-full rounded-2xl px-5" onClick={() => setMobileTab('finalizar')}>
-              Total {formatarMoeda(total)}
+              <span className="flex-1 text-left">Revisar pedido</span>
+              <span>{totalItens} item(ns) · {formatarMoeda(total)}</span>
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         ) : (
-          <div className="mx-auto grid max-w-5xl gap-2 sm:grid-cols-2">
-            <Button type="button" variant="outline" className="h-12 w-full rounded-2xl" onClick={() => setMobileTab('catalogo')}>
-              Voltar ao catalogo
+          <div className="mx-auto grid max-w-5xl grid-cols-[44px_minmax(0,1fr)] gap-1.5">
+            <Button type="button" variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => setMobileTab('catalogo')} aria-label="Voltar aos produtos">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Button type="button" className="h-12 w-full rounded-2xl px-5" onClick={handleSubmit} disabled={isSubmitting}>
+            <Button type="button" className="h-10 w-full rounded-xl px-3" onClick={handleSubmit} disabled={isSubmitting}>
               <Save className="mr-2 h-4 w-4" />
               {isSubmitting ? 'Salvando...' : isEditing ? 'Salvar pedido' : 'Criar pedido'}
             </Button>
