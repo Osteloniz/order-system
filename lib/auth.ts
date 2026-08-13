@@ -3,7 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/db'
 import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 import { createAuthAuditLog } from '@/lib/auth-audit'
-import { hashIpAddress, normalizeEmail, normalizeLoginIdentifier, verifyPassword } from '@/lib/auth-security'
+import { hashIpAddress, hashPassword, needsPasswordRehash, normalizeEmail, normalizeLoginIdentifier, verifyPassword } from '@/lib/auth-security'
 import { isAdminAllowlistReady, isAllowedAdminEmail } from '@/lib/admin-allowlist'
 import { isPersistentlyAuthBlocked } from '@/lib/auth-throttle'
 import { verifyAdminSecondFactor } from '@/lib/mfa-auth'
@@ -121,6 +121,13 @@ export const authOptions: NextAuthOptions = {
             metadata: { reason: 'invalid_credentials_or_policy' },
           })
           return null
+        }
+
+        if (needsPasswordRehash(user.passwordHash)) {
+          await prisma.adminUser.update({
+            where: { id: user.id },
+            data: { passwordHash: await hashPassword(password) },
+          })
         }
 
         if (!user.totpEnabledAt || !user.totpSecretEncrypted) {

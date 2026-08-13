@@ -6,6 +6,7 @@ import {
   generateSecureToken,
   hashOpaqueToken,
   maskEmail,
+  needsPasswordRehash,
   normalizeEmail,
 } from '../lib/auth-security.ts'
 import { resolveInviteStatus } from '../lib/invite-status.ts'
@@ -39,6 +40,12 @@ test('maskEmail hides most of the local part', () => {
 
 test('buildUsernameCandidateFromEmail sanitizes unsafe characters', () => {
   assert.equal(buildUsernameCandidateFromEmail('Joao+Admin@Test.com'), 'joao-admin')
+})
+
+test('needsPasswordRehash upgrades legacy bcrypt costs', () => {
+  process.env.BCRYPT_ROUNDS = '12'
+  assert.equal(needsPasswordRehash('$2a$10$abcdefghijklmnopqrstuuuuuuuuuuuuuuuuuuuuuuuuuuuuu'), true)
+  assert.equal(needsPasswordRehash('$2b$12$abcdefghijklmnopqrstuuuuuuuuuuuuuuuuuuuuuuuuuuuuu'), false)
 })
 
 test('resolveInviteStatus marks used invites as used', () => {

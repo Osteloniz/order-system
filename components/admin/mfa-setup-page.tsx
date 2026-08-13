@@ -181,7 +181,14 @@ export function MfaSetupPage() {
             </div>
           )}
 
-          {error && <p className="rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+          {error && (
+            <div className="space-y-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">{error}</p>
+              <Button variant="outline" onClick={logout} className="w-full">
+                Limpar sessao e voltar ao login
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

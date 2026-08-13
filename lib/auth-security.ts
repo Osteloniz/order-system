@@ -54,6 +54,15 @@ export async function hashPassword(password: string) {
   return bcrypt.hash(password, safeRounds)
 }
 
+export function needsPasswordRehash(passwordHash: string) {
+  const cost = Number(passwordHash.split('$')[2])
+  const configuredRounds = Number(process.env.BCRYPT_ROUNDS || DEFAULT_BCRYPT_ROUNDS)
+  const targetRounds = Number.isFinite(configuredRounds) && configuredRounds >= 12
+    ? configuredRounds
+    : DEFAULT_BCRYPT_ROUNDS
+  return !Number.isFinite(cost) || cost < targetRounds
+}
+
 export async function verifyPassword(password: string, passwordHash: string) {
   return bcrypt.compare(password, passwordHash)
 }
