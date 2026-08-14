@@ -9,7 +9,7 @@ interface AdminAuthContextType {
   isLoading: boolean
   mfaVerified: boolean
   mfaEnrollmentRequired: boolean
-  beginLogin: (data: { identifier: string; password: string }) => Promise<{ success: boolean; error?: string }>
+  beginLogin: (data: { identifier: string; password: string }) => Promise<{ success: boolean; enrollmentRequired?: boolean; error?: string }>
   completeLogin: (code: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
 }
@@ -32,9 +32,24 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify(data),
       })
       const payload = await response.json().catch(() => null)
-      return response.ok
-        ? { success: true }
-        : { success: false, error: payload?.error || 'E-mail, login ou senha invalidos.' }
+      if (!response.ok) {
+        return { success: false, error: payload?.error || 'E-mail, login ou senha invalidos.' }
+      }
+
+      if (payload?.enrollmentRequired) {
+        const enrollment = await signIn('credentials', {
+          redirect: false,
+          flow: 'enroll',
+        })
+        if (enrollment?.error) {
+          return { success: false, error: 'Nao foi possivel iniciar a configuracao do autenticador.' }
+        }
+        await fetch('/api/auth/admin/password', { method: 'DELETE' }).catch(() => null)
+        await getSession()
+        return { success: true, enrollmentRequired: true }
+      }
+
+      return { success: true, enrollmentRequired: false }
     } catch {
       return { success: false, error: 'Erro de conexao' }
     }

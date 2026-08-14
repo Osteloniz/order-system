@@ -85,10 +85,6 @@ export async function POST(request: NextRequest) {
     return json({ error: 'E-mail, login ou senha invalidos.' }, 401)
   }
 
-  if (!user.totpEnabledAt || !user.totpSecretEncrypted) {
-    return json({ error: 'Esta conta ainda nao concluiu a configuracao do autenticador.' }, 409)
-  }
-
   const challenge = createAdminMfaChallenge({
     userId: user.id,
     tenantId: tenant.id,
@@ -107,7 +103,11 @@ export async function POST(request: NextRequest) {
   })
 
   const loginHint = isEmail ? identifier.replace(/^(.{2}).*(@.*)$/, '$1***$2') : user.username
-  const response = json({ success: true, loginHint })
+  const response = json({
+    success: true,
+    loginHint,
+    enrollmentRequired: !user.totpEnabledAt || !user.totpSecretEncrypted,
+  })
   response.cookies.set(ADMIN_MFA_CHALLENGE_COOKIE, challenge, {
     httpOnly: true,
     sameSite: 'strict',

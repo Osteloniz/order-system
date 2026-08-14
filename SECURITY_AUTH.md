@@ -12,8 +12,9 @@ Cada administrador usa e-mail, senha, autenticador e codigos de recuperacao prop
 2. A chave correta gera um cookie assinado, aleatorio, `HttpOnly`, `Secure` e valido por no maximo 12 horas; o valor literal da chave nunca e salvo no cookie.
 3. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao navegador e valido por cinco minutos. O IP e auditado, mas nao bloqueia o segundo passo porque proxies e redes moveis podem altera-lo entre requisicoes legitimas.
 4. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
-5. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
-6. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
+5. Uma conta legada ativa ainda sem TOTP pode, depois de validar a senha, receber uma sessao temporaria restrita exclusivamente a `/admin/seguranca` para concluir o primeiro vinculo; nenhuma outra rota administrativa e liberada antes da confirmacao.
+6. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
+7. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
 
 ## MFA / Google Authenticator
 

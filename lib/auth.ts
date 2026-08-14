@@ -59,7 +59,8 @@ export const authOptions: NextAuthOptions = {
         const realIp = getHeaderValue(req?.headers, 'x-real-ip')
         const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
 
-        if (credentials?.flow?.toString() !== 'mfa') return null
+        const flow = credentials?.flow?.toString()
+        if (flow !== 'mfa' && flow !== 'enroll') return null
         const challenge = readAdminMfaChallenge(getCookieValue(req?.headers, ADMIN_MFA_CHALLENGE_COOKIE))
         if (!challenge) return null
 
@@ -136,6 +137,24 @@ export const authOptions: NextAuthOptions = {
             metadata: { reason: 'invalid_or_expired_mfa_challenge' },
           })
           return null
+        }
+
+        if (flow === 'enroll') {
+          if (user.totpEnabledAt || user.totpSecretEncrypted) return null
+
+          resetRateLimitByIp(ip)
+          resetRateLimitByIdentifier(ip, identifier)
+          return {
+            id: user.id,
+            name: user.nome,
+            email: user.email ?? undefined,
+            tenantId: tenant.id,
+            tenantSlug: tenant.slug,
+            sessionVersion: user.sessionVersion,
+            role: user.role,
+            mfaVerified: false,
+            mfaEnrollmentRequired: true,
+          } as any
         }
 
         const mfaResult = await verifyAdminSecondFactor(user, secondFactor)

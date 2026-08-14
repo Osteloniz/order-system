@@ -15,7 +15,7 @@ import { useAdminAuth } from '@/contexts/admin-auth-context'
 export function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { beginLogin, isAuthenticated, isLoading: authLoading } = useAdminAuth()
+  const { beginLogin, isAuthenticated, isLoading: authLoading, mfaEnrollmentRequired } = useAdminAuth()
   const [username, setUsername] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
@@ -30,9 +30,9 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.replace('/admin')
+      router.replace(mfaEnrollmentRequired ? '/admin/seguranca' : '/admin')
     }
-  }, [authLoading, isAuthenticated, router])
+  }, [authLoading, isAuthenticated, mfaEnrollmentRequired, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,7 +42,7 @@ export function LoginPage() {
     const result = await beginLogin({ identifier: username, password: senha })
 
     if (result.success) {
-      router.push('/admin/login/verificacao')
+      router.push(result.enrollmentRequired ? '/admin/seguranca' : '/admin/login/verificacao')
     } else {
       setError(result.error || 'E-mail, login ou senha invalidos.')
     }
