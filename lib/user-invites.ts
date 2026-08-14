@@ -11,7 +11,7 @@ import {
   normalizeEmail,
 } from '@/lib/auth-security'
 import { resolveInviteStatus } from '@/lib/invite-status'
-import { getAdminUserLimit } from '@/lib/admin-allowlist'
+import { assertAllowedAdminEmail, getAdminUserLimit } from '@/lib/admin-allowlist'
 
 export async function createUserInvite(params: {
   tenantId: string
@@ -19,6 +19,7 @@ export async function createUserInvite(params: {
   createdBy?: string | null
 }) {
   const normalizedEmail = normalizeEmail(params.email)
+  assertAllowedAdminEmail(normalizedEmail)
   const currentUserCount = await prisma.adminUser.count({
     where: { tenantId: params.tenantId },
   })

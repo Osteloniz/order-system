@@ -13,9 +13,25 @@ import {
   normalizeAdminUsername,
 } from '../lib/auth-security.ts'
 import { resolveInviteStatus } from '../lib/invite-status.ts'
+import { assertAllowedAdminEmail, getAllowedAdminEmails, isAllowedAdminEmail } from '../lib/admin-allowlist.ts'
 
 test('normalizeEmail lowercases and trims', () => {
   assert.equal(normalizeEmail('  Joao.Murat30@Gmail.com '), 'joao.murat30@gmail.com')
+})
+
+test('admin invite allowlist normalizes values and rejects unauthorized e-mails', () => {
+  const previous = process.env.ADMIN_ALLOWED_EMAILS
+  process.env.ADMIN_ALLOWED_EMAILS = ' Joao.Murat30@Gmail.com, lni165091@gmail.com,joao.murat30@gmail.com '
+
+  try {
+    assert.deepEqual(getAllowedAdminEmails(), ['joao.murat30@gmail.com', 'lni165091@gmail.com'])
+    assert.equal(isAllowedAdminEmail('LNI165091@GMAIL.COM'), true)
+    assert.equal(isAllowedAdminEmail('nao-autorizado@example.com'), false)
+    assert.throws(() => assertAllowedAdminEmail('nao-autorizado@example.com'), /ADMIN_EMAIL_NOT_ALLOWED/)
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_ALLOWED_EMAILS
+    else process.env.ADMIN_ALLOWED_EMAILS = previous
+  }
 })
 
 test('admin username is normalized and restricted to a safe portable format', () => {

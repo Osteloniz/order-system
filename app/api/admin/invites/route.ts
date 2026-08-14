@@ -4,7 +4,7 @@ import { getAdminSession } from '@/lib/auth-helpers'
 import { createAuthAuditLog } from '@/lib/auth-audit'
 import { hashIpAddress } from '@/lib/auth-security'
 import { createUserInvite } from '@/lib/user-invites'
-import { sendAdminInviteEmail } from '@/lib/email'
+import { isInviteEmailConfigured, sendAdminInviteEmail } from '@/lib/email'
 import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
   }
+  if (process.env.NODE_ENV === 'production' && !isInviteEmailConfigured()) {
+    return NextResponse.json({ error: 'O envio de convites esta temporariamente indisponivel.' }, { status: 503 })
+  }
 
   try {
     const created = await createUserInvite({
@@ -68,6 +71,20 @@ export async function POST(request: NextRequest) {
       await prisma.userInvite.update({
         where: { id: created.invite.id },
         data: { status: 'REVOKED', revokedAt: new Date() },
+      })
+      const deliveryMessage = deliveryError instanceof Error ? deliveryError.message : 'INVITE_EMAIL_DELIVERY_FAILED'
+      await createAuthAuditLog({
+        tenantId: admin.tenantId,
+        adminUserId: admin.adminUserId ?? null,
+        inviteId: created.invite.id,
+        action: 'INVITE_REVOKED',
+        identifier: created.invite.emailNormalizado,
+        ipHash: hashIpAddress(getIp(request)),
+        userAgent: request.headers.get('user-agent'),
+        metadata: {
+          reason: deliveryMessage.startsWith('INVITE_EMAIL_') ? deliveryMessage : 'INVITE_EMAIL_DELIVERY_FAILED',
+          source: 'delivery_failure',
+        },
       })
       throw deliveryError
     }
@@ -109,9 +126,17 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro ao criar convite'
     const policyError = message === 'ADMIN_USER_LIMIT_REACHED'
-    const status = message.includes('Ja existe um usuario') || policyError ? 409 : 500
+    const allowlistError = message === 'ADMIN_EMAIL_NOT_ALLOWED'
+    const deliveryError = message.startsWith('INVITE_EMAIL_')
+    const status = message.includes('Ja existe um usuario') || policyError ? 409 : allowlistError ? 403 : deliveryError ? 502 : 500
     return NextResponse.json({
-      error: policyError ? 'O limite seguro de usuarios foi atingido.' : message.startsWith('INVITE_EMAIL_') ? 'Nao foi possivel enviar o convite com seguranca.' : message,
+      error: policyError
+        ? 'O limite seguro de usuarios foi atingido.'
+        : allowlistError
+          ? 'Este e-mail nao esta autorizado para acesso administrativo.'
+          : deliveryError
+            ? 'Nao foi possivel enviar o convite com seguranca.'
+            : message,
     }, { status })
   }
 }
