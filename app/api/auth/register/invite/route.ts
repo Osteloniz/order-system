@@ -10,8 +10,16 @@ const registerInviteSchema = z.object({
   token: z.string().trim().min(20),
   nome: z.string().trim().min(2).max(120),
   username: z.string().trim().min(3).max(40),
-  password: z.string().min(12).max(128),
+  password: z.string(),
 }).strict()
+
+function getInvalidFieldMessage(error: z.ZodError) {
+  const field = error.issues[0]?.path[0]
+  if (field === 'nome') return 'Informe um nome com pelo menos 2 caracteres.'
+  if (field === 'username') return 'O login deve ter entre 3 e 40 caracteres.'
+  if (field === 'password') return 'Informe uma senha valida.'
+  return 'Dados invalidos.'
+}
 
 function getIp(request: NextRequest) {
   const forwardedFor = request.headers.get('x-forwarded-for')
@@ -22,7 +30,7 @@ function getIp(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const parsed = registerInviteSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Dados invalidos' }, { status: 400 })
+    return NextResponse.json({ error: getInvalidFieldMessage(parsed.error) }, { status: 400 })
   }
 
   try {

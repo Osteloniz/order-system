@@ -33,7 +33,8 @@ A integracao usa TOTP (RFC 6238), compativel com Google Authenticator, Microsoft
 
 - senhas sao armazenadas somente com bcrypt;
 - `BCRYPT_ROUNDS` deve ser pelo menos 12 em PRD;
-- senhas exigem ao menos 12 caracteres, maiuscula, minuscula e numero, respeitando o limite de 72 bytes do bcrypt;
+- senhas exigem ao menos 12 caracteres, maiuscula, minuscula e numero, respeitando o limite de 72 bytes do bcrypt; simbolos sao aceitos, mas nao substituem esses requisitos;
+- a conclusao do convite usa a mesma politica de credenciais no cliente e no servidor, exibe os requisitos antes do envio e devolve a regra especifica que precisa ser corrigida sem registrar a senha;
 - a troca de senha exige senha atual e segundo fator recente, incrementa `sessionVersion` e derruba todas as sessoes;
 - logins sao normalizados em minusculas, unicos por tenant e aceitam apenas letras sem acento, numeros, ponto, hifen e sublinhado;
 - a troca de login exige senha e segundo fator do autor, e derruba as sessoes do usuario alterado;

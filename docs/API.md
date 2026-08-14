@@ -85,7 +85,7 @@ Autenticacao:
 - `PUT /api/admin/security/password`: exige sessao com MFA, senha atual, nova senha e um novo TOTP/recuperacao; incrementa `sessionVersion` e encerra todas as sessoes.
 - `GET|POST|DELETE /api/admin/invites`: lista acessos, envia convite (somente master) ou revoga convite pendente. Em PRD o link nunca e devolvido pela API e depende de entrega transacional configurada.
   - O POST aceita somente e-mails presentes em `ADMIN_ALLOWED_EMAILS`, falha antes de criar o convite quando o provedor nao esta configurado e revoga/audita automaticamente qualquer convite cuja entrega falhar.
-- `POST /api/auth/register/invite`: grava nome, login unico e senha do convidado como usuario inativo.
+- `POST /api/auth/register/invite`: valida nome, login unico e a politica compartilhada de senha, devolvendo uma orientacao de campo segura quando houver erro; depois grava o convidado como usuario inativo.
 - `POST|PUT /api/auth/register/invite/mfa`: gera o QR TOTP e somente ativa o usuario/consome o convite depois da confirmacao do codigo.
 - `PUT /api/admin/users/:id/username`: altera o login unico; exige senha e MFA do autor, permite master alterar administradores ou o proprio usuario alterar a si mesmo, e revoga as sessoes do usuario afetado.
 - As rotas antigas `/api/admin/login`, `/api/admin/logout`, `/api/admin/session` estao desativadas (410).

@@ -79,6 +79,7 @@ test('password policy enforces length, composition and bcrypt byte limit', () =>
   assert.match(getPasswordPolicyError('somenteletrasminusculas'), /maiusculas/)
   assert.match(getPasswordPolicyError(`Aa1${'ç'.repeat(35)}`), /72 bytes/)
   assert.equal(getPasswordPolicyError('BrookieSegura2026'), null)
+  assert.equal(getPasswordPolicyError('Brookie#2026Segura'), null)
 })
 
 test('resolveInviteStatus marks used invites as used', () => {
