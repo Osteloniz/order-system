@@ -1,7 +1,6 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/db'
-import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 import { createAuthAuditLog } from '@/lib/auth-audit'
 import { hashIpAddress } from '@/lib/auth-security'
 import { isPersistentlyAuthBlocked } from '@/lib/auth-throttle'
@@ -48,13 +47,6 @@ export const authOptions: NextAuthOptions = {
         code: { label: 'Codigo de seguranca', type: 'text' },
       },
       async authorize(credentials, req) {
-        if (isAdminAccessEnabled()) {
-          const accessCookie = getCookieValue(req?.headers, ADMIN_ACCESS_COOKIE)
-          if (!(await hasAdminAccessCookie(accessCookie))) {
-            throw new Error('Acesso admin bloqueado.')
-          }
-        }
-
         const forwardedFor = getHeaderValue(req?.headers, 'x-forwarded-for')
         const realIp = getHeaderValue(req?.headers, 'x-real-ip')
         const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'

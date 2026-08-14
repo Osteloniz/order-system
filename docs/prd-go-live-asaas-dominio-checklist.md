@@ -79,7 +79,6 @@ ASAAS_CHECKOUT_EXPIRY_MINUTES="60"
 
 E manter tambem os segredos ja usados pelo sistema, como:
 - `NEXTAUTH_SECRET`
-- `ADMIN_ACCESS_KEY`
 - `TOKEN_PEPPER`
 - `DATABASE_URL`
 - `DIRECT_URL`

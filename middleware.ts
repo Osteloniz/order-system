@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 
 function withSecurityHeaders(response: NextResponse, pathname = '') {
   response.headers.set('X-Content-Type-Options', 'nosniff')
@@ -23,29 +22,9 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const defaultTenantSlug = 'brookie-pregiato'
 
-  if (isAdminAccessEnabled()) {
-    const isAdminArea = pathname.startsWith('/admin')
-    const isAdminAuthApi = pathname.startsWith('/api/auth')
-    const isAccessScreen = pathname.startsWith('/admin-access')
-    const hasPreAccess = await hasAdminAccessCookie(req.cookies.get(ADMIN_ACCESS_COOKIE)?.value)
-
-    if ((isAdminArea || isAdminAuthApi) && !isAccessScreen && !hasPreAccess) {
-      if (isAdminAuthApi) {
-        return withSecurityHeaders(
-          NextResponse.json({ error: 'Acesso admin bloqueado.' }, { status: 403 }),
-          pathname,
-        )
-      }
-
-      const accessUrl = new URL('/admin-access', req.url)
-      return withSecurityHeaders(NextResponse.redirect(accessUrl), pathname)
-    }
-  }
-
   if (
     pathname.startsWith('/admin') &&
-    !pathname.startsWith('/admin/login') &&
-    !pathname.startsWith('/admin-access')
+    !pathname.startsWith('/admin/login')
   ) {
     const token = await getToken({
       req,

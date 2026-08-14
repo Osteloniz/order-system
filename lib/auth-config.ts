@@ -10,7 +10,6 @@ export function getAuthSecurityConfiguration() {
   return {
     nextAuthSecret: (process.env.NEXTAUTH_SECRET?.trim().length || 0) >= 32,
     tokenPepper: (process.env.TOKEN_PEPPER?.trim().length || 0) >= 32,
-    adminAccessKey: (process.env.ADMIN_ACCESS_KEY?.trim().length || 0) >= 16,
     encryptionKey: encryptionKeyValid,
   }
 }

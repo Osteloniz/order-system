@@ -43,10 +43,6 @@ export function rateLimitByIdentifier(ip: string, identifier: string) {
   return checkRateLimit(`identifier:${ip}:${identifier.trim().toLowerCase()}`)
 }
 
-export function rateLimitAdminAccessByIp(ip: string) {
-  return checkRateLimit(`admin-access:${ip}`, store, 15 * 60 * 1000, 5, 30 * 60 * 1000)
-}
-
 export function rateLimitPublicPrefill(ip: string, tenantId: string) {
   return checkRateLimit(`prefill:${tenantId}:${ip}`, publicStore, 60 * 1000, 12, 5 * 60 * 1000)
 }
@@ -71,6 +67,3 @@ export function resetRateLimitByIdentifier(ip: string, identifier: string) {
   store.delete(`identifier:${ip}:${identifier.trim().toLowerCase()}`)
 }
 
-export function resetAdminAccessRateLimit(ip: string) {
-  store.delete(`admin-access:${ip}`)
-}

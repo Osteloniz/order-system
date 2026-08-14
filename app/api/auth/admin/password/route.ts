@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 import { createAuthAuditLog } from '@/lib/auth-audit'
 import { isAuthSecurityConfigurationReady } from '@/lib/auth-config'
 import { hashIpAddress, normalizeAdminUsername, normalizeEmail, verifyPassword } from '@/lib/auth-security'
@@ -37,10 +36,6 @@ function json(body: unknown, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
-  if (isAdminAccessEnabled() && !(await hasAdminAccessCookie(request.cookies.get(ADMIN_ACCESS_COOKIE)?.value))) {
-    return json({ error: 'Acesso admin bloqueado.' }, 403)
-  }
-
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return json({ error: 'E-mail, login ou senha invalidos.' }, 400)
   if (process.env.NODE_ENV === 'production' && !isAuthSecurityConfigurationReady()) {

@@ -8,13 +8,12 @@ Cada administrador usa e-mail, senha, autenticador e codigos de recuperacao prop
 
 ## Fluxo de acesso
 
-1. Em producao, `/admin` exige a chave previa `ADMIN_ACCESS_KEY`.
-2. A chave correta gera um cookie assinado, aleatorio, `HttpOnly`, `Secure` e valido por no maximo 12 horas; o valor literal da chave nunca e salvo no cookie.
-3. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao navegador e valido por cinco minutos. O IP e auditado, mas nao bloqueia o segundo passo porque proxies e redes moveis podem altera-lo entre requisicoes legitimas.
-4. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
-5. Uma conta legada ativa ainda sem TOTP pode, depois de validar a senha, receber uma sessao temporaria restrita exclusivamente a `/admin/seguranca` para concluir o primeiro vinculo; nenhuma outra rota administrativa e liberada antes da confirmacao.
-6. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
-7. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
+1. `/admin` direciona usuarios sem sessao diretamente para `/admin/login`.
+2. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao navegador e valido por cinco minutos. O IP e auditado, mas nao bloqueia o segundo passo porque proxies e redes moveis podem altera-lo entre requisicoes legitimas.
+3. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
+4. Uma conta legada ativa ainda sem TOTP pode, depois de validar a senha, receber uma sessao temporaria restrita exclusivamente a `/admin/seguranca` para concluir o primeiro vinculo; nenhuma outra rota administrativa e liberada antes da confirmacao.
+5. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
+6. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
 
 ## MFA / Google Authenticator
 
@@ -64,7 +63,6 @@ NEXT_PUBLIC_APP_URL="https://dominio-oficial"
 APP_URL="https://dominio-oficial"
 NEXTAUTH_SECRET="minimo-32-caracteres"
 TOKEN_PEPPER="minimo-32-caracteres"
-ADMIN_ACCESS_KEY="minimo-16-caracteres"
 AUTH_ENCRYPTION_KEY="base64-de-32-bytes"
 ADMIN_ALLOWED_EMAILS="admin-legado@dominio.com" # apenas bootstrap/migracao
 ADMIN_USER_LIMIT="10"
@@ -101,7 +99,7 @@ A migration `20260814014500_add_username_change_audit` registra alteracoes de lo
 3. Fazer snapshot da branch de banco HML.
 4. Aplicar a migration somente em HML e regenerar o Prisma Client.
 5. Garantir que apenas contas individuais aprovadas estejam ativas e com e-mail normalizado correto.
-6. Validar em HML: chave previa, senha incorreta, separacao das duas telas, desafio expirado, TOTP repetido, recuperacao, troca de senha e revogacao de sessoes.
+6. Validar em HML: senha incorreta, separacao das duas telas, desafio expirado, TOTP repetido, recuperacao, troca de senha e revogacao de sessoes.
 7. Validar convite master: entrega do e-mail, link expirado/uso unico, usuario inativo antes do MFA, ativacao e revogacao.
 8. Abrir e revisar o PR.
 9. Somente depois da aprovacao explicita: snapshot PRD, migration PRD, deploy e smoke test dos administradores.
@@ -121,4 +119,4 @@ npm run build
 npm audit
 ```
 
-Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do autenticador, recuperacao, desafio criptografado entre as duas telas, politica de senha, limite de usuarios e assinatura do cookie de pre-acesso.
+Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do autenticador, recuperacao, desafio criptografado entre as duas telas, politica de senha e limite de usuarios.

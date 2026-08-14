@@ -11,7 +11,6 @@ import {
   verifyTotpCode,
 } from '../lib/totp.ts'
 import { getAdminUserLimit, getAllowedAdminEmails, isAdminAllowlistReady, isAllowedAdminEmail } from '../lib/admin-allowlist.ts'
-import { createSignedAdminAccessCookie, hasSignedAdminAccessCookie, isValidAdminAccessKey } from '../lib/admin-access-token.ts'
 import { createAdminMfaChallenge, readAdminMfaChallenge } from '../lib/login-challenge.ts'
 
 const originalEnv = { ...process.env }
@@ -91,22 +90,3 @@ test('password challenge preserves a custom username for the MFA step', () => {
   assert.equal(readAdminMfaChallenge(value)?.identifier, 'joao.murat')
 })
 
-test('pre-access cookie is signed and cannot be forged with a fixed value', async () => {
-  process.env.ADMIN_ACCESS_KEY = 'private-admin-access-key'
-  process.env.TOKEN_PEPPER = 'pepper-for-tests-with-at-least-32-characters'
-  assert.equal(await isValidAdminAccessKey('private-admin-access-key'), true)
-  assert.equal(await isValidAdminAccessKey('wrong-key'), false)
-
-  const cookie = await createSignedAdminAccessCookie()
-  assert.equal(await hasSignedAdminAccessCookie(cookie), true)
-  assert.equal(await hasSignedAdminAccessCookie('ok'), false)
-  assert.equal(await hasSignedAdminAccessCookie(`${cookie.slice(0, -1)}x`), false)
-})
-
-test('pre-access cookie fails closed when signing secrets are incomplete', async () => {
-  process.env.ADMIN_ACCESS_KEY = 'private-admin-access-key'
-  delete process.env.TOKEN_PEPPER
-  assert.equal(await isValidAdminAccessKey('private-admin-access-key'), false)
-  assert.equal(await hasSignedAdminAccessCookie('anything'), false)
-  await assert.rejects(() => createSignedAdminAccessCookie(), /ADMIN_ACCESS_SIGNING_NOT_CONFIGURED/)
-})
