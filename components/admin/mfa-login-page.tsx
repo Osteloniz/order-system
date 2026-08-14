@@ -14,7 +14,7 @@ export function MfaLoginPage() {
   const router = useRouter()
   const { completeLogin, isAuthenticated, isLoading: authLoading } = useAdminAuth()
   const [status, setStatus] = useState<'loading' | 'ready' | 'invalid'>('loading')
-  const [emailHint, setEmailHint] = useState('')
+  const [loginHint, setLoginHint] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -28,7 +28,7 @@ export function MfaLoginPage() {
       .then(async response => {
         const data = await response.json().catch(() => null)
         if (!response.ok || !data?.valid) throw new Error()
-        setEmailHint(String(data.emailHint || ''))
+        setLoginHint(String(data.loginHint || ''))
         setStatus('ready')
       })
       .catch(() => setStatus('invalid'))
@@ -60,7 +60,7 @@ export function MfaLoginPage() {
           <Image src="/brand/brookie-mark-color.jpg" alt="Brookie Pregiato" width={72} height={72} className="mx-auto h-16 w-16 rounded-full border-2 border-[#E7DBB3] object-cover" />
           <CardTitle className="text-[#421C14]">Confirme o segundo fator</CardTitle>
           <CardDescription className="text-[#421C14]/70">
-            {status === 'ready' ? `Senha confirmada para ${emailHint}.` : 'A verificacao anterior expirou.'}
+            {status === 'ready' ? `Senha confirmada para ${loginHint}.` : 'A verificacao anterior expirou.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5 pt-2">

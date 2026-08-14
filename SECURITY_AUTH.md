@@ -10,7 +10,7 @@ Cada administrador usa e-mail, senha, autenticador e codigos de recuperacao prop
 
 1. Em producao, `/admin` exige a chave previa `ADMIN_ACCESS_KEY`.
 2. A chave correta gera um cookie assinado, aleatorio, `HttpOnly`, `Secure` e valido por no maximo 12 horas; o valor literal da chave nunca e salvo no cookie.
-3. A primeira tela valida somente e-mail e senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao IP/user-agent e valido por cinco minutos.
+3. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao IP/user-agent e valido por cinco minutos.
 4. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
 5. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
 6. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
@@ -35,6 +35,8 @@ A integracao usa TOTP (RFC 6238), compativel com Google Authenticator, Microsoft
 - `BCRYPT_ROUNDS` deve ser pelo menos 12 em PRD;
 - senhas exigem ao menos 12 caracteres, maiuscula, minuscula e numero, respeitando o limite de 72 bytes do bcrypt;
 - a troca de senha exige senha atual e segundo fator recente, incrementa `sessionVersion` e derruba todas as sessoes;
+- logins sao normalizados em minusculas, unicos por tenant e aceitam apenas letras sem acento, numeros, ponto, hifen e sublinhado;
+- a troca de login exige senha e segundo fator do autor, e derruba as sessoes do usuario alterado;
 - convites sao de uso unico, expiram, guardam apenas o hash do token e so podem ser emitidos pelo master;
 - em PRD, o link e enviado por provedor transacional e nunca e retornado pela API;
 - o sistema limita o total de contas por `ADMIN_USER_LIMIT` (padrao 10, limite maximo 50);
@@ -88,6 +90,8 @@ A migration `20260813103000_add_admin_mfa_hardening` adiciona ao `AdminUser`:
 Ela tambem inclui os novos eventos MFA em `AuthAuditAction`.
 
 A migration `20260814003000_add_admin_roles_and_auth_audit` adiciona `MASTER/ADMIN`, promove o e-mail do Joao a master e registra desafios de senha, troca de senha, entrega/revogacao de convites e ativacao de usuarios.
+
+A migration `20260814014500_add_username_change_audit` registra alteracoes de login e define `joao.murat` para a conta master no HML/PRD quando nao houver conflito.
 
 ## Implantacao segura
 

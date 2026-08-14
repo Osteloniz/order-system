@@ -9,7 +9,7 @@
 ## Current Product Shape
 - Customer flow: tenant selection -> menu -> cart -> checkout -> confirmation.
 - Admin flow: login -> orders -> production, stock, finance, customers, and configuration.
-- Authentication uses a two-step NextAuth flow: password validation first, then a separate TOTP/recovery challenge bound to an encrypted short-lived HttpOnly cookie. The master account controls single-use e-mail invitations; invited admins stay inactive until they define a strong password and activate their own authenticator. Secrets are encrypted, passwords are bcrypt hashes, recovery codes are single-use, password changes revoke every session, and security events are audited.
+- Authentication uses a two-step NextAuth flow: password validation first, then a separate TOTP/recovery challenge bound to an encrypted short-lived HttpOnly cookie. The first step accepts either normalized e-mail or a unique user-defined login. The master account controls single-use e-mail invitations; invited admins stay inactive until they define login, strong password and activate their own authenticator. Secrets are encrypted, passwords are bcrypt hashes, recovery codes are single-use, sensitive credential changes revoke sessions, and security events are audited.
 - Database uses Prisma over Postgres with production-oriented migration scripts.
 - Local development is expected to run on Node.js `22.22.3`.
 - Products can now be manually marked as `novidade` in admin so the public menu can highlight them in a dedicated section without removing them from their normal categories.

@@ -9,7 +9,7 @@ interface AdminAuthContextType {
   isLoading: boolean
   mfaVerified: boolean
   mfaEnrollmentRequired: boolean
-  beginLogin: (data: { email: string; password: string }) => Promise<{ success: boolean; error?: string }>
+  beginLogin: (data: { identifier: string; password: string }) => Promise<{ success: boolean; error?: string }>
   completeLogin: (code: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
 }
@@ -24,7 +24,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const mfaVerified = Boolean((session?.user as any)?.mfaVerified)
   const mfaEnrollmentRequired = Boolean((session?.user as any)?.mfaEnrollmentRequired)
 
-  const beginLogin = useCallback(async (data: { email: string; password: string }) => {
+  const beginLogin = useCallback(async (data: { identifier: string; password: string }) => {
     try {
       const response = await fetch('/api/auth/admin/password', {
         method: 'POST',
@@ -34,7 +34,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       const payload = await response.json().catch(() => null)
       return response.ok
         ? { success: true }
-        : { success: false, error: payload?.error || 'E-mail ou senha invalidos.' }
+        : { success: false, error: payload?.error || 'E-mail, login ou senha invalidos.' }
     } catch {
       return { success: false, error: 'Erro de conexao' }
     }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Copy, KeyRound, Loader2, MailPlus, ShieldCheck, UserRound, X } from 'lucide-react'
+import { Copy, KeyRound, Loader2, MailPlus, Pencil, Save, ShieldCheck, UserRound, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +9,8 @@ import { useAdminAuth } from '@/contexts/admin-auth-context'
 
 type AccessData = {
   isMaster: boolean
-  users: Array<{ id: string; nome: string; email: string | null; role: 'MASTER' | 'ADMIN'; ativo: boolean; totpEnabledAt: string | null }>
+  currentUserId: string
+  users: Array<{ id: string; nome: string; username: string; email: string | null; role: 'MASTER' | 'ADMIN'; ativo: boolean; totpEnabledAt: string | null }>
   invites: Array<{ id: string; email: string; expiresAt: string }>
 }
 
@@ -26,6 +27,12 @@ export function AdminSecurityCenter() {
   const [code, setCode] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordBusy, setPasswordBusy] = useState(false)
+  const [editingUserId, setEditingUserId] = useState('')
+  const [editingUsername, setEditingUsername] = useState('')
+  const [editCurrentPassword, setEditCurrentPassword] = useState('')
+  const [editCode, setEditCode] = useState('')
+  const [editMessage, setEditMessage] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
 
   const load = async () => {
     const response = await fetch('/api/admin/invites', { cache: 'no-store' })
@@ -69,6 +76,35 @@ export function AdminSecurityCenter() {
     finally { setPasswordBusy(false) }
   }
 
+  const startUsernameEdit = (user: AccessData['users'][number]) => {
+    setEditingUserId(user.id)
+    setEditingUsername(user.username)
+    setEditCurrentPassword('')
+    setEditCode('')
+    setEditMessage('')
+  }
+
+  const changeUsername = async (event: React.FormEvent) => {
+    event.preventDefault(); setEditBusy(true); setEditMessage('')
+    try {
+      const response = await fetch(`/api/admin/users/${editingUserId}/username`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: editingUsername, currentPassword: editCurrentPassword, code: editCode }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Nao foi possivel alterar o login.')
+      if (editingUserId === data?.currentUserId && payload.sessionsRevoked) {
+        setEditMessage('Login alterado. Sua sessao sera encerrada por seguranca.')
+        setTimeout(() => { void logout() }, 1200)
+        return
+      }
+      setEditMessage('Login alterado e sessoes desse usuario encerradas.')
+      await load()
+      setEditingUserId('')
+    } catch (cause) { setEditMessage(cause instanceof Error ? cause.message : 'Nao foi possivel alterar o login.') }
+    finally { setEditBusy(false) }
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-border bg-background/65 p-4">
@@ -89,9 +125,15 @@ export function AdminSecurityCenter() {
         {inviteMessage ? <p className="mt-2 text-sm text-muted-foreground">{inviteMessage}</p> : null}
         {manualLink ? <div className="mt-2 flex items-center gap-2 rounded-lg border bg-muted/30 p-2"><code className="min-w-0 flex-1 truncate text-xs">{manualLink}</code><Button size="icon" variant="ghost" onClick={() => navigator.clipboard.writeText(manualLink)}><Copy className="h-4 w-4" /></Button></div> : null}
         <div className="mt-3 divide-y divide-border rounded-lg border">
-          {data?.users.map(user => <div key={user.id} className="flex items-center justify-between gap-3 p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{user.nome}</p><p className="truncate text-xs text-muted-foreground">{user.email}</p></div><div className="text-right"><span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">{user.role === 'MASTER' ? 'Master' : 'Admin'}</span><p className="mt-1 text-[10px] text-muted-foreground">{user.ativo && user.totpEnabledAt ? 'Ativo e protegido' : 'Aguardando ativacao'}</p></div></div>)}
+          {data?.users.map(user => <div key={user.id} className="flex items-center justify-between gap-3 p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{user.nome}</p><p className="truncate text-xs text-muted-foreground">@{user.username} · {user.email}</p></div><div className="flex items-center gap-2"><div className="text-right"><span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">{user.role === 'MASTER' ? 'Master' : 'Admin'}</span><p className="mt-1 text-[10px] text-muted-foreground">{user.ativo && user.totpEnabledAt ? 'Ativo e protegido' : 'Aguardando ativacao'}</p></div>{data.isMaster || data.currentUserId === user.id ? <Button size="icon" variant="ghost" title="Alterar login" onClick={() => startUsernameEdit(user)}><Pencil className="h-4 w-4" /></Button> : null}</div></div>)}
           {data?.invites.map(inviteItem => <div key={inviteItem.id} className="flex items-center justify-between gap-3 p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{inviteItem.email}</p><p className="text-xs text-muted-foreground">Convite pendente</p></div>{data.isMaster ? <Button size="icon" variant="ghost" title="Revogar convite" onClick={() => revoke(inviteItem.id)}><X className="h-4 w-4" /></Button> : null}</div>)}
         </div>
+        {editingUserId ? <form onSubmit={changeUsername} className="mt-3 space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center justify-between"><div><p className="text-sm font-semibold">Alterar login</p><p className="text-[11px] text-muted-foreground">Exige sua senha e um codigo novo. As sessoes do usuario serao encerradas.</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setEditingUserId('')}><X className="h-4 w-4" /></Button></div>
+          <div className="grid gap-2 sm:grid-cols-3"><div className="space-y-1"><Label htmlFor="edit-username">Novo login</Label><Input id="edit-username" value={editingUsername} onChange={event => setEditingUsername(event.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 40))} autoCapitalize="none" spellCheck={false} /></div><div className="space-y-1"><Label htmlFor="edit-username-password">Sua senha</Label><Input id="edit-username-password" type="password" value={editCurrentPassword} onChange={event => setEditCurrentPassword(event.target.value)} autoComplete="current-password" /></div><div className="space-y-1"><Label htmlFor="edit-username-code">Codigo novo</Label><Input id="edit-username-code" value={editCode} onChange={event => setEditCode(event.target.value.toUpperCase().replace(/[^A-F0-9-]/g, '').slice(0, 11))} autoComplete="one-time-code" /></div></div>
+          {editMessage ? <p className="text-sm text-muted-foreground">{editMessage}</p> : null}
+          <Button className="w-full" disabled={editBusy || editingUsername.length < 3 || !editCurrentPassword || editCode.length < 6}>{editBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salvar novo login</Button>
+        </form> : null}
       </section>
     </div>
   )

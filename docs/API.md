@@ -79,13 +79,14 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
-- `POST /api/auth/admin/password`: valida e-mail e senha e cria um desafio criptografado HttpOnly de cinco minutos; nao cria sessao administrativa.
+- `POST /api/auth/admin/password`: valida e-mail ou login + senha e cria um desafio criptografado HttpOnly de cinco minutos; nao cria sessao administrativa.
 - Login via `/admin/login`: primeiro confirma e-mail/senha e depois usa `/admin/login/verificacao` para TOTP/codigo de recuperacao. Somente a segunda etapa cria a sessao NextAuth.
 - `GET|DELETE /api/auth/admin/password`: consulta ou cancela o desafio temporario sem expor seu conteudo.
 - `PUT /api/admin/security/password`: exige sessao com MFA, senha atual, nova senha e um novo TOTP/recuperacao; incrementa `sessionVersion` e encerra todas as sessoes.
 - `GET|POST|DELETE /api/admin/invites`: lista acessos, envia convite (somente master) ou revoga convite pendente. Em PRD o link nunca e devolvido pela API e depende de entrega transacional configurada.
-- `POST /api/auth/register/invite`: grava nome e senha do convidado como usuario inativo.
+- `POST /api/auth/register/invite`: grava nome, login unico e senha do convidado como usuario inativo.
 - `POST|PUT /api/auth/register/invite/mfa`: gera o QR TOTP e somente ativa o usuario/consome o convite depois da confirmacao do codigo.
+- `PUT /api/admin/users/:id/username`: altera o login unico; exige senha e MFA do autor, permite master alterar administradores ou o proprio usuario alterar a si mesmo, e revoga as sessoes do usuario afetado.
 - As rotas antigas `/api/admin/login`, `/api/admin/logout`, `/api/admin/session` estao desativadas (410).
 
 Seguranca da conta:

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAuthAuditLog } from '@/lib/auth-audit'
-import { getPasswordPolicyError, hashIpAddress } from '@/lib/auth-security'
+import { getAdminUsernamePolicyError, getPasswordPolicyError, hashIpAddress } from '@/lib/auth-security'
 import { registerInvitedUser } from '@/lib/user-invites'
 
 export const runtime = 'nodejs'
@@ -9,6 +9,7 @@ export const runtime = 'nodejs'
 const registerInviteSchema = z.object({
   token: z.string().trim().min(20),
   nome: z.string().trim().min(2).max(120),
+  username: z.string().trim().min(3).max(40),
   password: z.string().min(12).max(128),
 }).strict()
 
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest) {
   try {
     const policyError = getPasswordPolicyError(parsed.data.password)
     if (policyError) return NextResponse.json({ error: policyError }, { status: 400 })
+    const usernameError = getAdminUsernamePolicyError(parsed.data.username)
+    if (usernameError) return NextResponse.json({ error: usernameError }, { status: 400 })
     const result = await registerInvitedUser(parsed.data)
     if (!result.valid) {
       return NextResponse.json({ error: 'Convite invalido ou indisponivel' }, { status: 400 })
@@ -56,14 +59,14 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Erro ao criar usuario'
     const status =
       message === 'INVITE_NOT_AVAILABLE' || message === 'EMAIL_ALREADY_REGISTERED'
-        || message === 'ADMIN_EMAIL_NOT_ALLOWED' || message === 'ADMIN_USER_LIMIT_REACHED'
+        || message === 'USERNAME_ALREADY_REGISTERED' || message === 'ADMIN_USER_LIMIT_REACHED'
         ? 409
         : 500
 
     return NextResponse.json({
       error:
         message === 'INVITE_NOT_AVAILABLE' || message === 'EMAIL_ALREADY_REGISTERED'
-          || message === 'ADMIN_EMAIL_NOT_ALLOWED' || message === 'ADMIN_USER_LIMIT_REACHED'
+          || message === 'USERNAME_ALREADY_REGISTERED' || message === 'ADMIN_USER_LIMIT_REACHED'
           ? 'Convite invalido ou indisponivel'
           : 'Erro ao criar usuario',
     }, { status })

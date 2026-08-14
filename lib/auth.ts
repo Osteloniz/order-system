@@ -111,7 +111,6 @@ export const authOptions: NextAuthOptions = {
           where: {
             id: challenge.userId,
             tenantId: tenant.id,
-            emailNormalizado: identifier,
             sessionVersion: challenge.sessionVersion,
           }
         })

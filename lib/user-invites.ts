@@ -7,6 +7,7 @@ import {
   hashOpaqueToken,
   hashPassword,
   maskEmail,
+  normalizeAdminUsername,
   normalizeEmail,
 } from '@/lib/auth-security'
 import { resolveInviteStatus } from '@/lib/invite-status'
@@ -134,6 +135,7 @@ export async function buildUniqueUsernameForTenant(tenantId: string, email: stri
 export async function registerInvitedUser(params: {
   token: string
   nome: string
+  username: string
   password: string
 }) {
   const validation = await validateInviteToken(params.token)
@@ -147,7 +149,7 @@ export async function registerInvitedUser(params: {
     if (!user) throw new Error('INVITE_NOT_AVAILABLE')
     return { valid: true as const, invite, user, created: false as const }
   }
-  const username = await buildUniqueUsernameForTenant(invite.tenantId, invite.emailNormalizado)
+  const username = normalizeAdminUsername(params.username)
   const passwordHash = await hashPassword(params.password)
 
   const result = await prisma.$transaction(async tx => {
@@ -170,6 +172,15 @@ export async function registerInvitedUser(params: {
     if (existingUser) {
       throw new Error('EMAIL_ALREADY_REGISTERED')
     }
+
+    const existingUsername = await tx.adminUser.findFirst({
+      where: {
+        tenantId: refreshed.tenantId,
+        username: { equals: username, mode: 'insensitive' },
+      },
+      select: { id: true },
+    })
+    if (existingUsername) throw new Error('USERNAME_ALREADY_REGISTERED')
 
     const allUsers = await tx.adminUser.count({
       where: { tenantId: refreshed.tenantId },

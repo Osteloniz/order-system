@@ -39,12 +39,12 @@ export function LoginPage() {
     setError('')
     setIsSubmitting(true)
 
-    const result = await beginLogin({ email: username, password: senha })
+    const result = await beginLogin({ identifier: username, password: senha })
 
     if (result.success) {
       router.push('/admin/login/verificacao')
     } else {
-      setError(result.error || 'Usuario ou senha invalidos.')
+      setError(result.error || 'E-mail, login ou senha invalidos.')
     }
 
     setIsSubmitting(false)
@@ -79,14 +79,16 @@ export function LoginPage() {
         <CardContent className="p-5 pt-2">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="username">E-mail autorizado</Label>
+              <Label htmlFor="username">E-mail ou login</Label>
               <Input
                 id="username"
-                type="email"
-                placeholder="seu@email.com"
+                type="text"
+                placeholder="seu@email.com ou joao.murat"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 autoFocus
+                autoCapitalize="none"
+                spellCheck={false}
                 autoComplete="username"
               />
             </div>

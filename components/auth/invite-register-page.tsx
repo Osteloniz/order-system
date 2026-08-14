@@ -28,6 +28,7 @@ export function InviteRegisterPage() {
   const [message, setMessage] = useState('Validando convite...')
   const [emailHint, setEmailHint] = useState('')
   const [nome, setNome] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
@@ -71,7 +72,7 @@ export function InviteRegisterPage() {
     setBusy(true)
     try {
       const response = await fetch('/api/auth/register/invite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, nome, password }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, nome, username, password }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Nao foi possivel salvar a senha.')
@@ -122,10 +123,11 @@ export function InviteRegisterPage() {
           {stage === 'password' ? (
             <form onSubmit={savePassword} className="space-y-3">
               <div className="space-y-1.5"><Label htmlFor="invite-name">Nome</Label><div className="relative"><UserRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input id="invite-name" value={nome} onChange={event => setNome(event.target.value)} className="pl-9" autoComplete="name" /></div></div>
+              <div className="space-y-1.5"><Label htmlFor="invite-username">Login</Label><Input id="invite-username" value={username} onChange={event => setUsername(event.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 40))} autoCapitalize="none" spellCheck={false} autoComplete="username" placeholder="ex.: joao.murat" /><p className="text-[11px] text-muted-foreground">Sera usado junto com o e-mail para entrar.</p></div>
               <div className="space-y-1.5"><Label htmlFor="invite-password">Senha segura</Label><div className="relative"><Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input id="invite-password" type="password" value={password} onChange={event => setPassword(event.target.value)} className="pl-9" autoComplete="new-password" placeholder="12+ caracteres, letras e numeros" /></div></div>
               <div className="space-y-1.5"><Label htmlFor="invite-confirm">Confirmar senha</Label><Input id="invite-confirm" type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" /></div>
               {error ? <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
-              <Button className="w-full" disabled={busy || !nome.trim() || !password || !confirmPassword}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}Salvar e configurar autenticador</Button>
+              <Button className="w-full" disabled={busy || !nome.trim() || username.length < 3 || !password || !confirmPassword}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}Salvar e configurar autenticador</Button>
             </form>
           ) : null}
 

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 import { createAuthAuditLog } from '@/lib/auth-audit'
 import { isAuthSecurityConfigurationReady } from '@/lib/auth-config'
-import { hashIpAddress, normalizeEmail, verifyPassword } from '@/lib/auth-security'
+import { hashIpAddress, normalizeAdminUsername, normalizeEmail, verifyPassword } from '@/lib/auth-security'
 import { isPersistentlyAuthBlocked } from '@/lib/auth-throttle'
 import { prisma } from '@/lib/db'
 import {
@@ -18,7 +18,7 @@ import { rateLimitByIdentifier, rateLimitByIp } from '@/lib/rateLimit'
 export const runtime = 'nodejs'
 
 const schema = z.object({
-  email: z.string().trim().email(),
+  identifier: z.string().trim().min(3).max(120),
   password: z.string().min(1).max(128),
 }).strict()
 
@@ -42,12 +42,14 @@ export async function POST(request: NextRequest) {
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) return json({ error: 'E-mail ou senha invalidos.' }, 400)
+  if (!parsed.success) return json({ error: 'E-mail, login ou senha invalidos.' }, 400)
   if (process.env.NODE_ENV === 'production' && !isAuthSecurityConfigurationReady()) {
     return json({ error: 'Acesso temporariamente indisponivel.' }, 503)
   }
 
-  const identifier = normalizeEmail(parsed.data.email)
+  const rawIdentifier = parsed.data.identifier
+  const isEmail = rawIdentifier.includes('@')
+  const identifier = isEmail ? normalizeEmail(rawIdentifier) : normalizeAdminUsername(rawIdentifier)
   const ip = getIp(request)
   const ipHash = hashIpAddress(ip)
   const userAgent = request.headers.get('user-agent')
@@ -61,7 +63,12 @@ export async function POST(request: NextRequest) {
 
   const tenant = await prisma.tenant.findUnique({ where: { slug: 'brookie-pregiato' } })
   const user = tenant ? await prisma.adminUser.findFirst({
-    where: { tenantId: tenant.id, emailNormalizado: identifier },
+    where: {
+      tenantId: tenant.id,
+      ...(isEmail
+        ? { emailNormalizado: identifier }
+        : { username: { equals: identifier, mode: 'insensitive' as const } }),
+    },
   }) : null
   const passwordOk = await verifyPassword(parsed.data.password, user?.passwordHash || DUMMY_PASSWORD_HASH)
 
@@ -75,7 +82,7 @@ export async function POST(request: NextRequest) {
       userAgent,
       metadata: { reason: 'invalid_password_step' },
     })
-    return json({ error: 'E-mail ou senha invalidos.' }, 401)
+    return json({ error: 'E-mail, login ou senha invalidos.' }, 401)
   }
 
   if (!user.totpEnabledAt || !user.totpSecretEncrypted) {
@@ -99,7 +106,8 @@ export async function POST(request: NextRequest) {
     userAgent,
   })
 
-  const response = json({ success: true, emailHint: identifier.replace(/^(.{2}).*(@.*)$/, '$1***$2') })
+  const loginHint = isEmail ? identifier.replace(/^(.{2}).*(@.*)$/, '$1***$2') : user.username
+  const response = json({ success: true, loginHint })
   response.cookies.set(ADMIN_MFA_CHALLENGE_COOKIE, challenge, {
     httpOnly: true,
     sameSite: 'strict',
@@ -119,7 +127,9 @@ export async function GET(request: NextRequest) {
   if (!valid) return json({ valid: false }, 401)
   return json({
     valid: true,
-    emailHint: challenge.identifier.replace(/^(.{2}).*(@.*)$/, '$1***$2'),
+    loginHint: challenge.identifier.includes('@')
+      ? challenge.identifier.replace(/^(.{2}).*(@.*)$/, '$1***$2')
+      : challenge.identifier,
     expiresAt: challenge.expiresAt,
   })
 }

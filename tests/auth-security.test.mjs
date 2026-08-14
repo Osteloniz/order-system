@@ -6,14 +6,23 @@ import {
   generateSecureToken,
   hashOpaqueToken,
   getPasswordPolicyError,
+  getAdminUsernamePolicyError,
   maskEmail,
   needsPasswordRehash,
   normalizeEmail,
+  normalizeAdminUsername,
 } from '../lib/auth-security.ts'
 import { resolveInviteStatus } from '../lib/invite-status.ts'
 
 test('normalizeEmail lowercases and trims', () => {
   assert.equal(normalizeEmail('  Joao.Murat30@Gmail.com '), 'joao.murat30@gmail.com')
+})
+
+test('admin username is normalized and restricted to a safe portable format', () => {
+  assert.equal(normalizeAdminUsername('  Joao.Murat '), 'joao.murat')
+  assert.equal(getAdminUsernamePolicyError('joao.murat'), null)
+  assert.match(getAdminUsernamePolicyError('joão murat'), /sem acento/)
+  assert.match(getAdminUsernamePolicyError('ab'), /entre 3 e 40/)
 })
 
 test('generateSecureToken returns unpredictable hex-sized token', () => {

@@ -26,7 +26,7 @@ export async function GET() {
     prisma.adminUser.findMany({
       where: { tenantId: admin.tenantId },
       orderBy: [{ role: 'asc' }, { nome: 'asc' }],
-      select: { id: true, nome: true, email: true, role: true, ativo: true, totpEnabledAt: true, criadoEm: true },
+      select: { id: true, nome: true, username: true, email: true, role: true, ativo: true, totpEnabledAt: true, criadoEm: true },
     }),
     prisma.userInvite.findMany({
       where: { tenantId: admin.tenantId, status: 'PENDING', usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -34,7 +34,7 @@ export async function GET() {
       select: { id: true, email: true, status: true, expiresAt: true, createdAt: true },
     }),
   ])
-  return NextResponse.json({ isMaster: admin.user.role === 'MASTER', users, invites })
+  return NextResponse.json({ isMaster: admin.user.role === 'MASTER', currentUserId: admin.adminUserId, users, invites })
 }
 
 export async function POST(request: NextRequest) {
