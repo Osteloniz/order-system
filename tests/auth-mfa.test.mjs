@@ -57,7 +57,7 @@ test('recovery codes are unique, normalized and stored only as hashes', () => {
   assert.equal(normalizeRecoveryCode(codes[0].toLowerCase().replace('-', '')), codes[0])
 })
 
-test('bootstrap allowlist accepts configured e-mails without limiting invited users', () => {
+test('admin allowlist normalizes configured e-mails while the account limit stays independent', () => {
   process.env.NODE_ENV = 'production'
   process.env.ADMIN_ALLOWED_EMAILS = 'a@brookie.test,b@brookie.test'
   assert.deepEqual(getAllowedAdminEmails(), ['a@brookie.test', 'b@brookie.test'])

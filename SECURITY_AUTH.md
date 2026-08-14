@@ -38,7 +38,9 @@ A integracao usa TOTP (RFC 6238), compativel com Google Authenticator, Microsoft
 - logins sao normalizados em minusculas, unicos por tenant e aceitam apenas letras sem acento, numeros, ponto, hifen e sublinhado;
 - a troca de login exige senha e segundo fator do autor, e derruba as sessoes do usuario alterado;
 - convites sao de uso unico, expiram, guardam apenas o hash do token e so podem ser emitidos pelo master;
+- a criacao do convite valida `ADMIN_ALLOWED_EMAILS` no backend antes de persistir ou enviar qualquer mensagem;
 - em PRD, o link e enviado por provedor transacional e nunca e retornado pela API;
+- se a entrega transacional falhar, o convite e revogado imediatamente e a falha fica auditada sem registrar token ou conteudo sensivel;
 - o sistema limita o total de contas por `ADMIN_USER_LIMIT` (padrao 10, limite maximo 50);
 - o seed nao possui senha padrao e falha sem `SEED_ADMIN_PASSWORD` com ao menos 12 caracteres.
 
