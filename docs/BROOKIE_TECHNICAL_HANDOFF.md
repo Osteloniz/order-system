@@ -37,8 +37,8 @@ There is no `src/` or legacy `pages/` folder. There is no `services/` folder: se
 ## Authentication and access
 
 - `lib/auth.ts`: credentials login, bcrypt verification, rate limiting and audit logging; session contains user and tenant identity.
-- `middleware.ts`: security headers, tenant-cookie behavior, admin-session protection and an optional pre-login admin access key.
-- `lib/auth-helpers.ts` and `lib/admin-access.ts`: server-side authorization helpers and optional extra admin gate.
+- `middleware.ts`: security headers, tenant-cookie behavior and admin-session protection.
+- `lib/auth-helpers.ts`: server-side authorization helpers for protected admin routes.
 - All authenticated administration is tenant-scoped by session. The current product operates as single-brand Brookie (`brookie-pregiato`).
 - There is no application-level admin/operator role enum today: authenticated `AdminUser` accounts share the administrative panel. Public customers do not hold accounts; their order follow-up uses scoped access mechanisms.
 
@@ -64,7 +64,7 @@ Public checkout honors store state/hours, product availability/stock, coupon rul
 - Public: `/api/menu`, `/api/pedidos`, `/api/pedidos/[id]`, `/api/pedidos/recentes`, `/api/clientes/prefill`, `/api/cupons/validar`.
 - Admin catalogue/customer/order: `/api/admin/produtos`, `/categorias`, `/clientes`, `/pedidos`, `/producao`, `/kds`, `/config`.
 - Finance/admin support: `/api/admin/financeiro/*`, `/fornecedores-financeiros`, `/categorias-financeiras`, `/relatorios`, `/logs`, `/invites`.
-- Authentication and platform: `/api/auth/[...nextauth]`, invitation routes, `/api/admin/access`, `/api/health/db`, tenant routes.
+- Authentication and platform: `/api/auth/[...nextauth]`, invitation routes, `/api/health/db`, tenant routes.
 - Payments: `/api/asaas/webhook`, `/api/mercadopago/webhook`, plus public and admin payment routes.
 
 The complete route inventory is `docs/API.md`.

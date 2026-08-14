@@ -1,5 +1,5 @@
-import { AdminAccessPage } from '@/components/admin/admin-access-page'
+import { redirect } from 'next/navigation'
 
 export default function AdminPreAccessRoute() {
-  return <AdminAccessPage />
+  redirect('/admin/login')
 }

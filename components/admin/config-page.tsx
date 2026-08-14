@@ -987,9 +987,6 @@ export function ConfigPage() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-muted-foreground">
-            Para reforcar o acesso do painel, configure a variavel <code>ADMIN_ACCESS_KEY</code> no ambiente. Com ela ativa, o sistema exige uma chave privada antes mesmo da tela de login abrir.
-          </div>
         </CardContent>
       </Card>
 
