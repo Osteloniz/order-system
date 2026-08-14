@@ -1,245 +1,124 @@
-# Security Auth
+# Seguranca do acesso administrativo
 
-## Visao geral
+## Regra operacional
 
-O painel administrativo continua usando `NextAuth` com `CredentialsProvider`, mas agora com endurecimento incremental e sem cadastro publico aberto.
+O painel e restrito a pessoas reais com conta individual. Joao e o usuario `MASTER`; somente o master pode convidar outros administradores. Nao existe cadastro publico, conta compartilhada nem acesso para assistentes de IA.
 
-O fluxo atual fica assim:
+Cada administrador usa e-mail, senha, autenticador e codigos de recuperacao proprios.
 
-1. O admin acessa `/admin/login`
-2. Opcionalmente passa pela chave `ADMIN_ACCESS_KEY`, se ela estiver configurada
-3. Faz login com `usuario ou e-mail` + senha
-4. A sessao e mantida por cookie `HttpOnly`
-5. Novos usuarios admin sao criados somente por convite
+## Fluxo de acesso
 
-## O que existe hoje
+1. Em producao, `/admin` exige a chave previa `ADMIN_ACCESS_KEY`.
+2. A chave correta gera um cookie assinado, aleatorio, `HttpOnly`, `Secure` e valido por no maximo 12 horas; o valor literal da chave nunca e salvo no cookie.
+3. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao navegador e valido por cinco minutos. O IP e auditado, mas nao bloqueia o segundo passo porque proxies e redes moveis podem altera-lo entre requisicoes legitimas.
+4. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
+5. Uma conta legada ativa ainda sem TOTP pode, depois de validar a senha, receber uma sessao temporaria restrita exclusivamente a `/admin/seguranca` para concluir o primeiro vinculo; nenhuma outra rota administrativa e liberada antes da confirmacao.
+6. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
+7. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
 
-- Senha de admin armazenada somente em `passwordHash`
-- Hash de senha com `bcrypt`
-- Sessao via `NextAuth`
-- Cookie com `HttpOnly`, `SameSite=Lax` e `Secure` em producao
-- Auditoria minima para login, logout, convite criado, convite usado e usuario criado
-- Convites com token aleatorio seguro, hash no banco, expiracao e uso unico
+## MFA / Google Authenticator
 
-## Como funciona o login
+A integracao usa TOTP (RFC 6238), compativel com Google Authenticator, Microsoft Authenticator, 1Password e equivalentes. Nao existe chamada para uma conta Google e o segredo nao e enviado a terceiros.
 
-- O campo de login aceita `username` ou `email`
-- Usuarios antigos continuam funcionando com o `username` atual
-- Usuarios criados por convite recebem `email` e um `username` derivado automaticamente
-- Em falha de credencial, a resposta exibida ao usuario deve ser generica
+- segredo aleatorio exclusivo por usuario;
+- QR Code gerado localmente pelo servidor;
+- segredo criptografado com AES-256-GCM antes de ser salvo;
+- codigo de 6 digitos, periodo de 30 segundos e tolerancia maxima de uma janela adjacente;
+- bloqueio da reutilizacao do mesmo passo TOTP;
+- oito codigos de recuperacao, exibidos uma unica vez e persistidos apenas como hash;
+- nova ativacao incrementa `sessionVersion` e exige novo login.
 
-Mensagem esperada:
+`AUTH_ENCRYPTION_KEY` deve ser uma chave Base64 com exatamente 32 bytes. Trocar essa chave sem um procedimento de rotacao invalida os segredos TOTP existentes.
 
-- `Usuario ou senha invalidos.`
+## Senhas e convites
 
-## Como funciona o convite
+- senhas sao armazenadas somente com bcrypt;
+- `BCRYPT_ROUNDS` deve ser pelo menos 12 em PRD;
+- senhas exigem ao menos 12 caracteres, maiuscula, minuscula e numero, respeitando o limite de 72 bytes do bcrypt;
+- a troca de senha exige senha atual e segundo fator recente, incrementa `sessionVersion` e derruba todas as sessoes;
+- logins sao normalizados em minusculas, unicos por tenant e aceitam apenas letras sem acento, numeros, ponto, hifen e sublinhado;
+- a troca de login exige senha e segundo fator do autor, e derruba as sessoes do usuario alterado;
+- convites sao de uso unico, expiram, guardam apenas o hash do token e so podem ser emitidos pelo master;
+- em PRD, o link e enviado por provedor transacional e nunca e retornado pela API;
+- o sistema limita o total de contas por `ADMIN_USER_LIMIT` (padrao 10, limite maximo 50);
+- o seed nao possui senha padrao e falha sem `SEED_ADMIN_PASSWORD` com ao menos 12 caracteres.
 
-Nao existe cadastro publico.
+## Protecoes adicionais
 
-O fluxo de convite:
+- respostas de credencial invalida sao genericas;
+- um hash bcrypt ficticio reduz diferenca de tempo para e-mails inexistentes;
+- rate limit em memoria reduz rajadas na instancia atual;
+- auditoria persistente bloqueia repeticoes por IP e identificador entre requisicoes;
+- tentativas, sucessos, ativacao MFA e recuperacao sao auditados sem senha, TOTP, segredo ou token puro;
+- usuario inativo ou com versao de sessao divergente perde acesso;
+- paginas administrativas usam `no-store`, `noindex`, HSTS em producao e cabecalhos contra embedding e sniffing;
+- rotas administrativas validam sessao e MFA no servidor, sem confiar apenas no middleware.
 
-1. Um admin autenticado chama `POST /api/admin/invites`
-2. Informa o e-mail autorizado
-3. O sistema gera um token criptograficamente seguro
-4. Apenas o `hash` do token e salvo no banco
-5. O link do convite e retornado uma unica vez
-6. O usuario acessa `/auth/invite?token=...`
-7. O sistema valida se o convite:
-   - existe
-   - nao expirou
-   - nao foi usado
-   - nao foi revogado
-   - ainda nao virou usuario
-8. O usuario define nome e senha
-9. O sistema cria o admin e marca o convite como `USED`
-
-## Estrutura nova de banco
-
-### AdminUser
-
-Campos adicionados de forma compativel:
-
-- `email`
-- `emailNormalizado`
-
-Esses campos sao opcionais para nao quebrar usuarios existentes.
-
-### UserInvite
-
-Tabela criada para convites:
-
-- `id`
-- `tenantId`
-- `email`
-- `emailNormalizado`
-- `tokenHash`
-- `expiresAt`
-- `usedAt`
-- `revokedAt`
-- `createdAt`
-- `createdBy`
-- `status`
-
-### AuthAuditLog
-
-Tabela minima de auditoria:
-
-- `LOGIN_SUCCESS`
-- `LOGIN_FAILURE`
-- `LOGOUT`
-- `INVITE_CREATED`
-- `INVITE_USED`
-- `USER_CREATED`
-
-## Variaveis de ambiente necessarias
-
-Minimas:
+## Variaveis obrigatorias em PRD
 
 ```env
 DATABASE_URL=""
 DIRECT_URL=""
-NEXTAUTH_SECRET=""
-NEXTAUTH_URL="http://localhost:3000"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-APP_URL="http://localhost:3000"
-ADMIN_ACCESS_KEY=""
-TOKEN_PEPPER=""
+NEXTAUTH_URL="https://dominio-oficial"
+NEXT_PUBLIC_APP_URL="https://dominio-oficial"
+APP_URL="https://dominio-oficial"
+NEXTAUTH_SECRET="minimo-32-caracteres"
+TOKEN_PEPPER="minimo-32-caracteres"
+ADMIN_ACCESS_KEY="minimo-16-caracteres"
+AUTH_ENCRYPTION_KEY="base64-de-32-bytes"
+ADMIN_ALLOWED_EMAILS="admin-legado@dominio.com" # apenas bootstrap/migracao
+ADMIN_USER_LIMIT="10"
+RESEND_API_KEY="..."
+AUTH_EMAIL_FROM="Brookie Pregiato <acessos@dominio-validado.com>"
 BCRYPT_ROUNDS="12"
 INVITE_EXPIRY_HOURS="24"
 ```
 
-Observacoes:
+Em PRD a aplicacao falha fechada se a configuracao criptografica critica estiver incompleta. A lista de bootstrap nao autoriza login; contas ativas no banco, MFA e versao de sessao sao a fonte de verdade.
 
-- `TOKEN_PEPPER` deve ser forte e secreto em producao
-- `APP_URL` e usado para montar o link de convite
-- `ADMIN_ACCESS_KEY` e opcional, mas recomendado para endurecer o acesso ao painel
+Segredos devem ser gerados localmente, salvos no gerenciador da Vercel e nunca registrados em logs ou no Git.
 
-## Como gerar um convite
+## Banco de dados
 
-Exemplo:
+A migration `20260813103000_add_admin_mfa_hardening` adiciona ao `AdminUser`:
 
-```bash
-curl -X POST http://localhost:3000/api/admin/invites \
-  -H "Content-Type: application/json" \
-  -H "Cookie: next-auth.session-token=SEU_COOKIE" \
-  -d "{\"email\":\"novo.admin@empresa.com\"}"
-```
+- `ativo` e `sessionVersion`;
+- segredo TOTP ativo e pendente, ambos criptografados;
+- expiracao do segredo pendente e data de ativacao;
+- ultimo passo TOTP consumido;
+- hashes dos codigos de recuperacao.
 
-Resposta esperada:
+Ela tambem inclui os novos eventos MFA em `AuthAuditAction`.
 
-```json
-{
-  "id": "invite-id",
-  "email": "novo.admin@empresa.com",
-  "status": "PENDING",
-  "expiresAt": "2026-05-21T12:00:00.000Z",
-  "inviteLink": "http://localhost:3000/auth/invite?token=...",
-  "token": "...",
-  "manualDelivery": false
-}
-```
+A migration `20260814003000_add_admin_roles_and_auth_audit` adiciona `MASTER/ADMIN`, promove o e-mail do Joao a master e registra desafios de senha, troca de senha, entrega/revogacao de convites e ativacao de usuarios.
 
-Importante:
+A migration `20260814014500_add_username_change_audit` registra alteracoes de login e define `joao.murat` para a conta master no HML/PRD quando nao houver conflito.
 
-- o token puro nao fica salvo no banco
-- se o link nao for guardado nesse momento, ele nao pode ser recuperado depois
+## Implantacao segura
 
-## Como registrar um usuario por convite
+1. Confirmar o usuario master e o limite de contas administrativas.
+2. Criar segredos distintos para HML e PRD na Vercel.
+3. Fazer snapshot da branch de banco HML.
+4. Aplicar a migration somente em HML e regenerar o Prisma Client.
+5. Garantir que apenas contas individuais aprovadas estejam ativas e com e-mail normalizado correto.
+6. Validar em HML: chave previa, senha incorreta, separacao das duas telas, desafio expirado, TOTP repetido, recuperacao, troca de senha e revogacao de sessoes.
+7. Validar convite master: entrega do e-mail, link expirado/uso unico, usuario inativo antes do MFA, ativacao e revogacao.
+8. Abrir e revisar o PR.
+9. Somente depois da aprovacao explicita: snapshot PRD, migration PRD, deploy e smoke test dos administradores.
 
-1. Abrir o link de convite
-2. Informar nome e senha
-3. Acessar `/admin/login`
-4. Entrar com o e-mail convidado ou com o `username` derivado
+Nunca aplicar a migration em PRD antes da validacao completa em HML.
 
-## Usuarios existentes
+## Recuperacao de acesso
 
-Usuarios existentes continuam funcionando porque:
+Os codigos de recuperacao devem ficar em um cofre de senhas, separados da senha principal. Se um administrador perder autenticador e codigos, a recuperacao deve ser feita pelo outro administrador em procedimento auditado; nunca desabilitando MFA publicamente ou compartilhando credenciais.
 
-- o campo `passwordHash` foi preservado
-- o hash atual ja e `bcrypt`
-- o login por `username` continua aceito
-
-Se quiser permitir login por e-mail para um admin legado, basta preencher:
-
-- `email`
-- `emailNormalizado`
-
-Exemplo pratico para o admin atual:
-
-- e-mail desejado: `joao.murat30@gmail.com`
-
-Essa vinculacao pode ser feita depois com seguranca, sem resetar senha.
-
-## Logout
-
-O logout continua baseado em `NextAuth`, com auditoria via `POST /api/auth/logout` antes do `signOut`.
-
-## Rate limit
-
-Hoje existe limitacao de tentativas por:
-
-- IP
-- combinacao `IP + identificador`
-
-Observacao importante:
-
-- a implementacao atual ainda e em memoria
-- em producao distribuida, o ideal futuro e mover isso para armazenamento compartilhado
-
-## Como testar em desenvolvimento
-
-1. Rode a migration:
-
-```bash
-npx prisma migrate deploy
-npx prisma generate
-```
-
-2. Suba o app:
-
-```bash
-npm run dev
-```
-
-3. Faça login no admin existente
-4. Gere um convite por `POST /api/admin/invites`
-5. Abra o `inviteLink`
-6. Crie o usuario
-7. Faça login com o e-mail convidado
-
-## Testes automatizados incluidos
-
-Rodar:
+## Validacao local
 
 ```bash
 npm run test:auth-security
+npm run lint
+npm run build
+npm audit
 ```
 
-Esses testes cobrem as primitivas de seguranca mais sensiveis:
-
-- normalizacao de e-mail
-- geracao de token seguro
-- hash de token opaco
-- mascaramento de e-mail
-- derivacao de username
-- resolucao de status do convite
-
-## Cuidados para producao
-
-- usar branch de homologacao no Neon antes de PRD
-- aplicar migration em staging primeiro
-- revisar `NEXTAUTH_SECRET` e `TOKEN_PEPPER`
-- nao expor o link/token de convite em logs
-- preferir entrega do convite por e-mail no futuro
-- manter `.env` fora do Git
-
-## Deploy seguro
-
-Fluxo recomendado:
-
-1. testar em homologacao
-2. aplicar migration em homologacao
-3. validar login e convite
-4. subir codigo
-5. rodar `npx prisma migrate deploy` no banco de producao
-6. validar login admin e criacao de convite
+Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do autenticador, recuperacao, desafio criptografado entre as duas telas, politica de senha, limite de usuarios e assinatura do cookie de pre-acesso.

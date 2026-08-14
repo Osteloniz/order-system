@@ -9,7 +9,7 @@
 ## Current Product Shape
 - Customer flow: tenant selection -> menu -> cart -> checkout -> confirmation.
 - Admin flow: login -> orders -> production, stock, finance, customers, and configuration.
-- Authentication uses NextAuth credentials.
+- Authentication uses a two-step NextAuth flow: password validation first, then a separate TOTP/recovery challenge bound to an encrypted short-lived HttpOnly cookie. The first step accepts either normalized e-mail or a unique user-defined login. The master account controls single-use e-mail invitations; invited admins stay inactive until they define login, strong password and activate their own authenticator. Secrets are encrypted, passwords are bcrypt hashes, recovery codes are single-use, sensitive credential changes revoke sessions, and security events are audited.
 - Database uses Prisma over Postgres with production-oriented migration scripts.
 - Local development is expected to run on Node.js `22.22.3`.
 - Products can now be manually marked as `novidade` in admin so the public menu can highlight them in a dedicated section without removing them from their normal categories.
@@ -61,6 +61,10 @@
 - Admin navigation is organized mobile-first: `Início`, `Pedidos`, `Nova venda` and `KDS` are immediate actions, while `Cadastros`, `Financeiro` and `Gestão` are compact contextual groups that open automatically for the current route.
 - Customer management now uses a list-first contract: the admin `/admin/clientes` page no longer renders an edit form below the customer list. Selecting a row opens a bounded modal with separate `Resumo` and `Editar cadastro` tabs; new-customer creation uses the same modal shell.
 - Manual order entry uses a fixed-height customer selector with a stationary search field and internally scrolling compact rows, so the operator does not need to discover hidden content by scrolling the whole dialog. The selected-customer summary is shown only once in the order review.
+- The restricted login uses the official Brookie background and mark, and the browser/PWA identity uses the same official brand asset. Login separates password and authenticator into two screens. The master can invite named administrators from the security center; the link is single-use and activation finishes only after password and TOTP enrollment.
+- Existing active PRD administrators without a TOTP secret use a one-time migration path after password validation: the resulting session is restricted to `/admin/seguranca` until authenticator enrollment is confirmed, preventing a production lockout without exposing any other admin route.
+- The login background now switches between the official dark bitten-cookie artwork on the light theme and the light artwork on the dark theme. The public menu also uses the official compact logo, denser mobile spacing and the current Brookie palette without changing cart, availability or checkout rules.
+- Structured financial suppliers now accept optional address and contact fields while keeping only the name required. Payable accounts can record an optional payment method (`PIX`, `CREDITO`, `DEBITO` or `BOLETO`), preserving old rows without a value.
 
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.
@@ -106,6 +110,8 @@
 7. Validate PRD after deploy.
 
 ## Current Migration Notes
+- Supplier/contact expansion and payable payment method use migration `20260813223000_expand_supplier_and_payable_payment_method`. It is additive, has been applied to HML, and must not be applied to PRD before explicit HML approval.
+- Admin MFA and access hardening add active/session-version fields, encrypted TOTP enrollment state, replay protection, recovery-code hashes and MFA audit events through migration `20260813103000_add_admin_mfa_hardening`. Apply and validate this migration in HML before any PRD action.
 - The product-highlight feature adds Prisma field `Produto.novidade`.
 - Migration created: `20260715110000_add_produto_novidade_flag`.
 - The stock-aware menu flow also adds Prisma field `Produto.disponivelParaEncomenda`.
@@ -121,6 +127,7 @@
 
 ## Current Exceptions And Defaults
 - `Fluxo de caixa` and `Relatorios` intentionally keep week-based default periods.
+- `Fluxo de caixa` follows the compact mobile-first operational pattern: horizontal summary, collapsible filters/chart and expandable daily rows, with the complete compact table retained on desktop.
 - Generic operational date filters now default to current month start through today.
 
 ## Fast Prompt For Future Chats

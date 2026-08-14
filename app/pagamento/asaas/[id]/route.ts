@@ -46,6 +46,9 @@ export async function GET(
   redirectUrl.searchParams.set('payment', paymentState)
   const response = NextResponse.redirect(redirectUrl)
   setPublicOrderAccessCookie(response, pedido.id, publicAccessToken)
-  setPublicCustomerAccessCookie(response, pedido.tenantId, pedido.clienteWhatsapp || pedido.clienteTelefone)
+  const customerPhone = pedido.clienteWhatsapp || pedido.clienteTelefone
+  if (pedido.tenantId && customerPhone) {
+    setPublicCustomerAccessCookie(response, pedido.tenantId, customerPhone)
+  }
   return response
 }

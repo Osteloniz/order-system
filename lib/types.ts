@@ -8,6 +8,7 @@ export type TipoEntrega = 'ENTREGA' | 'RESERVA_PAULISTANO' | 'RETIRADA' | 'ENCOM
 export type ModoEncomendaCheckout = 'CLIENTE_DEFINE' | 'FIXO'
 export type TipoCupom = 'FIXO' | 'PERCENTUAL'
 export type StatusContaPagar = 'PENDENTE' | 'PAGO' | 'CANCELADO'
+export type MetodoPagamentoContaPagar = 'PIX' | 'CREDITO' | 'DEBITO' | 'BOLETO'
 export type EscopoCategoriaFinanceira = 'PAGAR' | 'RECEBER' | 'AMBOS'
 export type StatusDisponibilidadeProduto = 'DISPONIVEL' | 'SOMENTE_ENCOMENDA' | 'INDISPONIVEL'
 export type OnlinePaymentGateway = 'ASAAS' | 'MERCADO_PAGO'
@@ -272,6 +273,7 @@ export interface ContaPagar {
   vencimento: string
   pagoEm?: string | null
   status: StatusContaPagar
+  metodoPagamento?: MetodoPagamentoContaPagar | null
   criadoEm: string
   atualizadoEm: string
 }
@@ -288,6 +290,15 @@ export interface CategoriaFinanceira {
 export interface FornecedorFinanceiro {
   id: string
   nome: string
+  cep?: string | null
+  endereco?: string | null
+  numero?: string | null
+  complemento?: string | null
+  estado?: string | null
+  cidade?: string | null
+  bairro?: string | null
+  telefone?: string | null
+  email?: string | null
   criadoEm: string
   atualizadoEm: string
 }

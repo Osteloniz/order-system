@@ -66,14 +66,7 @@ function buildShadowCommittedOrderWhere(tenantId: string, now = new Date()): Pri
 
 async function loadShadowCommittedQuantityMapFromClient(
   client: {
-    pedido: {
-      findMany: (args: Prisma.PedidoFindManyArgs) => Promise<Array<{
-        itens: Array<{
-          produtoId: string
-          quantidade: number
-        }>
-      }>>
-    }
+    pedido: Prisma.TransactionClient['pedido']
   },
   tenantId: string,
   now = new Date(),

@@ -1,21 +1,27 @@
 import { cookies } from 'next/headers'
+import {
+  ADMIN_ACCESS_MAX_AGE_SECONDS,
+  createSignedAdminAccessCookie,
+  hasSignedAdminAccessCookie,
+  isValidAdminAccessKey,
+} from '@/lib/admin-access-token'
+
+export { isValidAdminAccessKey }
 
 export const ADMIN_ACCESS_COOKIE = 'admin-access-granted'
-const ACCESS_COOKIE_VALUE = 'ok'
 
 export function isAdminAccessEnabled() {
-  return Boolean(process.env.ADMIN_ACCESS_KEY?.trim())
+  return process.env.NODE_ENV === 'production' || Boolean(process.env.ADMIN_ACCESS_KEY?.trim())
 }
 
-export function isValidAdminAccessKey(input: string) {
-  const expected = process.env.ADMIN_ACCESS_KEY?.trim()
-  if (!expected) return false
-  return input.trim() === expected
+export function isAdminAccessConfigured() {
+  return (process.env.ADMIN_ACCESS_KEY?.trim().length || 0) >= 16
+    && (process.env.TOKEN_PEPPER?.trim().length || 0) >= 32
 }
 
-export function hasAdminAccessCookie(cookieValue?: string | null) {
+export async function hasAdminAccessCookie(cookieValue?: string | null) {
   if (!isAdminAccessEnabled()) return true
-  return cookieValue === ACCESS_COOKIE_VALUE
+  return hasSignedAdminAccessCookie(cookieValue)
 }
 
 export async function hasServerAdminAccess() {
@@ -27,13 +33,13 @@ export async function hasServerAdminAccess() {
 export function getAdminAccessCookieOptions() {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
+    sameSite: 'strict' as const,
     path: '/',
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: ADMIN_ACCESS_MAX_AGE_SECONDS,
   }
 }
 
-export function getAdminAccessCookieValue() {
-  return ACCESS_COOKIE_VALUE
+export async function getAdminAccessCookieValue() {
+  return createSignedAdminAccessCookie()
 }

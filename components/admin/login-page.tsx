@@ -3,20 +3,19 @@
 import React from "react"
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Lock, Loader2, Store } from 'lucide-react'
+import { ArrowRight, Lock, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
-import { ThemeToggle } from '@/components/theme-toggle'
 
 export function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth()
+  const { beginLogin, isAuthenticated, isLoading: authLoading, mfaEnrollmentRequired } = useAdminAuth()
   const [username, setUsername] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
@@ -31,21 +30,21 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.replace('/admin')
+      router.replace(mfaEnrollmentRequired ? '/admin/seguranca' : '/admin')
     }
-  }, [authLoading, isAuthenticated, router])
+  }, [authLoading, isAuthenticated, mfaEnrollmentRequired, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsSubmitting(true)
 
-    const result = await login({ username, password: senha })
+    const result = await beginLogin({ identifier: username, password: senha })
 
     if (result.success) {
-      router.push('/admin')
+      router.push(result.enrollmentRequired ? '/admin/seguranca' : '/admin/login/verificacao')
     } else {
-      setError(result.error || 'Usuario ou senha invalidos.')
+      setError(result.error || 'E-mail, login ou senha invalidos.')
     }
 
     setIsSubmitting(false)
@@ -60,30 +59,36 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
-      <div className="absolute right-4 top-4">
-        <ThemeToggle />
-      </div>
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-            <Store className="h-6 w-6 text-primary" />
-          </div>
-          <CardTitle>Painel Admin - Brookie Pregiato</CardTitle>
-          <CardDescription>
-            Entre com sua senha para acessar o painel
+    <div className="brookie-login-background relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,104,19,.24),transparent_42%)]" />
+      <Card className="relative z-10 w-full max-w-[390px] border-[#E7DBB3]/35 bg-[#FFF8EE]/95 shadow-2xl backdrop-blur-md">
+        <CardHeader className="space-y-2 p-5 pb-3 text-center">
+          <Image
+            src="/brand/brookie-mark-color.jpg"
+            alt="Brookie Pregiato"
+            width={72}
+            height={72}
+            priority
+            className="mx-auto h-16 w-16 rounded-full border-2 border-[#E7DBB3] object-cover shadow-sm"
+          />
+          <CardTitle className="text-[#421C14]">Acesso restrito</CardTitle>
+          <CardDescription className="text-[#421C14]/70">
+            Primeiro confirme seu e-mail e senha.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="p-5 pt-2">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="username">Usuario ou e-mail</Label>
+              <Label htmlFor="username">E-mail ou login</Label>
               <Input
                 id="username"
-                placeholder="Digite seu usuario ou e-mail"
+                type="text"
+                placeholder="seu@email.com ou joao.murat"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 autoFocus
+                autoCapitalize="none"
+                spellCheck={false}
                 autoComplete="username"
               />
             </div>
@@ -112,23 +117,22 @@ export function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full bg-[#40631A] hover:bg-[#365416]"
               disabled={isSubmitting || !username || !senha}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Entrando...
+                  Verificando...
                 </>
               ) : (
-                'Entrar'
+                <><ShieldCheck className="mr-2 h-4 w-4" />Continuar<ArrowRight className="ml-2 h-4 w-4" /></>
               )}
             </Button>
-
-            <Button asChild type="button" variant="outline" className="w-full">
-              <Link href="/menu">Ver somente catalogo</Link>
-            </Button>
           </form>
+          <p className="mt-4 text-center text-[11px] text-[#421C14]/55">
+            Tentativas e acessos sao monitorados. Nao compartilhe credenciais.
+          </p>
         </CardContent>
       </Card>
     </div>

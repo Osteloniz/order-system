@@ -14,7 +14,7 @@ export default function ProtectedLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAdminAuth()
+  const { isAuthenticated, isLoading, mfaVerified } = useAdminAuth()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
@@ -46,6 +46,14 @@ export default function ProtectedLayout({
 
   if (!isAuthenticated) {
     return null
+  }
+
+  if (!mfaVerified) {
+    return (
+      <main className="min-h-dvh bg-background px-3 py-6">
+        {children}
+      </main>
+    )
   }
 
   return (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAuthAuditLog } from '@/lib/auth-audit'
-import { hashIpAddress } from '@/lib/auth-security'
+import { getAdminUsernamePolicyError, getPasswordPolicyError, hashIpAddress } from '@/lib/auth-security'
 import { registerInvitedUser } from '@/lib/user-invites'
 
 export const runtime = 'nodejs'
@@ -9,7 +9,8 @@ export const runtime = 'nodejs'
 const registerInviteSchema = z.object({
   token: z.string().trim().min(20),
   nome: z.string().trim().min(2).max(120),
-  password: z.string().min(8).max(128),
+  username: z.string().trim().min(3).max(40),
+  password: z.string().min(12).max(128),
 }).strict()
 
 function getIp(request: NextRequest) {
@@ -25,23 +26,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const policyError = getPasswordPolicyError(parsed.data.password)
+    if (policyError) return NextResponse.json({ error: policyError }, { status: 400 })
+    const usernameError = getAdminUsernamePolicyError(parsed.data.username)
+    if (usernameError) return NextResponse.json({ error: usernameError }, { status: 400 })
     const result = await registerInvitedUser(parsed.data)
     if (!result.valid) {
       return NextResponse.json({ error: 'Convite invalido ou indisponivel' }, { status: 400 })
     }
 
     const ipHash = hashIpAddress(getIp(request))
-    await createAuthAuditLog({
-      tenantId: result.user.tenantId,
-      adminUserId: result.user.id,
-      inviteId: result.invite.id,
-      action: 'INVITE_USED',
-      identifier: result.user.emailNormalizado ?? result.user.username,
-      ipHash,
-      userAgent: request.headers.get('user-agent'),
-    })
-
-    await createAuthAuditLog({
+    if (result.created) await createAuthAuditLog({
       tenantId: result.user.tenantId,
       adminUserId: result.user.id,
       inviteId: result.invite.id,
@@ -58,17 +53,20 @@ export async function POST(request: NextRequest) {
       success: true,
       username: result.user.username,
       email: result.user.email,
+      stage: 'MFA',
     }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro ao criar usuario'
     const status =
       message === 'INVITE_NOT_AVAILABLE' || message === 'EMAIL_ALREADY_REGISTERED'
+        || message === 'USERNAME_ALREADY_REGISTERED' || message === 'ADMIN_USER_LIMIT_REACHED'
         ? 409
         : 500
 
     return NextResponse.json({
       error:
         message === 'INVITE_NOT_AVAILABLE' || message === 'EMAIL_ALREADY_REGISTERED'
+          || message === 'USERNAME_ALREADY_REGISTERED' || message === 'ADMIN_USER_LIMIT_REACHED'
           ? 'Convite invalido ou indisponivel'
           : 'Erro ao criar usuario',
     }, { status })

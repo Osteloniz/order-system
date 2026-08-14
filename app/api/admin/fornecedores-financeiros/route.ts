@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { listFornecedoresFinanceiros, resolveFornecedorFinanceiro } from '@/lib/fornecedores-financeiros'
+import { prisma } from '@/lib/db'
+import { hasFornecedorFinanceiroSchema, listFornecedoresFinanceiros } from '@/lib/fornecedores-financeiros'
 
 export const runtime = 'nodejs'
 
 const fornecedorFinanceiroSchema = z
   .object({
     nome: z.string().trim().min(2).max(80),
+    cep: z.string().trim().max(9).optional(),
+    endereco: z.string().trim().max(120).optional(),
+    numero: z.string().trim().max(20).optional(),
+    complemento: z.string().trim().max(80).optional(),
+    estado: z.string().trim().max(2).optional(),
+    cidade: z.string().trim().max(80).optional(),
+    bairro: z.string().trim().max(80).optional(),
+    telefone: z.string().trim().max(20).optional(),
+    email: z.string().trim().email().max(120).optional(),
   })
   .strict()
 
@@ -49,22 +59,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Fornecedor ja cadastrado' }, { status: 409 })
     }
 
-    const fornecedor = await resolveFornecedorFinanceiro({
-      tenantId: admin.tenantId,
-      fornecedor: parsed.data.nome,
-    })
-
-    if ('error' in fornecedor) {
-      return NextResponse.json({ error: fornecedor.error }, { status: 400 })
+    const optional = (value?: string) => value?.trim() || null
+    if (!(await hasFornecedorFinanceiroSchema())) {
+      return NextResponse.json({ error: 'Cadastro estruturado de fornecedores indisponivel' }, { status: 503 })
     }
 
-    const nome = fornecedor.fornecedor ?? parsed.data.nome
+    const fornecedor = await prisma.fornecedorFinanceiro.create({
+      data: {
+        tenantId: admin.tenantId,
+        nome: parsed.data.nome.trim(),
+        cep: optional(parsed.data.cep),
+        endereco: optional(parsed.data.endereco),
+        numero: optional(parsed.data.numero),
+        complemento: optional(parsed.data.complemento),
+        estado: optional(parsed.data.estado)?.toUpperCase() || null,
+        cidade: optional(parsed.data.cidade),
+        bairro: optional(parsed.data.bairro),
+        telefone: optional(parsed.data.telefone),
+        email: optional(parsed.data.email)?.toLowerCase() || null,
+      },
+    })
 
     return NextResponse.json(
       {
-        id: fornecedor.fornecedorFinanceiroId ?? `legacy:${fornecedor.fornecedor}`,
-        nome,
-        legacy: !fornecedor.hasStructuredSchema,
+        id: fornecedor.id,
+        nome: fornecedor.nome,
+        cep: fornecedor.cep,
+        endereco: fornecedor.endereco,
+        numero: fornecedor.numero,
+        complemento: fornecedor.complemento,
+        estado: fornecedor.estado,
+        cidade: fornecedor.cidade,
+        bairro: fornecedor.bairro,
+        telefone: fornecedor.telefone,
+        email: fornecedor.email,
+        legacy: false,
         duplicated: false,
       },
       { status: 201 }

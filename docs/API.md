@@ -1,6 +1,6 @@
 # API - Order System (rotas atuais)
 
-Ultima atualizacao: 2026-07-20
+Ultima atualizacao: 2026-08-13
 
 Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`).
 
@@ -79,8 +79,24 @@ Observacao: agora a API suporta multi-tenant (empresas separadas por `tenantId`)
 
 ## Admin (NextAuth - cookie de sessao)
 Autenticacao:
-- Login via `/admin/login` (usa `/api/auth` internamente).
+- `POST /api/auth/admin/password`: valida e-mail ou login + senha e cria um desafio criptografado HttpOnly de cinco minutos; nao cria sessao administrativa.
+- Login via `/admin/login`: primeiro confirma e-mail/senha e depois usa `/admin/login/verificacao` para TOTP/codigo de recuperacao. Somente a segunda etapa cria a sessao NextAuth.
+- `GET|DELETE /api/auth/admin/password`: consulta ou cancela o desafio temporario sem expor seu conteudo.
+- `PUT /api/admin/security/password`: exige sessao com MFA, senha atual, nova senha e um novo TOTP/recuperacao; incrementa `sessionVersion` e encerra todas as sessoes.
+- `GET|POST|DELETE /api/admin/invites`: lista acessos, envia convite (somente master) ou revoga convite pendente. Em PRD o link nunca e devolvido pela API e depende de entrega transacional configurada.
+- `POST /api/auth/register/invite`: grava nome, login unico e senha do convidado como usuario inativo.
+- `POST|PUT /api/auth/register/invite/mfa`: gera o QR TOTP e somente ativa o usuario/consome o convite depois da confirmacao do codigo.
+- `PUT /api/admin/users/:id/username`: altera o login unico; exige senha e MFA do autor, permite master alterar administradores ou o proprio usuario alterar a si mesmo, e revoga as sessoes do usuario afetado.
 - As rotas antigas `/api/admin/login`, `/api/admin/logout`, `/api/admin/session` estao desativadas (410).
+
+Seguranca da conta:
+- GET `/api/admin/security/mfa`
+  - Retorna apenas o estado de ativacao MFA do usuario autenticado; nunca retorna o segredo persistido.
+- POST `/api/admin/security/mfa`
+  - Inicia ou reinicia o vinculo TOTP e retorna QR Code e chave manual para a sessao restrita do proprio usuario.
+- PUT `/api/admin/security/mfa`
+  - Body: `{ code: string }`.
+  - Confirma o TOTP, ativa o segundo fator, invalida sessoes anteriores e retorna os codigos de recuperacao uma unica vez.
 
 Pedidos:
 - GET `/api/admin/pedidos?status=FEITO|ACEITO|PREPARACAO|PRONTO_ENTREGA|ENTREGUE|CANCELADO`
@@ -171,7 +187,8 @@ Clientes:
 Financeiro:
 - GET `/api/admin/financeiro/contas-pagar?from=YYYY-MM-DD&to=YYYY-MM-DD&status=TODOS|PENDENTE|PAGO|CANCELADO`
 - POST `/api/admin/financeiro/contas-pagar`
-  - Body: `{ descricao, valor, vencimento, status?, categoriaFinanceiraId?, fornecedorFinanceiroId?, observacoes? }`
+  - Body: `{ descricao, valor, vencimento, status?, metodoPagamento?, categoriaFinanceiraId?, fornecedorFinanceiroId?, observacoes? }`
+  - `metodoPagamento` aceita `PIX`, `CREDITO`, `DEBITO` ou `BOLETO` e permanece opcional para compatibilidade com lancamentos antigos.
   - Observacao: `vencimento` e `pagoEm` aceitam ISO datetime com offset.
   - Observacao: o backend preserva `fornecedor` como texto legado e vincula `fornecedorFinanceiroId` quando houver cadastro.
 - PATCH `/api/admin/financeiro/contas-pagar/:id`
@@ -182,8 +199,9 @@ Financeiro:
   - Body: `{ nome, escopo }`
 - GET `/api/admin/fornecedores-financeiros`
 - POST `/api/admin/fornecedores-financeiros`
-  - Body: `{ nome }`
-  - Observacao: se o fornecedor ja existir para o tenant, retorna o cadastro existente.
+  - Body: `{ nome, cep?, endereco?, numero?, complemento?, estado?, cidade?, bairro?, telefone?, email? }`
+  - Apenas `nome` e obrigatorio; e-mail, quando informado, deve ser valido.
+  - Observacao: fornecedor duplicado para o tenant retorna conflito.
 
 Relatorios:
 - GET `/api/admin/relatorios?from=YYYY-MM-DD&to=YYYY-MM-DD`

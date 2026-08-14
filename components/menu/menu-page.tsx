@@ -1,9 +1,10 @@
 ﻿'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
-import { MapPin, Search, Sparkles, Store, X } from 'lucide-react'
+import { MapPin, Search, Sparkles, X } from 'lucide-react'
 import { CategorySection } from './category-section'
 import { CartButton } from './cart-button'
 import { CartSheet } from './cart-sheet'
@@ -92,7 +93,7 @@ export function MenuPage() {
   return (
     <div className="min-h-screen bg-background pb-28">
       <header className="sticky top-0 z-40 border-b border-border/70 bg-card/95 shadow-[0_8px_30px_rgba(66,28,20,0.05)] backdrop-blur-xl">
-        <div className="mx-auto max-w-5xl px-4 py-3.5">
+        <div className="mx-auto max-w-5xl px-3 py-2.5 sm:px-4">
           {isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-7 w-48" />
@@ -103,15 +104,13 @@ export function MenuPage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-primary">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
-                      <Store className="h-5 w-5" />
-                    </span>
+                    <Image src="/brand/brookie-mark-color.jpg" alt="Brookie Pregiato" width={44} height={44} priority className="h-10 w-10 shrink-0 rounded-full border border-secondary object-cover shadow-sm" />
                     <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Cardapio online</p>
-                      <h1 className="truncate text-lg font-bold leading-tight text-foreground">{data?.estabelecimento}</h1>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-primary">Cardapio Brookie</p>
+                      <h1 className="truncate text-base font-bold leading-tight text-foreground sm:text-lg">{data?.estabelecimento}</h1>
                     </div>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-1 pl-1 text-xs text-muted-foreground dark:text-white/80">
+                  <div className="mt-1 flex items-center gap-1 pl-1 text-[11px] text-muted-foreground dark:text-white/80">
                     <MapPin className="h-4 w-4" />
                     <span className="truncate">{data?.enderecoRetirada}</span>
                   </div>
@@ -119,8 +118,8 @@ export function MenuPage() {
                 <Badge
                   variant="outline"
                   className={data?.isOpen
-                    ? 'shrink-0 rounded-full border-success/30 bg-success/10 px-3 py-1.5 text-success'
-                    : 'shrink-0 rounded-full border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive'}
+                    ? 'shrink-0 rounded-full border-success/30 bg-success/10 px-2.5 py-1 text-[11px] text-success'
+                    : 'shrink-0 rounded-full border-destructive/30 bg-destructive/10 px-2.5 py-1 text-[11px] text-destructive'}
                 >
                   <span className={`mr-1.5 h-2 w-2 rounded-full ${data?.isOpen ? 'bg-success' : 'bg-destructive'}`} />
                   {data?.isOpen ? 'Aberto' : 'Fechado'}
@@ -139,23 +138,26 @@ export function MenuPage() {
         </div>
       )}
 
-      <main className="mx-auto max-w-5xl px-4 pt-4">
-        <section className="overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/12 via-card to-accent/20 p-5 shadow-sm">
-          <div className="flex items-end justify-between gap-4">
-            <div>
+      <main className="mx-auto max-w-5xl px-3 pt-3 sm:px-4 sm:pt-4">
+        <section className="relative overflow-hidden rounded-[22px] border border-primary/20 bg-gradient-to-br from-primary/12 via-card to-accent/20 p-4 shadow-sm sm:p-5">
+          <div className="relative z-10 flex items-end justify-between gap-4">
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Escolha seus favoritos</p>
-              <h2 className="mt-1 text-2xl font-bold leading-tight">O que vai adoçar seu dia?</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{totalProdutos} opcoes no cardapio para comprar ou encomendar.</p>
+              <h2 className="mt-1 text-xl font-bold leading-tight sm:text-2xl">Cookies artesanais, do seu jeito</h2>
+              <p className="mt-1.5 text-xs text-muted-foreground sm:text-sm">{totalProdutos} opcoes para comprar agora ou encomendar.</p>
             </div>
-            <Sparkles className="h-8 w-8 shrink-0 text-warning" />
+            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+              <Sparkles className="h-6 w-6 text-warning" />
+              <Image src="/brand/brookie-mark-color.jpg" alt="" width={76} height={76} className="h-16 w-16 rounded-full border-2 border-secondary object-cover shadow-sm" />
+            </div>
           </div>
-          <div className="relative mt-4">
+          <div className="relative z-10 mt-3">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={productSearch}
               onChange={(event) => setProductSearch(event.target.value)}
               placeholder="Buscar sabor ou recheio"
-              className="h-12 rounded-2xl border-border/80 bg-background/90 pl-10 pr-11 text-base shadow-sm"
+              className="h-11 rounded-xl border-border/80 bg-background/90 pl-10 pr-11 text-sm shadow-sm sm:text-base"
               aria-label="Buscar produto no cardapio"
             />
             {productSearch ? (
@@ -181,12 +183,12 @@ export function MenuPage() {
 
       {/* Category Navigation */}
       {(novidadesVisiveis.length > 0 || categoriasVisiveis.length > 0 || indisponiveisVisiveis.length > 0) && (
-        <nav className="sticky top-[86px] z-30 mt-4 overflow-x-auto border-y border-border/70 bg-card/92 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-5xl gap-2 px-4 py-2.5">
+        <nav className="sticky top-[70px] z-30 mt-3 overflow-x-auto border-y border-border/70 bg-card/92 backdrop-blur-xl sm:top-[78px]">
+          <div className="mx-auto flex max-w-5xl gap-1.5 px-3 py-2 sm:px-4">
             {novidadesVisiveis.length > 0 ? (
               <a
                 href="#novidades"
-                className="px-4 py-2 rounded-full text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity whitespace-nowrap"
+                className="rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 whitespace-nowrap sm:text-sm"
               >
                 Novidades
               </a>
@@ -195,7 +197,7 @@ export function MenuPage() {
               <a
                 key={cat.id}
                 href={`#categoria-${cat.id}`}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors whitespace-nowrap"
+                className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-primary hover:text-primary-foreground whitespace-nowrap sm:text-sm"
               >
                 {cat.nome}
               </a>
@@ -203,7 +205,7 @@ export function MenuPage() {
             {indisponiveisVisiveis.length > 0 ? (
               <a
                 href="#indisponiveis"
-                className="px-4 py-2 rounded-full text-sm font-medium bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors whitespace-nowrap"
+                className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-primary hover:text-primary-foreground whitespace-nowrap sm:text-sm"
               >
                 Indisponiveis
               </a>
@@ -213,7 +215,7 @@ export function MenuPage() {
       )}
 
       {/* Menu Content */}
-      <main className="mx-auto max-w-5xl space-y-8 px-4 py-6">
+      <main className="mx-auto max-w-5xl space-y-6 px-3 py-4 sm:px-4 sm:py-6">
         {isLoading ? (
           <div className="space-y-8">
             {[1, 2, 3].map(i => (
@@ -230,10 +232,10 @@ export function MenuPage() {
           <>
             {novidadesVisiveis.length > 0 ? (
               <section id="novidades" className="scroll-mt-20 space-y-4">
-                <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/12 via-background to-secondary/12 p-5">
+                <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/12 via-background to-secondary/12 p-4">
                   <div className="flex items-center gap-2 text-primary">
                     <Sparkles className="h-5 w-5" />
-                    <h2 className="text-xl font-bold">Novidades do cardapio</h2>
+                    <h2 className="text-lg font-bold sm:text-xl">Novidades do cardapio</h2>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground dark:text-white/80">
                     Veja primeiro o que acabou de entrar no menu.
@@ -253,7 +255,7 @@ export function MenuPage() {
 
             {indisponiveisVisiveis.length > 0 ? (
               <section id="indisponiveis" className="scroll-mt-20 space-y-4">
-                <div className="rounded-3xl border border-destructive/25 bg-destructive/8 p-5">
+                <div className="rounded-2xl border border-destructive/25 bg-destructive/8 p-4">
                   <div className="flex items-center gap-2 text-destructive">
                     <Sparkles className="h-5 w-5" />
                     <h2 className="text-xl font-bold">Indisponiveis no momento</h2>

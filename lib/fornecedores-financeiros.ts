@@ -4,6 +4,15 @@ import { prisma } from '@/lib/db'
 export type FornecedorFinanceiroOption = {
   id: string
   nome: string
+  cep?: string | null
+  endereco?: string | null
+  numero?: string | null
+  complemento?: string | null
+  estado?: string | null
+  cidade?: string | null
+  bairro?: string | null
+  telefone?: string | null
+  email?: string | null
   legacy?: boolean
 }
 
@@ -61,6 +70,15 @@ export async function listFornecedoresFinanceiros(tenantId: string): Promise<For
     return fornecedores.map((fornecedor) => ({
       id: fornecedor.id,
       nome: fornecedor.nome,
+      cep: fornecedor.cep,
+      endereco: fornecedor.endereco,
+      numero: fornecedor.numero,
+      complemento: fornecedor.complemento,
+      estado: fornecedor.estado,
+      cidade: fornecedor.cidade,
+      bairro: fornecedor.bairro,
+      telefone: fornecedor.telefone,
+      email: fornecedor.email,
       legacy: false,
     }))
   }

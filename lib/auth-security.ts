@@ -12,6 +12,20 @@ export function normalizeLoginIdentifier(identifier: string) {
   return identifier.trim()
 }
 
+export function normalizeAdminUsername(username: string) {
+  return username.trim().toLowerCase()
+}
+
+export function getAdminUsernamePolicyError(username: string) {
+  const normalized = normalizeAdminUsername(username)
+  if (normalized.length < 3 || normalized.length > 40) return 'O login deve ter entre 3 e 40 caracteres.'
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(normalized)) {
+    return 'Use apenas letras sem acento, numeros, ponto, hifen ou sublinhado.'
+  }
+  if (normalized.includes('@')) return 'O login nao pode ser um e-mail.'
+  return null
+}
+
 export function getTokenPepper() {
   return process.env.TOKEN_PEPPER?.trim() || ''
 }
@@ -54,6 +68,24 @@ export async function hashPassword(password: string) {
   return bcrypt.hash(password, safeRounds)
 }
 
+export function getPasswordPolicyError(password: string) {
+  if (password.length < 12) return 'A senha precisa ter pelo menos 12 caracteres.'
+  if (Buffer.byteLength(password, 'utf8') > 72) return 'A senha ultrapassa o limite seguro de 72 bytes.'
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return 'Use letras maiusculas, minusculas e numeros.'
+  }
+  return null
+}
+
+export function needsPasswordRehash(passwordHash: string) {
+  const cost = Number(passwordHash.split('$')[2])
+  const configuredRounds = Number(process.env.BCRYPT_ROUNDS || DEFAULT_BCRYPT_ROUNDS)
+  const targetRounds = Number.isFinite(configuredRounds) && configuredRounds >= 12
+    ? configuredRounds
+    : DEFAULT_BCRYPT_ROUNDS
+  return !Number.isFinite(cost) || cost < targetRounds
+}
+
 export async function verifyPassword(password: string, passwordHash: string) {
   return bcrypt.compare(password, passwordHash)
 }
@@ -87,5 +119,5 @@ export function buildInviteLink(token: string) {
 export function buildUsernameCandidateFromEmail(email: string) {
   const [localPart] = normalizeEmail(email).split('@')
   const base = (localPart || 'admin').replace(/[^a-z0-9._-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-  return (base || 'admin').slice(0, 40)
+  return normalizeAdminUsername((base || 'admin').slice(0, 40))
 }
