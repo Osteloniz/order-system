@@ -96,7 +96,16 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        if (challenge.ipHash !== ipHash || challenge.userAgentHash !== hashUserAgent(getHeaderValue(req?.headers, 'user-agent'))) {
+        if (challenge.userAgentHash !== hashUserAgent(getHeaderValue(req?.headers, 'user-agent'))) {
+          await createAuthAuditLog({
+            tenantId: challenge.tenantId,
+            adminUserId: challenge.userId,
+            action: 'LOGIN_FAILURE',
+            identifier,
+            ipHash,
+            userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
+            metadata: { reason: 'mfa_challenge_client_mismatch' },
+          })
           return null
         }
 

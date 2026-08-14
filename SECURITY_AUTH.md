@@ -10,7 +10,7 @@ Cada administrador usa e-mail, senha, autenticador e codigos de recuperacao prop
 
 1. Em producao, `/admin` exige a chave previa `ADMIN_ACCESS_KEY`.
 2. A chave correta gera um cookie assinado, aleatorio, `HttpOnly`, `Secure` e valido por no maximo 12 horas; o valor literal da chave nunca e salvo no cookie.
-3. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao IP/user-agent e valido por cinco minutos.
+3. A primeira tela valida e-mail ou login unico + senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao navegador e valido por cinco minutos. O IP e auditado, mas nao bloqueia o segundo passo porque proxies e redes moveis podem altera-lo entre requisicoes legitimas.
 4. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
 5. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
 6. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.

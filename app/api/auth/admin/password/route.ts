@@ -121,9 +121,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const challenge = readAdminMfaChallenge(request.cookies.get(ADMIN_MFA_CHALLENGE_COOKIE)?.value)
   if (!challenge) return json({ valid: false }, 401)
-  const ipHash = hashIpAddress(getIp(request))
-  const valid = challenge.ipHash === ipHash
-    && challenge.userAgentHash === hashUserAgent(request.headers.get('user-agent'))
+  const valid = challenge.userAgentHash === hashUserAgent(request.headers.get('user-agent'))
   if (!valid) return json({ valid: false }, 401)
   return json({
     valid: true,
