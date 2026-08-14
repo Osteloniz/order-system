@@ -81,6 +81,16 @@ test('password challenge is encrypted, authenticated and short lived', () => {
   assert.equal(readAdminMfaChallenge(`${value.slice(0, -1)}x`), null)
 })
 
+test('password challenge preserves a custom username for the MFA step', () => {
+  process.env.AUTH_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64')
+  const value = createAdminMfaChallenge({
+    userId: 'user-1', tenantId: 'tenant-1', sessionVersion: 2,
+    identifier: 'joao.murat', ipHash: 'ip', userAgentHash: 'ua',
+  })
+
+  assert.equal(readAdminMfaChallenge(value)?.identifier, 'joao.murat')
+})
+
 test('pre-access cookie is signed and cannot be forged with a fixed value', async () => {
   process.env.ADMIN_ACCESS_KEY = 'private-admin-access-key'
   process.env.TOKEN_PEPPER = 'pepper-for-tests-with-at-least-32-characters'

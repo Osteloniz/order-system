@@ -81,7 +81,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Muitas tentativas. Tente novamente mais tarde.')
         }
 
-        if (!identifier || !identifier.includes('@')) {
+        // The encrypted challenge can carry either the normalized e-mail or
+        // the custom username used during the password step.
+        if (!identifier) {
           return null
         }
 
