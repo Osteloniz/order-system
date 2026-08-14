@@ -22,6 +22,7 @@ import {
   Menu,
   Package,
   Settings,
+  ShieldCheck,
   Tags,
   Users,
   X,
@@ -61,6 +62,7 @@ const financeItems: MenuItem[] = [
 ]
 
 const managementItems: MenuItem[] = [
+  { href: '/admin/seguranca', label: 'Seguranca e acessos', icon: ShieldCheck },
   { href: '/admin/config', label: 'Configurações', icon: Settings },
   { href: '/admin/logs', label: 'Logs', icon: FileClock },
 ]

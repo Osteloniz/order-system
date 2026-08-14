@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAuthAuditLog } from '@/lib/auth-audit'
-import { hashIpAddress } from '@/lib/auth-security'
+import { getPasswordPolicyError, hashIpAddress } from '@/lib/auth-security'
 import { registerInvitedUser } from '@/lib/user-invites'
 
 export const runtime = 'nodejs'
@@ -25,23 +25,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const policyError = getPasswordPolicyError(parsed.data.password)
+    if (policyError) return NextResponse.json({ error: policyError }, { status: 400 })
     const result = await registerInvitedUser(parsed.data)
     if (!result.valid) {
       return NextResponse.json({ error: 'Convite invalido ou indisponivel' }, { status: 400 })
     }
 
     const ipHash = hashIpAddress(getIp(request))
-    await createAuthAuditLog({
-      tenantId: result.user.tenantId,
-      adminUserId: result.user.id,
-      inviteId: result.invite.id,
-      action: 'INVITE_USED',
-      identifier: result.user.emailNormalizado ?? result.user.username,
-      ipHash,
-      userAgent: request.headers.get('user-agent'),
-    })
-
-    await createAuthAuditLog({
+    if (result.created) await createAuthAuditLog({
       tenantId: result.user.tenantId,
       adminUserId: result.user.id,
       inviteId: result.invite.id,
@@ -58,6 +50,7 @@ export async function POST(request: NextRequest) {
       success: true,
       username: result.user.username,
       email: result.user.email,
+      stage: 'MFA',
     }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro ao criar usuario'

@@ -201,59 +201,31 @@ export function FluxoCaixaPage() {
   const totalDias = getDiffInDays(fromInput, toInput)
 
   return (
-    <div className="space-y-6 overflow-x-hidden">
-      <section className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/16 via-background to-secondary/16 p-5 shadow-sm md:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <Landmark className="h-3.5 w-3.5" />
-              Caixa previsto e realizado
-            </div>
-            <h1 className="mt-3 flex items-center gap-2 text-2xl font-bold md:text-3xl">
-              <Landmark className="h-7 w-7 text-primary" />
-              Fluxo de caixa
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Analise entradas, saidas e saldo com uma visao mais confortavel no mobile, sem perder a leitura diaria.
-            </p>
+    <div className="space-y-3 overflow-x-hidden">
+      <section className="rounded-2xl border bg-gradient-to-r from-primary/12 via-background to-secondary/10 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /><h1 className="text-xl font-bold">Fluxo de caixa</h1></div>
+            <p className="mt-1 text-xs text-muted-foreground">Previsto e realizado, com leitura diaria.</p>
           </div>
-
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Periodo ativo</p>
-              <p className="mt-1 text-sm font-semibold">
-                {formatDateInSaoPaulo(from)} ate {formatDateInSaoPaulo(to)}
-              </p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4">
-              <p className="text-xs text-muted-foreground">Visualizacao</p>
-              <p className="mt-1 text-2xl font-bold">{view === 'AMBOS' ? '2' : '1'}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{view === 'AMBOS' ? 'Previsto e realizado' : 'Uma camada ativa'}</p>
-            </div>
-            <div className="rounded-2xl border bg-background/82 p-4 sm:col-span-2 xl:col-span-1">
-              <p className="text-xs text-muted-foreground">Janela analisada</p>
-              <p className="mt-1 text-2xl font-bold">{totalDias}</p>
-              <p className="mt-1 text-xs text-muted-foreground">dia(s) no intervalo</p>
-            </div>
+          <div className="rounded-xl border bg-background/80 px-3 py-2 text-right">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Periodo ativo · {totalDias} dia(s)</p>
+            <p className="text-xs font-semibold">{formatDateInSaoPaulo(from)} a {formatDateInSaoPaulo(to)}</p>
           </div>
         </div>
       </section>
 
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary">
-              <Filter className="h-5 w-5" />
-            </span>
-            Configuracoes e filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <details className="group rounded-2xl border border-border/70 bg-card/95">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold">
+          <span className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" />Filtros e periodo</span>
+          <span className="text-xs font-normal text-muted-foreground">{view === 'AMBOS' ? 'Previsto + realizado' : view === 'PREVISTO' ? 'Previsto' : 'Realizado'}</span>
+        </summary>
+        <div className="space-y-3 border-t border-border/60 p-4">
           <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Visualizacao</Label>
               <Select value={viewInput} onValueChange={(value) => setViewInput(value as VisualizacaoFluxo)}>
-                <SelectTrigger className="h-11 rounded-2xl bg-background/80">
+                <SelectTrigger className="h-9 rounded-xl bg-background/80">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -267,20 +239,20 @@ export function FluxoCaixaPage() {
             <div className="space-y-3">
               <div className="space-y-2">
                 <Label>Periodos rapidos</Label>
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('SEMANA')}>
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <Button type="button" variant="outline" className="h-8 shrink-0 rounded-xl px-3 text-xs" onClick={() => aplicarPeriodoRapido('SEMANA')}>
                     Esta semana
                   </Button>
-                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('MES')}>
+                  <Button type="button" variant="outline" className="h-8 shrink-0 rounded-xl px-3 text-xs" onClick={() => aplicarPeriodoRapido('MES')}>
                     Este mes
                   </Button>
-                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('TRIMESTRE')}>
+                  <Button type="button" variant="outline" className="h-8 shrink-0 rounded-xl px-3 text-xs" onClick={() => aplicarPeriodoRapido('TRIMESTRE')}>
                     Trimestre
                   </Button>
-                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('SEMESTRE')}>
+                  <Button type="button" variant="outline" className="h-8 shrink-0 rounded-xl px-3 text-xs" onClick={() => aplicarPeriodoRapido('SEMESTRE')}>
                     Semestre
                   </Button>
-                  <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => aplicarPeriodoRapido('ANO')}>
+                  <Button type="button" variant="outline" className="h-8 shrink-0 rounded-xl px-3 text-xs" onClick={() => aplicarPeriodoRapido('ANO')}>
                     Este ano
                   </Button>
                 </div>
@@ -293,7 +265,7 @@ export function FluxoCaixaPage() {
                     type="date"
                     value={fromInput}
                     onChange={(event) => setFromInput(event.target.value)}
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-xl"
                   />
                 </div>
                 <div className="space-y-2">
@@ -302,50 +274,48 @@ export function FluxoCaixaPage() {
                     type="date"
                     value={toInput}
                     onChange={(event) => setToInput(event.target.value)}
-                    className="h-11 rounded-2xl"
+                    className="h-9 rounded-xl"
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/15 bg-primary/8 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/15 bg-primary/8 px-3 py-2 text-xs text-muted-foreground">
                 <CalendarRange className="h-4 w-4 text-primary" />
                 Periodo selecionado: {formatDateInSaoPaulo(fromInput)} ate {formatDateInSaoPaulo(toInput)}
                 <span className="ml-auto text-xs">({totalDias} dia(s))</span>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button className="h-11 rounded-2xl" onClick={aplicarPeriodo} disabled={!periodoPendente}>
+                <Button className="h-9 rounded-xl" onClick={aplicarPeriodo} disabled={!periodoPendente}>
                   <Search className="mr-2 h-4 w-4" />
                   Buscar
                 </Button>
-                <Button className="h-11 rounded-2xl" variant="outline" onClick={resetarOuAtualizar}>
+                <Button className="h-9 rounded-xl" variant="outline" onClick={resetarOuAtualizar}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {periodoPendente ? 'Limpar filtros' : 'Atualizar'}
                 </Button>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
+        <div className="flex gap-2 overflow-x-auto">
+          <Skeleton className="h-20 min-w-48 flex-1" />
+          <Skeleton className="h-20 min-w-48 flex-1" />
+          <Skeleton className="h-20 min-w-48 flex-1" />
         </div>
       ) : (
-        <div className={`grid gap-4 ${cardsResumo.length === 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-4'} sm:grid-cols-2`}>
+        <div className="flex snap-x gap-2 overflow-x-auto pb-1">
           {cardsResumo.map((card) => {
             const Icon = card.icon
             return (
-              <Card key={card.key} className="border-border/70 bg-card/95">
-                <CardContent className="p-5">
-                  <Icon className={`mb-3 h-5 w-5 ${card.tone}`} />
-                  <p className="text-sm text-muted-foreground">{card.title}</p>
-                  <p className="mt-1 text-3xl font-bold">{card.value}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">{card.detail}</p>
+              <Card key={card.key} className="min-w-[12.5rem] flex-1 snap-start border-border/70 bg-card/95">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${card.tone}`} /><p className="text-xs text-muted-foreground">{card.title}</p></div>
+                  <p className="mt-1 text-xl font-bold">{card.value}</p>
+                  <p className="mt-1 truncate text-[10px] text-muted-foreground">{card.detail}</p>
                 </CardContent>
               </Card>
             )
@@ -353,16 +323,14 @@ export function FluxoCaixaPage() {
         </div>
       )}
 
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader>
-          <CardTitle>Evolucao do caixa</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <details className="group rounded-2xl border border-border/70 bg-card/95">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold">Evolucao do caixa</summary>
+        <div className="border-t border-border/60 p-3">
           {isLoading ? (
-            <Skeleton className="h-[280px] w-full" />
+            <Skeleton className="h-[220px] w-full" />
           ) : (
             <ChartContainer
-              className="h-[280px] w-full"
+              className="h-[220px] w-full"
               config={{
                 saldoPrevisto: { label: 'Saldo previsto', color: '#40631A' },
                 saldoRealizado: { label: 'Saldo realizado', color: '#C56813' },
@@ -382,14 +350,14 @@ export function FluxoCaixaPage() {
               </AreaChart>
             </ChartContainer>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
       <Card className="border-border/70 bg-card/95">
-        <CardHeader>
-          <CardTitle>Movimento por dia</CardTitle>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-base">Movimento por dia</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-1 md:p-4 md:pt-1">
           {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-16" />
@@ -397,19 +365,17 @@ export function FluxoCaixaPage() {
             </div>
           ) : data?.dias.length ? (
             <>
-              <div className="grid gap-3 lg:hidden">
+              <div className="grid gap-1.5 lg:hidden">
                 {data.dias.map((dia) => (
-                  <div key={dia.data} className="rounded-[22px] border border-border/70 bg-background/80 p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold">{formatDateInSaoPaulo(dia.data)}</p>
-                      <span className="rounded-full border border-border/70 bg-card px-3 py-1 text-xs text-muted-foreground">
-                        {view === 'AMBOS' ? 'Previsto + realizado' : view === 'PREVISTO' ? 'Previsto' : 'Realizado'}
-                      </span>
-                    </div>
+                  <details key={dia.data} className="group rounded-xl border border-border/70 bg-background/80">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+                      <div><p className="text-sm font-semibold">{formatDateInSaoPaulo(dia.data)}</p><p className="text-[10px] text-muted-foreground">Toque para ver entradas, saidas e taxas</p></div>
+                      <div className="text-right"><p className="text-[10px] text-muted-foreground">Saldo {view === 'PREVISTO' ? 'previsto' : 'realizado'}</p><p className="text-sm font-bold text-primary">{formatarMoeda(view === 'PREVISTO' ? dia.saldoPrevisto : dia.saldoRealizado)}</p></div>
+                    </summary>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-2 border-t border-border/60 p-2.5 sm:grid-cols-2">
                       {view !== 'REALIZADO' ? (
-                        <div className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+                        <div className="rounded-xl border border-border/70 bg-card px-3 py-2.5">
                           <p className="text-xs text-muted-foreground">Previsto</p>
                           <div className="mt-2 space-y-1 text-sm">
                             <p className="flex items-center justify-between gap-3">
@@ -433,7 +399,7 @@ export function FluxoCaixaPage() {
                       ) : null}
 
                       {view !== 'PREVISTO' ? (
-                        <div className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+                        <div className="rounded-xl border border-border/70 bg-card px-3 py-2.5">
                           <p className="text-xs text-muted-foreground">Realizado</p>
                           <div className="mt-2 space-y-1 text-sm">
                             <p className="flex items-center justify-between gap-3">
@@ -456,7 +422,7 @@ export function FluxoCaixaPage() {
                         </div>
                       ) : null}
                     </div>
-                  </div>
+                  </details>
                 ))}
               </div>
 

@@ -54,6 +54,15 @@ export async function hashPassword(password: string) {
   return bcrypt.hash(password, safeRounds)
 }
 
+export function getPasswordPolicyError(password: string) {
+  if (password.length < 12) return 'A senha precisa ter pelo menos 12 caracteres.'
+  if (Buffer.byteLength(password, 'utf8') > 72) return 'A senha ultrapassa o limite seguro de 72 bytes.'
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return 'Use letras maiusculas, minusculas e numeros.'
+  }
+  return null
+}
+
 export function needsPasswordRehash(passwordHash: string) {
   const cost = Number(passwordHash.split('$')[2])
   const configuredRounds = Number(process.env.BCRYPT_ROUNDS || DEFAULT_BCRYPT_ROUNDS)

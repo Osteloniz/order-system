@@ -9,7 +9,7 @@
 ## Current Product Shape
 - Customer flow: tenant selection -> menu -> cart -> checkout -> confirmation.
 - Admin flow: login -> orders -> production, stock, finance, customers, and configuration.
-- Authentication uses NextAuth credentials with e-mail-only login, an exact two-person allowlist, mandatory TOTP MFA, encrypted authenticator secrets, single-use recovery codes, session versioning and persistent audit-based throttling.
+- Authentication uses a two-step NextAuth flow: password validation first, then a separate TOTP/recovery challenge bound to an encrypted short-lived HttpOnly cookie. The master account controls single-use e-mail invitations; invited admins stay inactive until they define a strong password and activate their own authenticator. Secrets are encrypted, passwords are bcrypt hashes, recovery codes are single-use, password changes revoke every session, and security events are audited.
 - Database uses Prisma over Postgres with production-oriented migration scripts.
 - Local development is expected to run on Node.js `22.22.3`.
 - Products can now be manually marked as `novidade` in admin so the public menu can highlight them in a dedicated section without removing them from their normal categories.
@@ -61,7 +61,7 @@
 - Admin navigation is organized mobile-first: `Início`, `Pedidos`, `Nova venda` and `KDS` are immediate actions, while `Cadastros`, `Financeiro` and `Gestão` are compact contextual groups that open automatically for the current route.
 - Customer management now uses a list-first contract: the admin `/admin/clientes` page no longer renders an edit form below the customer list. Selecting a row opens a bounded modal with separate `Resumo` and `Editar cadastro` tabs; new-customer creation uses the same modal shell.
 - Manual order entry uses a fixed-height customer selector with a stationary search field and internally scrolling compact rows, so the operator does not need to discover hidden content by scrolling the whole dialog. The selected-customer summary is shown only once in the order review.
-- The restricted login now uses the official Brookie background and mark, and the browser/PWA identity uses the same official brand asset. Administrative access is limited to exactly two real people; first access is restricted to MFA enrollment, and later sessions require password plus a TOTP-compatible authenticator code.
+- The restricted login uses the official Brookie background and mark, and the browser/PWA identity uses the same official brand asset. Login separates password and authenticator into two screens. The master can invite named administrators from the security center; the link is single-use and activation finishes only after password and TOTP enrollment.
 - The login background now switches between the official dark bitten-cookie artwork on the light theme and the light artwork on the dark theme. The public menu also uses the official compact logo, denser mobile spacing and the current Brookie palette without changing cart, availability or checkout rules.
 - Structured financial suppliers now accept optional address and contact fields while keeping only the name required. Payable accounts can record an optional payment method (`PIX`, `CREDITO`, `DEBITO` or `BOLETO`), preserving old rows without a value.
 
@@ -126,6 +126,7 @@
 
 ## Current Exceptions And Defaults
 - `Fluxo de caixa` and `Relatorios` intentionally keep week-based default periods.
+- `Fluxo de caixa` follows the compact mobile-first operational pattern: horizontal summary, collapsible filters/chart and expandable daily rows, with the complete compact table retained on desktop.
 - Generic operational date filters now default to current month start through today.
 
 ## Fast Prompt For Future Chats

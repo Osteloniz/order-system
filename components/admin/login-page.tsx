@@ -5,7 +5,7 @@ import React from "react"
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { KeyRound, Lock, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Lock, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,10 +15,9 @@ import { useAdminAuth } from '@/contexts/admin-auth-context'
 export function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth()
+  const { beginLogin, isAuthenticated, isLoading: authLoading } = useAdminAuth()
   const [username, setUsername] = useState('')
   const [senha, setSenha] = useState('')
-  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -40,10 +39,10 @@ export function LoginPage() {
     setError('')
     setIsSubmitting(true)
 
-    const result = await login({ username, password: senha, code })
+    const result = await beginLogin({ email: username, password: senha })
 
     if (result.success) {
-      router.push(result.enrollmentRequired ? '/admin/seguranca' : '/admin')
+      router.push('/admin/login/verificacao')
     } else {
       setError(result.error || 'Usuario ou senha invalidos.')
     }
@@ -74,7 +73,7 @@ export function LoginPage() {
           />
           <CardTitle className="text-[#421C14]">Acesso restrito</CardTitle>
           <CardDescription className="text-[#421C14]/70">
-            Identifique-se com os dois fatores de seguranca.
+            Primeiro confirme seu e-mail e senha.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5 pt-2">
@@ -108,25 +107,6 @@ export function LoginPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="security-code">Codigo do autenticador</Label>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="security-code"
-                  value={code}
-                  onChange={event => setCode(event.target.value.toUpperCase().replace(/[^A-F0-9-]/g, '').slice(0, 11))}
-                  className="pl-9 tracking-widest"
-                  inputMode="text"
-                  autoComplete="one-time-code"
-                  placeholder="000000 ou codigo de recuperacao"
-                />
-              </div>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                No primeiro acesso, deixe em branco para vincular o Google Authenticator. Nos proximos, aguarde um codigo novo; cada codigo aceito so pode ser usado uma vez.
-              </p>
-            </div>
-
             {error && (
               <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
                 {error}
@@ -141,10 +121,10 @@ export function LoginPage() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Entrando...
+                  Verificando...
                 </>
               ) : (
-                <><ShieldCheck className="mr-2 h-4 w-4" />Entrar com seguranca</>
+                <><ShieldCheck className="mr-2 h-4 w-4" />Continuar<ArrowRight className="ml-2 h-4 w-4" /></>
               )}
             </Button>
           </form>

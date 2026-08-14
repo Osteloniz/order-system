@@ -1,7 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { isAllowedAdminEmail } from '@/lib/admin-allowlist'
 
 export async function getPendingAdminSession() {
   const session = await getServerSession(authOptions)
@@ -20,6 +19,7 @@ export async function getPendingAdminSession() {
       nome: true,
       email: true,
       emailNormalizado: true,
+      role: true,
       ativo: true,
       sessionVersion: true,
       totpEnabledAt: true,
@@ -32,8 +32,7 @@ export async function getPendingAdminSession() {
   if (
     !user ||
     !user.ativo ||
-    user.sessionVersion !== sessionVersion ||
-    !isAllowedAdminEmail(user.emailNormalizado)
+    user.sessionVersion !== sessionVersion
   ) {
     return null
   }

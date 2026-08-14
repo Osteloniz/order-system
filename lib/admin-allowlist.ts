@@ -1,5 +1,3 @@
-const REQUIRED_ADMIN_COUNT = 2
-
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
 }
@@ -14,7 +12,7 @@ export function getAllowedAdminEmails() {
 }
 
 export function isAdminAllowlistReady() {
-  return getAllowedAdminEmails().length === REQUIRED_ADMIN_COUNT
+  return getAllowedAdminEmails().length > 0
 }
 
 export function isAllowedAdminEmail(email?: string | null) {
@@ -25,7 +23,7 @@ export function isAllowedAdminEmail(email?: string | null) {
     return true
   }
 
-  return allowed.length === REQUIRED_ADMIN_COUNT && allowed.includes(normalized)
+  return allowed.includes(normalized)
 }
 
 export function assertAllowedAdminEmail(email: string) {
@@ -35,5 +33,6 @@ export function assertAllowedAdminEmail(email: string) {
 }
 
 export function getAdminUserLimit() {
-  return REQUIRED_ADMIN_COUNT
+  const configured = Number(process.env.ADMIN_USER_LIMIT || 10)
+  return Number.isInteger(configured) && configured >= 2 && configured <= 50 ? configured : 10
 }

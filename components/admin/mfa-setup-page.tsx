@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
+import { AdminSecurityCenter } from '@/components/admin/security-center'
 
 type Enrollment = {
   qrCodeDataUrl: string
@@ -87,7 +88,7 @@ export function MfaSetupPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[70dvh] max-w-xl items-center justify-center">
+    <div className="mx-auto flex min-h-[70dvh] max-w-3xl items-center justify-center">
       <Card className="w-full overflow-hidden border-primary/20 shadow-lg">
         <CardHeader className="border-b border-border/60 bg-primary/5 p-5">
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -157,13 +158,7 @@ export function MfaSetupPage() {
             </div>
           )}
 
-          {status === 'enabled' && recoveryCodes.length === 0 && (
-            <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <p className="font-medium text-primary">Autenticador ativo.</p>
-              <p className="text-sm text-muted-foreground">Entre novamente usando sua senha e o codigo temporario.</p>
-              <Button onClick={logout} className="w-full">Voltar ao login seguro</Button>
-            </div>
-          )}
+          {status === 'enabled' && recoveryCodes.length === 0 && <AdminSecurityCenter />}
 
           {recoveryCodes.length > 0 && (
             <div className="space-y-4">

@@ -2,17 +2,17 @@
 
 ## Regra operacional
 
-O painel e restrito a exatamente duas pessoas reais, ambas administradoras. Nao existe cadastro publico e nao deve ser criada conta para assistentes de IA, contas compartilhadas ou e-mails fora de `ADMIN_ALLOWED_EMAILS`.
+O painel e restrito a pessoas reais com conta individual. Joao e o usuario `MASTER`; somente o master pode convidar outros administradores. Nao existe cadastro publico, conta compartilhada nem acesso para assistentes de IA.
 
-O segundo administrador deve ser outra pessoa de confianca, com e-mail, senha, autenticador e codigos de recuperacao proprios.
+Cada administrador usa e-mail, senha, autenticador e codigos de recuperacao proprios.
 
 ## Fluxo de acesso
 
 1. Em producao, `/admin` exige a chave previa `ADMIN_ACCESS_KEY`.
 2. A chave correta gera um cookie assinado, aleatorio, `HttpOnly`, `Secure` e valido por no maximo 12 horas; o valor literal da chave nunca e salvo no cookie.
-3. O login aceita somente e-mail autorizado e senha.
-4. No primeiro acesso, o usuario entra apenas em `/admin/seguranca` para vincular um autenticador.
-5. Depois da ativacao, cada login exige senha e um codigo TOTP ou codigo de recuperacao de uso unico.
+3. A primeira tela valida somente e-mail e senha e emite um desafio AES-256-GCM HttpOnly, SameSite Strict, vinculado ao IP/user-agent e valido por cinco minutos.
+4. A segunda tela valida TOTP ou codigo de recuperacao; somente entao a sessao administrativa e criada.
+5. O convite cria um usuario inativo. A ativacao ocorre apenas quando o convidado define a senha e confirma seu proprio autenticador pelo link de uso unico.
 6. A sessao administrativa dura no maximo 4 horas e e invalidada quando `sessionVersion` muda.
 
 ## MFA / Google Authenticator
@@ -33,9 +33,11 @@ A integracao usa TOTP (RFC 6238), compativel com Google Authenticator, Microsoft
 
 - senhas sao armazenadas somente com bcrypt;
 - `BCRYPT_ROUNDS` deve ser pelo menos 12 em PRD;
-- novos cadastros exigem senha entre 12 e 128 caracteres;
-- convites sao de uso unico, expiram, guardam apenas o hash do token e somente podem ser emitidos para os dois e-mails da allowlist;
-- o sistema impede a criacao de um terceiro usuario ativo;
+- senhas exigem ao menos 12 caracteres, maiuscula, minuscula e numero, respeitando o limite de 72 bytes do bcrypt;
+- a troca de senha exige senha atual e segundo fator recente, incrementa `sessionVersion` e derruba todas as sessoes;
+- convites sao de uso unico, expiram, guardam apenas o hash do token e so podem ser emitidos pelo master;
+- em PRD, o link e enviado por provedor transacional e nunca e retornado pela API;
+- o sistema limita o total de contas por `ADMIN_USER_LIMIT` (padrao 10, limite maximo 50);
 - o seed nao possui senha padrao e falha sem `SEED_ADMIN_PASSWORD` com ao menos 12 caracteres.
 
 ## Protecoes adicionais
@@ -45,7 +47,7 @@ A integracao usa TOTP (RFC 6238), compativel com Google Authenticator, Microsoft
 - rate limit em memoria reduz rajadas na instancia atual;
 - auditoria persistente bloqueia repeticoes por IP e identificador entre requisicoes;
 - tentativas, sucessos, ativacao MFA e recuperacao sao auditados sem senha, TOTP, segredo ou token puro;
-- usuario inativo, removido da allowlist ou com versao de sessao divergente perde acesso;
+- usuario inativo ou com versao de sessao divergente perde acesso;
 - paginas administrativas usam `no-store`, `noindex`, HSTS em producao e cabecalhos contra embedding e sniffing;
 - rotas administrativas validam sessao e MFA no servidor, sem confiar apenas no middleware.
 
@@ -61,12 +63,15 @@ NEXTAUTH_SECRET="minimo-32-caracteres"
 TOKEN_PEPPER="minimo-32-caracteres"
 ADMIN_ACCESS_KEY="minimo-16-caracteres"
 AUTH_ENCRYPTION_KEY="base64-de-32-bytes"
-ADMIN_ALLOWED_EMAILS="admin1@dominio.com,admin2@dominio.com"
+ADMIN_ALLOWED_EMAILS="admin-legado@dominio.com" # apenas bootstrap/migracao
+ADMIN_USER_LIMIT="10"
+RESEND_API_KEY="..."
+AUTH_EMAIL_FROM="Brookie Pregiato <acessos@dominio-validado.com>"
 BCRYPT_ROUNDS="12"
 INVITE_EXPIRY_HOURS="24"
 ```
 
-Em PRD a aplicacao falha fechada se a configuracao critica estiver incompleta ou se a allowlist nao contiver exatamente dois e-mails unicos.
+Em PRD a aplicacao falha fechada se a configuracao criptografica critica estiver incompleta. A lista de bootstrap nao autoriza login; contas ativas no banco, MFA e versao de sessao sao a fonte de verdade.
 
 Segredos devem ser gerados localmente, salvos no gerenciador da Vercel e nunca registrados em logs ou no Git.
 
@@ -82,16 +87,19 @@ A migration `20260813103000_add_admin_mfa_hardening` adiciona ao `AdminUser`:
 
 Ela tambem inclui os novos eventos MFA em `AuthAuditAction`.
 
+A migration `20260814003000_add_admin_roles_and_auth_audit` adiciona `MASTER/ADMIN`, promove o e-mail do Joao a master e registra desafios de senha, troca de senha, entrega/revogacao de convites e ativacao de usuarios.
+
 ## Implantacao segura
 
-1. Definir os dois e-mails humanos autorizados.
+1. Confirmar o usuario master e o limite de contas administrativas.
 2. Criar segredos distintos para HML e PRD na Vercel.
 3. Fazer snapshot da branch de banco HML.
 4. Aplicar a migration somente em HML e regenerar o Prisma Client.
-5. Garantir que somente os dois usuarios autorizados estejam ativos e com e-mail normalizado correto.
-6. Validar em HML: chave previa, senha incorreta, vinculo MFA, novo login TOTP, rejeicao de codigo repetido, recuperacao, logout e bloqueio do terceiro usuario.
-7. Abrir e revisar o PR.
-8. Somente depois da aprovacao explicita: snapshot PRD, migration PRD, deploy e smoke test dos dois administradores.
+5. Garantir que apenas contas individuais aprovadas estejam ativas e com e-mail normalizado correto.
+6. Validar em HML: chave previa, senha incorreta, separacao das duas telas, desafio expirado, TOTP repetido, recuperacao, troca de senha e revogacao de sessoes.
+7. Validar convite master: entrega do e-mail, link expirado/uso unico, usuario inativo antes do MFA, ativacao e revogacao.
+8. Abrir e revisar o PR.
+9. Somente depois da aprovacao explicita: snapshot PRD, migration PRD, deploy e smoke test dos administradores.
 
 Nunca aplicar a migration em PRD antes da validacao completa em HML.
 
@@ -108,4 +116,4 @@ npm run build
 npm audit
 ```
 
-Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do autenticador, recuperacao, allowlist de duas pessoas e assinatura do cookie de pre-acesso.
+Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do autenticador, recuperacao, desafio criptografado entre as duas telas, politica de senha, limite de usuarios e assinatura do cookie de pre-acesso.

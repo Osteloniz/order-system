@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     valid: true,
     emailHint: validation.emailHint,
+    stage: validation.stage,
     expiresAt: validation.invite.expiresAt.toISOString(),
   })
 }

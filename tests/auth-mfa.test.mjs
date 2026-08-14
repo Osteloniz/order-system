@@ -10,8 +10,9 @@ import {
   normalizeRecoveryCode,
   verifyTotpCode,
 } from '../lib/totp.ts'
-import { getAllowedAdminEmails, isAdminAllowlistReady, isAllowedAdminEmail } from '../lib/admin-allowlist.ts'
+import { getAdminUserLimit, getAllowedAdminEmails, isAdminAllowlistReady, isAllowedAdminEmail } from '../lib/admin-allowlist.ts'
 import { createSignedAdminAccessCookie, hasSignedAdminAccessCookie, isValidAdminAccessKey } from '../lib/admin-access-token.ts'
+import { createAdminMfaChallenge, readAdminMfaChallenge } from '../lib/login-challenge.ts'
 
 const originalEnv = { ...process.env }
 
@@ -57,13 +58,27 @@ test('recovery codes are unique, normalized and stored only as hashes', () => {
   assert.equal(normalizeRecoveryCode(codes[0].toLowerCase().replace('-', '')), codes[0])
 })
 
-test('admin allowlist requires exactly two unique e-mails', () => {
+test('bootstrap allowlist accepts configured e-mails without limiting invited users', () => {
   process.env.NODE_ENV = 'production'
   process.env.ADMIN_ALLOWED_EMAILS = 'a@brookie.test,b@brookie.test'
   assert.deepEqual(getAllowedAdminEmails(), ['a@brookie.test', 'b@brookie.test'])
   assert.equal(isAdminAllowlistReady(), true)
   assert.equal(isAllowedAdminEmail('A@BROOKIE.TEST'), true)
   assert.equal(isAllowedAdminEmail('c@brookie.test'), false)
+  process.env.ADMIN_USER_LIMIT = '10'
+  assert.equal(getAdminUserLimit(), 10)
+})
+
+test('password challenge is encrypted, authenticated and short lived', () => {
+  process.env.AUTH_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64')
+  const value = createAdminMfaChallenge({
+    userId: 'user-1', tenantId: 'tenant-1', sessionVersion: 2,
+    identifier: 'admin@brookie.test', ipHash: 'ip', userAgentHash: 'ua',
+  })
+  const challenge = readAdminMfaChallenge(value)
+  assert.equal(challenge?.userId, 'user-1')
+  assert.notEqual(value.includes('admin@brookie.test'), true)
+  assert.equal(readAdminMfaChallenge(`${value.slice(0, -1)}x`), null)
 })
 
 test('pre-access cookie is signed and cannot be forged with a fixed value', async () => {

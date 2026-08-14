@@ -10,7 +10,7 @@ import {
   normalizeEmail,
 } from '@/lib/auth-security'
 import { resolveInviteStatus } from '@/lib/invite-status'
-import { assertAllowedAdminEmail, getAdminUserLimit } from '@/lib/admin-allowlist'
+import { getAdminUserLimit } from '@/lib/admin-allowlist'
 
 export async function createUserInvite(params: {
   tenantId: string
@@ -18,9 +18,8 @@ export async function createUserInvite(params: {
   createdBy?: string | null
 }) {
   const normalizedEmail = normalizeEmail(params.email)
-  assertAllowedAdminEmail(normalizedEmail)
   const currentUserCount = await prisma.adminUser.count({
-    where: { tenantId: params.tenantId, ativo: true },
+    where: { tenantId: params.tenantId },
   })
   if (currentUserCount >= getAdminUserLimit()) {
     throw new Error('ADMIN_USER_LIMIT_REACHED')
@@ -30,7 +29,7 @@ export async function createUserInvite(params: {
       tenantId: params.tenantId,
       emailNormalizado: normalizedEmail,
     },
-    select: { id: true },
+    select: { id: true, ativo: true },
   })
 
   if (existingUser) {
@@ -97,10 +96,10 @@ export async function validateInviteToken(token: string) {
       tenantId: invite.tenantId,
       emailNormalizado: invite.emailNormalizado,
     },
-    select: { id: true },
+    select: { id: true, ativo: true },
   })
 
-  if (existingUser) {
+  if (existingUser?.ativo) {
     return { valid: false as const, reason: 'ALREADY_REGISTERED' as const, invite }
   }
 
@@ -108,6 +107,8 @@ export async function validateInviteToken(token: string) {
     valid: true as const,
     invite,
     emailHint: maskEmail(invite.email),
+    stage: existingUser ? 'MFA' as const : 'PASSWORD' as const,
+    user: existingUser,
   }
 }
 
@@ -141,7 +142,11 @@ export async function registerInvitedUser(params: {
   }
 
   const invite = validation.invite
-  assertAllowedAdminEmail(invite.emailNormalizado)
+  if (validation.stage === 'MFA' && validation.user) {
+    const user = await prisma.adminUser.findUnique({ where: { id: validation.user.id } })
+    if (!user) throw new Error('INVITE_NOT_AVAILABLE')
+    return { valid: true as const, invite, user, created: false as const }
+  }
   const username = await buildUniqueUsernameForTenant(invite.tenantId, invite.emailNormalizado)
   const passwordHash = await hashPassword(params.password)
 
@@ -166,10 +171,10 @@ export async function registerInvitedUser(params: {
       throw new Error('EMAIL_ALREADY_REGISTERED')
     }
 
-    const activeUsers = await tx.adminUser.count({
-      where: { tenantId: refreshed.tenantId, ativo: true },
+    const allUsers = await tx.adminUser.count({
+      where: { tenantId: refreshed.tenantId },
     })
-    if (activeUsers >= getAdminUserLimit()) {
+    if (allUsers >= getAdminUserLimit()) {
       throw new Error('ADMIN_USER_LIMIT_REACHED')
     }
 
@@ -181,20 +186,14 @@ export async function registerInvitedUser(params: {
         email: refreshed.email,
         emailNormalizado: refreshed.emailNormalizado,
         passwordHash,
-      },
-    })
-
-    const updatedInvite = await tx.userInvite.update({
-      where: { id: refreshed.id },
-      data: {
-        status: 'USED',
-        usedAt: new Date(),
+        ativo: false,
+        role: 'ADMIN',
       },
     })
 
     return {
       user,
-      invite: updatedInvite,
+      invite: refreshed,
     }
   })
 
@@ -202,5 +201,6 @@ export async function registerInvitedUser(params: {
     valid: true as const,
     invite: result.invite,
     user: result.user,
+    created: true as const,
   }
 }

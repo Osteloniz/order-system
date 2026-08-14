@@ -3,14 +3,12 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/db'
 import { ADMIN_ACCESS_COOKIE, hasAdminAccessCookie, isAdminAccessEnabled } from '@/lib/admin-access'
 import { createAuthAuditLog } from '@/lib/auth-audit'
-import { hashIpAddress, hashPassword, needsPasswordRehash, normalizeEmail, normalizeLoginIdentifier, verifyPassword } from '@/lib/auth-security'
-import { isAdminAllowlistReady, isAllowedAdminEmail } from '@/lib/admin-allowlist'
+import { hashIpAddress } from '@/lib/auth-security'
 import { isPersistentlyAuthBlocked } from '@/lib/auth-throttle'
 import { verifyAdminSecondFactor } from '@/lib/mfa-auth'
 import { isAuthSecurityConfigurationReady } from '@/lib/auth-config'
+import { ADMIN_MFA_CHALLENGE_COOKIE, hashUserAgent, readAdminMfaChallenge } from '@/lib/login-challenge'
 import { rateLimitByIdentifier, rateLimitByIp, resetRateLimitByIdentifier, resetRateLimitByIp } from '@/lib/rateLimit'
-
-const DUMMY_PASSWORD_HASH = '$2a$12$Gz0ovJNY3tkQPVbTI5NLzOStyTtv/kCkFOP6TM3uKmPh1jkpkSdhu'
 
 function getHeaderValue(headers: unknown, name: string) {
   if (!headers) return undefined
@@ -46,8 +44,7 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        username: { label: 'E-mail', type: 'email' },
-        password: { label: 'Senha', type: 'password' },
+        flow: { label: 'Fluxo', type: 'text' },
         code: { label: 'Codigo de seguranca', type: 'text' },
       },
       async authorize(credentials, req) {
@@ -62,8 +59,11 @@ export const authOptions: NextAuthOptions = {
         const realIp = getHeaderValue(req?.headers, 'x-real-ip')
         const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
 
-        const identifier = normalizeEmail(normalizeLoginIdentifier(credentials?.username?.toString() || ''))
-        const password = credentials?.password?.toString()
+        if (credentials?.flow?.toString() !== 'mfa') return null
+        const challenge = readAdminMfaChallenge(getCookieValue(req?.headers, ADMIN_MFA_CHALLENGE_COOKIE))
+        if (!challenge) return null
+
+        const identifier = challenge.identifier
         const secondFactor = credentials?.code?.toString()
         const ipHash = hashIpAddress(ip)
         const rateByIp = rateLimitByIp(ip)
@@ -81,11 +81,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Muitas tentativas. Tente novamente mais tarde.')
         }
 
-        if (!identifier || !password || !identifier.includes('@')) {
+        if (!identifier || !identifier.includes('@')) {
           return null
         }
 
-        if (process.env.NODE_ENV === 'production' && (!isAdminAllowlistReady() || !isAuthSecurityConfigurationReady())) {
+        if (process.env.NODE_ENV === 'production' && !isAuthSecurityConfigurationReady()) {
           await createAuthAuditLog({
             action: 'LOGIN_FAILURE',
             identifier,
@@ -96,8 +96,12 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const tenant = await prisma.tenant.findUnique({
-          where: { slug: 'brookie-pregiato' }
+        if (challenge.ipHash !== ipHash || challenge.userAgentHash !== hashUserAgent(getHeaderValue(req?.headers, 'user-agent'))) {
+          return null
+        }
+
+        const tenant = await prisma.tenant.findFirst({
+          where: { id: challenge.tenantId, slug: 'brookie-pregiato' }
         })
         if (!tenant) {
           return null
@@ -105,12 +109,13 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.adminUser.findFirst({
           where: {
+            id: challenge.userId,
             tenantId: tenant.id,
             emailNormalizado: identifier,
+            sessionVersion: challenge.sessionVersion,
           }
         })
-        const passwordOk = await verifyPassword(password, user?.passwordHash || DUMMY_PASSWORD_HASH)
-        if (!user || !user.ativo || !isAllowedAdminEmail(user.emailNormalizado) || !passwordOk) {
+        if (!user || !user.ativo) {
           await createAuthAuditLog({
             tenantId: tenant.id,
             adminUserId: user?.id ?? null,
@@ -118,38 +123,9 @@ export const authOptions: NextAuthOptions = {
             identifier,
             ipHash,
             userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
-            metadata: { reason: 'invalid_credentials_or_policy' },
+            metadata: { reason: 'invalid_or_expired_mfa_challenge' },
           })
           return null
-        }
-
-        if (needsPasswordRehash(user.passwordHash)) {
-          await prisma.adminUser.update({
-            where: { id: user.id },
-            data: { passwordHash: await hashPassword(password) },
-          })
-        }
-
-        if (!user.totpEnabledAt || !user.totpSecretEncrypted) {
-          await createAuthAuditLog({
-            tenantId: tenant.id,
-            adminUserId: user.id,
-            action: 'MFA_ENROLLMENT_STARTED',
-            identifier,
-            ipHash,
-            userAgent: getHeaderValue(req?.headers, 'user-agent') || null,
-          })
-
-          return {
-            id: user.id,
-            name: user.nome,
-            email: user.email ?? identifier,
-            tenantId: tenant.id,
-            tenantSlug: tenant.slug,
-            sessionVersion: user.sessionVersion,
-            mfaVerified: false,
-            mfaEnrollmentRequired: true,
-          } as any
         }
 
         const mfaResult = await verifyAdminSecondFactor(user, secondFactor)
@@ -203,6 +179,7 @@ export const authOptions: NextAuthOptions = {
           tenantId: tenant.id,
           tenantSlug: tenant.slug,
           sessionVersion: user.sessionVersion,
+          role: user.role,
           mfaVerified: true,
           mfaEnrollmentRequired: false,
         } as any
@@ -217,6 +194,7 @@ export const authOptions: NextAuthOptions = {
         token.tenantId = (user as any).tenantId
         token.tenantSlug = (user as any).tenantSlug
         token.sessionVersion = (user as any).sessionVersion
+        token.role = (user as any).role
         token.mfaVerified = Boolean((user as any).mfaVerified)
         token.mfaEnrollmentRequired = Boolean((user as any).mfaEnrollmentRequired)
       }
@@ -231,6 +209,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).tenantId = token.tenantId
         ;(session.user as any).tenantSlug = token.tenantSlug
         ;(session.user as any).sessionVersion = token.sessionVersion
+        ;(session.user as any).role = token.role
         ;(session.user as any).mfaVerified = Boolean(token.mfaVerified)
         ;(session.user as any).mfaEnrollmentRequired = Boolean(token.mfaEnrollmentRequired)
       }

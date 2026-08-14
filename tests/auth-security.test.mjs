@@ -5,6 +5,7 @@ import {
   buildUsernameCandidateFromEmail,
   generateSecureToken,
   hashOpaqueToken,
+  getPasswordPolicyError,
   maskEmail,
   needsPasswordRehash,
   normalizeEmail,
@@ -46,6 +47,13 @@ test('needsPasswordRehash upgrades legacy bcrypt costs', () => {
   process.env.BCRYPT_ROUNDS = '12'
   assert.equal(needsPasswordRehash('$2a$10$abcdefghijklmnopqrstuuuuuuuuuuuuuuuuuuuuuuuuuuuuu'), true)
   assert.equal(needsPasswordRehash('$2b$12$abcdefghijklmnopqrstuuuuuuuuuuuuuuuuuuuuuuuuuuuuu'), false)
+})
+
+test('password policy enforces length, composition and bcrypt byte limit', () => {
+  assert.match(getPasswordPolicyError('short'), /12/)
+  assert.match(getPasswordPolicyError('somenteletrasminusculas'), /maiusculas/)
+  assert.match(getPasswordPolicyError(`Aa1${'ç'.repeat(35)}`), /72 bytes/)
+  assert.equal(getPasswordPolicyError('BrookieSegura2026'), null)
 })
 
 test('resolveInviteStatus marks used invites as used', () => {

@@ -1,4 +1,3 @@
-
 // Prisma schema for Order System
 // Comentarios intencionais para facilitar leitura e manutencao.
 
@@ -85,13 +84,23 @@ enum InviteStatus {
   REVOKED
 }
 
+enum AdminRole {
+  MASTER
+  ADMIN
+}
+
 enum AuthAuditAction {
+  PASSWORD_CHALLENGE_SUCCESS
+  PASSWORD_CHANGED
   LOGIN_SUCCESS
   LOGIN_FAILURE
   LOGOUT
   INVITE_CREATED
+  INVITE_EMAIL_SENT
+  INVITE_REVOKED
   INVITE_USED
   USER_CREATED
+  USER_ACTIVATED
   MFA_ENROLLMENT_STARTED
   MFA_ENABLED
   MFA_CHALLENGE_SUCCESS
@@ -114,39 +123,39 @@ enum LogOperacaoTipo {
 }
 
 model Configuracao {
-  id                  String   @id @default(uuid())
-  nomeEstabelecimento String
-  enderecoRetirada    String
-  freteBase           Int      @default(500) // centavos (ate o raio base)
-  freteRaioKm         Float    @default(3) // km
-  freteKmExcedente    Int      @default(100) // centavos por km excedente
-  estabelecimentoLat  Float    @default(0)
-  estabelecimentoLng  Float    @default(0)
-  envioAutomaticoWhatsappStatus Boolean @default(true)
-  padraoNovoPedidoEntrega TipoEntrega @default(RESERVA_PAULISTANO)
-  padraoNovoPedidoPagamento TipoPagamento @default(DINHEIRO)
-  padraoNovoPedidoTipoCartao TipoCartao?
-  padraoNovoPedidoDescontosExpandidos Boolean @default(false)
-  padraoNovoPedidoObservacoesExpandidas Boolean @default(false)
-  padraoNovoPedidoResponsavelExpandido Boolean @default(false)
-  checkoutPublicoEntregaReservaPaulistano Boolean @default(true)
-  checkoutPublicoEntregaRetirada Boolean @default(true)
-  checkoutPublicoEntregaEncomenda Boolean @default(true)
-  checkoutPublicoEncomendaModo ModoEncomendaCheckout @default(CLIENTE_DEFINE)
-  checkoutPublicoEncomendaDataFixa DateTime?
-  checkoutPublicoPagamentoPix Boolean @default(true)
-  checkoutPublicoPagamentoDinheiro Boolean @default(true)
-  checkoutPublicoPagamentoCartao Boolean @default(true)
-  checkoutPublicoPagamentoCartaoCredito Boolean @default(true)
-  checkoutPublicoPagamentoCartaoDebito Boolean @default(true)
-  checkoutPublicoHorarioAtivo Boolean @default(false)
-  checkoutPublicoHorarioAbertura String?
-  checkoutPublicoHorarioFechamento String?
-  mensagemStatusAceito String?
-  mensagemStatusPreparacao String?
-  mensagemStatusEntregue String?
-  criadoEm            DateTime @default(now())
-  atualizadoEm        DateTime @updatedAt
+  id                                      String                @id @default(uuid())
+  nomeEstabelecimento                     String
+  enderecoRetirada                        String
+  freteBase                               Int                   @default(500) // centavos (ate o raio base)
+  freteRaioKm                             Float                 @default(3) // km
+  freteKmExcedente                        Int                   @default(100) // centavos por km excedente
+  estabelecimentoLat                      Float                 @default(0)
+  estabelecimentoLng                      Float                 @default(0)
+  envioAutomaticoWhatsappStatus           Boolean               @default(true)
+  padraoNovoPedidoEntrega                 TipoEntrega           @default(RESERVA_PAULISTANO)
+  padraoNovoPedidoPagamento               TipoPagamento         @default(DINHEIRO)
+  padraoNovoPedidoTipoCartao              TipoCartao?
+  padraoNovoPedidoDescontosExpandidos     Boolean               @default(false)
+  padraoNovoPedidoObservacoesExpandidas   Boolean               @default(false)
+  padraoNovoPedidoResponsavelExpandido    Boolean               @default(false)
+  checkoutPublicoEntregaReservaPaulistano Boolean               @default(true)
+  checkoutPublicoEntregaRetirada          Boolean               @default(true)
+  checkoutPublicoEntregaEncomenda         Boolean               @default(true)
+  checkoutPublicoEncomendaModo            ModoEncomendaCheckout @default(CLIENTE_DEFINE)
+  checkoutPublicoEncomendaDataFixa        DateTime?
+  checkoutPublicoPagamentoPix             Boolean               @default(true)
+  checkoutPublicoPagamentoDinheiro        Boolean               @default(true)
+  checkoutPublicoPagamentoCartao          Boolean               @default(true)
+  checkoutPublicoPagamentoCartaoCredito   Boolean               @default(true)
+  checkoutPublicoPagamentoCartaoDebito    Boolean               @default(true)
+  checkoutPublicoHorarioAtivo             Boolean               @default(false)
+  checkoutPublicoHorarioAbertura          String?
+  checkoutPublicoHorarioFechamento        String?
+  mensagemStatusAceito                    String?
+  mensagemStatusPreparacao                String?
+  mensagemStatusEntregue                  String?
+  criadoEm                                DateTime              @default(now())
+  atualizadoEm                            DateTime              @updatedAt
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -155,36 +164,36 @@ model Configuracao {
 }
 
 model Categoria {
-  id          String   @id @default(uuid())
-  nome        String
-  ordem       Int
-  criadoEm    DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
-  produtos    Produto[]
+  id           String    @id @default(uuid())
+  nome         String
+  ordem        Int
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  produtos     Produto[]
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 }
 
 model Produto {
-  id          String   @id @default(uuid())
-  nome        String
-  descricao   String?
-  categoriaId String
-  preco       Int      // centavos
-  ativo       Boolean  @default(true)
-  descontinuado Boolean @default(false)
-  novidade    Boolean  @default(false)
-  disponivelParaEncomenda Boolean @default(false)
-  imagemUrl   String?
-  imagens     String[] @default([])
-  ordem       Int
-  criadoEm    DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  nome                    String
+  descricao               String?
+  categoriaId             String
+  preco                   Int // centavos
+  ativo                   Boolean  @default(true)
+  descontinuado           Boolean  @default(false)
+  novidade                Boolean  @default(false)
+  disponivelParaEncomenda Boolean  @default(false)
+  imagemUrl               String?
+  imagens                 String[] @default([])
+  ordem                   Int
+  criadoEm                DateTime @default(now())
+  atualizadoEm            DateTime @updatedAt
 
-  categoria   Categoria @relation(fields: [categoriaId], references: [id])
-  itensPedido ItemPedido[]
-  estoqueProdutos ProdutoEstoque[]
+  categoria         Categoria          @relation(fields: [categoriaId], references: [id])
+  itensPedido       ItemPedido[]
+  estoqueProdutos   ProdutoEstoque[]
   producaoRegistros ProducaoRegistro[]
 
   tenantId String?
@@ -195,56 +204,56 @@ model Produto {
 }
 
 model Pedido {
-  id              String        @id @default(uuid())
-  clienteId       String?
-  status          StatusPedido  @default(FEITO)
-  estoqueReservadoEm DateTime?
-  estoqueBaixadoEm DateTime?
-  publicAccessTokenHash String?
+  id                        String              @id @default(uuid())
+  clienteId                 String?
+  status                    StatusPedido        @default(FEITO)
+  estoqueReservadoEm        DateTime?
+  estoqueBaixadoEm          DateTime?
+  publicAccessTokenHash     String?
   publicAccessTokenIssuedAt DateTime?
-  asaasReturnTokenHash String?
-  clienteNome     String
-  clienteTelefone String?
-  clienteWhatsapp String?
-  clienteBloco    String?
-  clienteApartamento String?
-  observacoesPedido String?
-  responsavelPedido String?
-  destinatariosPedido String?
-  separacaoResponsavel Json?
-  levadoEm        DateTime?
-  pagamento       TipoPagamento
-  tipoCartao      TipoCartao?
-  statusPagamento StatusPagamento @default(NAO_APLICAVEL)
-  asaasCheckoutId String?
-  asaasCheckoutUrl String?
-  asaasCheckoutExpiresAt DateTime?
-  asaasPaymentId String?
-  asaasInvoiceUrl String?
-  asaasPixQrCode String?
-  asaasPixCopyPaste String?
-  asaasPaymentStatus String?
-  asaasLastEventId String?
-  asaasLastSyncAt DateTime?
-  tipoEntrega     TipoEntrega
-  encomendaPara   DateTime?
-  enderecoEntrega String?
-  enderecoRetirada String
-  frete           Int
-  subtotal        Int
-  total           Int
-  motivoCancelamento String?
-  distanciaKm     Float?
-  descontoValor   Int?
-  cupomCodigoSnapshot String?
-  cupomId         String?
-  criadoEm        DateTime      @default(now())
-  atualizadoEm    DateTime      @updatedAt
-  itens           ItemPedido[]
-  asaasWebhookEvents AsaasWebhookEvent[]
+  asaasReturnTokenHash      String?
+  clienteNome               String
+  clienteTelefone           String?
+  clienteWhatsapp           String?
+  clienteBloco              String?
+  clienteApartamento        String?
+  observacoesPedido         String?
+  responsavelPedido         String?
+  destinatariosPedido       String?
+  separacaoResponsavel      Json?
+  levadoEm                  DateTime?
+  pagamento                 TipoPagamento
+  tipoCartao                TipoCartao?
+  statusPagamento           StatusPagamento     @default(NAO_APLICAVEL)
+  asaasCheckoutId           String?
+  asaasCheckoutUrl          String?
+  asaasCheckoutExpiresAt    DateTime?
+  asaasPaymentId            String?
+  asaasInvoiceUrl           String?
+  asaasPixQrCode            String?
+  asaasPixCopyPaste         String?
+  asaasPaymentStatus        String?
+  asaasLastEventId          String?
+  asaasLastSyncAt           DateTime?
+  tipoEntrega               TipoEntrega
+  encomendaPara             DateTime?
+  enderecoEntrega           String?
+  enderecoRetirada          String
+  frete                     Int
+  subtotal                  Int
+  total                     Int
+  motivoCancelamento        String?
+  distanciaKm               Float?
+  descontoValor             Int?
+  cupomCodigoSnapshot       String?
+  cupomId                   String?
+  criadoEm                  DateTime            @default(now())
+  atualizadoEm              DateTime            @updatedAt
+  itens                     ItemPedido[]
+  asaasWebhookEvents        AsaasWebhookEvent[]
 
-  cliente         Cliente? @relation(fields: [clienteId], references: [id])
-  cupom           Cupom? @relation(fields: [cupomId], references: [id])
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+  cupom   Cupom?   @relation(fields: [cupomId], references: [id])
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -298,18 +307,18 @@ model Cliente {
 }
 
 model ItemPedido {
-  id                  String   @id @default(uuid())
-  pedidoId            String
-  produtoId           String
-  nomeProdutoSnapshot String
+  id                    String    @id @default(uuid())
+  pedidoId              String
+  produtoId             String
+  nomeProdutoSnapshot   String
   precoUnitarioSnapshot Int
-  quantidade          Int
-  totalItem           Int
-  quantidadePreparada Int      @default(0)
-  preparadoEm         DateTime?
+  quantidade            Int
+  totalItem             Int
+  quantidadePreparada   Int       @default(0)
+  preparadoEm           DateTime?
 
-  pedido   Pedido  @relation(fields: [pedidoId], references: [id])
-  produto  Produto @relation(fields: [produtoId], references: [id])
+  pedido  Pedido  @relation(fields: [pedidoId], references: [id])
+  produto Produto @relation(fields: [produtoId], references: [id])
 
   @@index([pedidoId])
   @@index([produtoId])
@@ -347,20 +356,20 @@ model ProducaoRegistro {
 }
 
 model LogOperacao {
-  id               String          @id @default(uuid())
-  tenantId         String
-  tipo             LogOperacaoTipo
-  produtoId        String?
-  produtoNome      String?
-  pedidoId         String?
-  pedidoNumero     String?
-  quantidade       Int?
-  saldoDisponivel  Int?
-  saldoReservado   Int?
-  descricao        String
-  metadata         Json?
-  actorNome        String?
-  criadoEm         DateTime        @default(now())
+  id              String          @id @default(uuid())
+  tenantId        String
+  tipo            LogOperacaoTipo
+  produtoId       String?
+  produtoNome     String?
+  pedidoId        String?
+  pedidoNumero    String?
+  quantidade      Int?
+  saldoDisponivel Int?
+  saldoReservado  Int?
+  descricao       String
+  metadata        Json?
+  actorNome       String?
+  criadoEm        DateTime        @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -371,18 +380,18 @@ model LogOperacao {
 }
 
 model Cupom {
-  id        String     @id @default(uuid())
-  codigo    String
-  tipo      TipoCupom
-  valor     Int        // centavos (FIXO) ou percentual (PERCENTUAL)
-  ativo     Boolean    @default(true)
-  expiraEm  DateTime
-  maxUsos   Int
-  usos      Int        @default(0)
-  criadoEm  DateTime   @default(now())
-  atualizadoEm DateTime @updatedAt
+  id           String    @id @default(uuid())
+  codigo       String
+  tipo         TipoCupom
+  valor        Int // centavos (FIXO) ou percentual (PERCENTUAL)
+  ativo        Boolean   @default(true)
+  expiraEm     DateTime
+  maxUsos      Int
+  usos         Int       @default(0)
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
 
-  pedidos   Pedido[]
+  pedidos Pedido[]
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -391,24 +400,24 @@ model Cupom {
 }
 
 model ContaPagar {
-  id          String            @id @default(uuid())
-  tenantId    String
-  descricao   String
-  categoria   String?
-  categoriaFinanceiraId String?
+  id                     String                     @id @default(uuid())
+  tenantId               String
+  descricao              String
+  categoria              String?
+  categoriaFinanceiraId  String?
   fornecedorFinanceiroId String?
-  fornecedor  String?
-  observacoes String?
-  valor       Int
-  vencimento  DateTime
-  pagoEm      DateTime?
-  status      StatusContaPagar  @default(PENDENTE)
-  metodoPagamento MetodoPagamentoContaPagar?
-  criadoEm    DateTime          @default(now())
-  atualizadoEm DateTime         @updatedAt
+  fornecedor             String?
+  observacoes            String?
+  valor                  Int
+  vencimento             DateTime
+  pagoEm                 DateTime?
+  status                 StatusContaPagar           @default(PENDENTE)
+  metodoPagamento        MetodoPagamentoContaPagar?
+  criadoEm               DateTime                   @default(now())
+  atualizadoEm           DateTime                   @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  categoriaFinanceira CategoriaFinanceira? @relation(fields: [categoriaFinanceiraId], references: [id])
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  categoriaFinanceira  CategoriaFinanceira?  @relation(fields: [categoriaFinanceiraId], references: [id])
   fornecedorFinanceiro FornecedorFinanceiro? @relation(fields: [fornecedorFinanceiroId], references: [id])
 
   @@index([tenantId, vencimento])
@@ -418,15 +427,15 @@ model ContaPagar {
 }
 
 model CategoriaFinanceira {
-  id          String   @id @default(uuid())
-  tenantId    String
-  nome        String
-  escopo      EscopoCategoriaFinanceira @default(PAGAR)
-  ordem       Int
-  criadoEm    DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  id           String                    @id @default(uuid())
+  tenantId     String
+  nome         String
+  escopo       EscopoCategoriaFinanceira @default(PAGAR)
+  ordem        Int
+  criadoEm     DateTime                  @default(now())
+  atualizadoEm DateTime                  @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
   contasPagar ContaPagar[]
 
   @@unique([tenantId, nome])
@@ -434,22 +443,22 @@ model CategoriaFinanceira {
 }
 
 model FornecedorFinanceiro {
-  id          String   @id @default(uuid())
-  tenantId    String
-  nome        String
-  cep         String?
-  endereco    String?
-  numero      String?
-  complemento String?
-  estado      String?
-  cidade      String?
-  bairro      String?
-  telefone    String?
-  email       String?
-  criadoEm    DateTime @default(now())
+  id           String   @id @default(uuid())
+  tenantId     String
+  nome         String
+  cep          String?
+  endereco     String?
+  numero       String?
+  complemento  String?
+  estado       String?
+  cidade       String?
+  bairro       String?
+  telefone     String?
+  email        String?
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
   contasPagar ContaPagar[]
 
   @@unique([tenantId, nome])
@@ -457,49 +466,50 @@ model FornecedorFinanceiro {
 }
 
 model Tenant {
-  id          String   @id @default(uuid())
-  nome        String
-  slug        String   @unique
-  isOpen      Boolean  @default(true)
-  criadoEm    DateTime @default(now())
+  id           String   @id @default(uuid())
+  nome         String
+  slug         String   @unique
+  isOpen       Boolean  @default(true)
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  categorias  Categoria[]
-  produtos    Produto[]
-  pedidos     Pedido[]
-  clientes    Cliente[]
-  cupons      Cupom[]
-  configuracao Configuracao?
-  adminUsers  AdminUser[]
-  estoqueProdutos ProdutoEstoque[]
-  producaoRegistros ProducaoRegistro[]
-  logsOperacao LogOperacao[]
-  contasPagar ContaPagar[]
-  categoriasFinanceiras CategoriaFinanceira[]
+  categorias              Categoria[]
+  produtos                Produto[]
+  pedidos                 Pedido[]
+  clientes                Cliente[]
+  cupons                  Cupom[]
+  configuracao            Configuracao?
+  adminUsers              AdminUser[]
+  estoqueProdutos         ProdutoEstoque[]
+  producaoRegistros       ProducaoRegistro[]
+  logsOperacao            LogOperacao[]
+  contasPagar             ContaPagar[]
+  categoriasFinanceiras   CategoriaFinanceira[]
   fornecedoresFinanceiros FornecedorFinanceiro[]
-  userInvites UserInvite[]
-  authAuditLogs AuthAuditLog[]
-  asaasWebhookEvents AsaasWebhookEvent[]
+  userInvites             UserInvite[]
+  authAuditLogs           AuthAuditLog[]
+  asaasWebhookEvents      AsaasWebhookEvent[]
 }
 
 model AdminUser {
-  id         String   @id @default(uuid())
-  tenantId   String
-  nome       String
-  username   String
-  email      String?
-  emailNormalizado String?
-  passwordHash String
-  ativo      Boolean  @default(true)
-  sessionVersion Int  @default(1)
-  totpSecretEncrypted String?
+  id                         String    @id @default(uuid())
+  tenantId                   String
+  nome                       String
+  username                   String
+  email                      String?
+  emailNormalizado           String?
+  passwordHash               String
+  role                       AdminRole @default(ADMIN)
+  ativo                      Boolean   @default(true)
+  sessionVersion             Int       @default(1)
+  totpSecretEncrypted        String?
   totpPendingSecretEncrypted String?
-  totpPendingExpiresAt DateTime?
-  totpEnabledAt DateTime?
-  totpLastUsedStep BigInt?
-  recoveryCodeHashes Json?
-  criadoEm   DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  totpPendingExpiresAt       DateTime?
+  totpEnabledAt              DateTime?
+  totpLastUsedStep           BigInt?
+  recoveryCodeHashes         Json?
+  criadoEm                   DateTime  @default(now())
+  atualizadoEm               DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
