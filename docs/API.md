@@ -175,6 +175,9 @@ Cupons:
 
 Clientes:
 - GET `/api/admin/clientes?search=...`
+- GET `/api/admin/clientes/fidelidade`
+  - Retorna o resumo operacional da fidelidade para a home, priorizando clientes com mimo disponivel e depois quem esta mais proximo dos 14 cookies.
+  - A resposta fica limitada aos 8 clientes prioritarios, mas os totais consideram todos os clientes com compras vinculadas.
 - GET `/api/admin/clientes/:id`
 - POST `/api/admin/clientes`
   - Observacao: se o telefone ja pertencer a outro cadastro, retorna conflito em vez de atualizar o cliente existente implicitamente.

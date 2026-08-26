@@ -1,4 +1,4 @@
-import { MIMO_COOKIE_THRESHOLD } from './mimos'
+import { MIMO_COOKIE_THRESHOLD } from './mimos.ts'
 
 type PedidoResumoItem = {
   nomeProdutoSnapshot: string
@@ -45,4 +45,31 @@ export function buildClienteFidelidade(totalCookies: number, mimosEntregues: num
     progressoAtual,
     faltamParaProximo,
   }
+}
+
+type ClienteFidelidadeAcompanhamento = {
+  nome: string
+  totalCookies: number
+  ultimoPedidoEm?: Date | string | null
+  resumoFidelidade: ReturnType<typeof buildClienteFidelidade>
+}
+
+export function ordenarClientesPorFidelidade<T extends ClienteFidelidadeAcompanhamento>(clientes: T[]) {
+  return clientes
+    .filter((cliente) => cliente.totalCookies > 0)
+    .sort((clienteA, clienteB) => {
+      const disponiveisA = clienteA.resumoFidelidade.mimosDisponiveis
+      const disponiveisB = clienteB.resumoFidelidade.mimosDisponiveis
+
+      if (disponiveisA !== disponiveisB) return disponiveisB - disponiveisA
+      if (disponiveisA === 0 && clienteA.resumoFidelidade.faltamParaProximo !== clienteB.resumoFidelidade.faltamParaProximo) {
+        return clienteA.resumoFidelidade.faltamParaProximo - clienteB.resumoFidelidade.faltamParaProximo
+      }
+
+      const ultimoPedidoA = clienteA.ultimoPedidoEm ? new Date(clienteA.ultimoPedidoEm).getTime() : 0
+      const ultimoPedidoB = clienteB.ultimoPedidoEm ? new Date(clienteB.ultimoPedidoEm).getTime() : 0
+      if (ultimoPedidoA !== ultimoPedidoB) return ultimoPedidoB - ultimoPedidoA
+
+      return clienteA.nome.localeCompare(clienteB.nome, 'pt-BR')
+    })
 }
