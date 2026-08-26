@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { ChevronRight, ClipboardList, Gift, MapPin, MessageCircle, Phone, Plus, RefreshCw, Save, Search, UserRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -75,6 +75,7 @@ function getStatusLabel(status: string) {
 }
 
 export function ClientesPage() {
+  const initialClienteHandled = useRef(false)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -91,6 +92,20 @@ export function ClientesPage() {
     selectedId && dialogOpen && !isCreating ? `/api/admin/clientes/${selectedId}` : null,
     fetcher,
   )
+
+  useEffect(() => {
+    if (initialClienteHandled.current) return
+    initialClienteHandled.current = true
+
+    const clienteId = new URLSearchParams(window.location.search).get('cliente')
+    if (!clienteId) return
+
+    setSelectedId(clienteId)
+    setIsCreating(false)
+    setDialogTab('resumo')
+    setMessage('')
+    setDialogOpen(true)
+  }, [])
 
   useEffect(() => {
     if (!selected) return

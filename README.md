@@ -1,188 +1,65 @@
-# Brookie Pregiato - Sistema de Pedidos Online
+# Brookie Pregiato
 
-Sistema de pedidos para o condominio Reserva Paulistano com cardápio, carrinho, checkout customizado e área administrativa. Projeto em Next.js com backend via API routes e banco Neon/Postgres usando Prisma.
+Aplicação de gestão e pedidos da Brookie Pregiato, com experiência de compra para clientes e operação administrativa para a equipe autorizada.
 
-## Funcionalidades
-- ✅ Catálogo de produtos com categorias
-- ✅ Carrinho de compras com itens
-- ✅ Fluxo de checkout customizado (Reserva Paulistano)
-- ✅ Tipos de entrega: Retirada e Entrega no Condomínio (Reserva Paulistano)
-- ✅ Campos adicionais para Reserva Paulistano: WhatsApp, Bloco e Apartamento
-- ✅ Botão de acompanhamento via WhatsApp na confirmação
-- ✅ Área administrativa com dashboard de pedidos
-- ✅ Gerenciamento de produtos, categorias, cupons e configurações
-- ✅ Autenticação admin com NextAuth (credentials)
-- ✅ Números de pedido amigáveis e sincronizados entre admin e cliente
+## Visão geral
 
-## Stack
-- Next.js 16 (App Router + Turbopack)
-- React 19
-- Tailwind CSS + shadcn/ui
-- SWR para data fetching
-- Prisma 5 + Neon/Postgres
-- NextAuth.js v4 (credentials)
-- TypeScript
+O sistema reúne, em uma única aplicação:
 
-## Runtime local recomendado
-- Use Node.js `22.22.3` para desenvolvimento local neste projeto.
-- Motivo: no Windows, a instalacao atual com Node `24.13.1` pode disparar um erro fatal do runtime ao executar CLIs como `npm`, `pnpm`, `next` e `prisma`.
-- Isso e uma orientacao de ambiente local. Nao altera o comportamento da aplicacao em producao.
+- cardápio e checkout para clientes;
+- gestão operacional de pedidos;
+- produtos, estoque e produção;
+- clientes e fornecedores;
+- rotinas financeiras e relatórios;
+- configurações administrativas.
 
-## Como rodar
-1) Instale as dependências:
+A interface segue uma abordagem mobile first e a identidade visual oficial da Brookie.
 
-```bash
-npm install
-# ou
-pnpm install
-```
+## Tecnologias
 
-Antes disso, confirme que o terminal esta usando Node `22.22.3`.
+- Next.js e React;
+- TypeScript;
+- Prisma;
+- PostgreSQL;
+- autenticação administrativa com múltiplos fatores.
 
-2) Configure o `.env`:
+Versões, dependências e comandos disponíveis devem ser consultados diretamente nos arquivos de configuração do projeto.
 
-```bash
-NEXTAUTH_SECRET="sua-chave-forte-gerada-com-openssl-rand-base64-32"
-NEXTAUTH_URL="http://localhost:3000"
-DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
-DIRECT_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-```
+## Segurança
 
-3) Sincronize o banco de dados:
+Este sistema processa dados comerciais e informações de clientes. O acesso ao código, aos ambientes e à documentação operacional deve seguir o princípio do menor privilégio.
 
-```bash
-npx prisma migrate deploy
-npx prisma generate
-```
+- Não registre credenciais, tokens, chaves, códigos MFA ou strings de conexão no Git.
+- Não publique usuários administrativos, URLs internas ou procedimentos de recuperação de acesso.
+- Use somente variáveis de ambiente configuradas nos provedores autorizados.
+- Mantenha autenticação multifator habilitada para todas as contas administrativas.
+- Faça rotação imediata de qualquer credencial que possa ter sido exposta.
+- Comunique vulnerabilidades diretamente aos responsáveis pelo projeto; não abra uma discussão pública com detalhes exploráveis.
 
-4) (Opcional) Popule dados iniciais:
+## Desenvolvimento e entrega
 
-```bash
-npx prisma db seed
-```
+O desenvolvimento é destinado a mantenedores autorizados. Instruções de ambiente, banco de dados, autenticação, integrações e deploy são mantidas em documentação privada e não devem ser copiadas para materiais públicos.
 
-5) Suba o ambiente de desenvolvimento:
+O fluxo de entrega segue, em alto nível:
 
-```bash
-npm run dev
-# ou
-pnpm dev
-```
+1. desenvolvimento e validação local;
+2. validação no ambiente de homologação;
+3. revisão por pull request;
+4. liberação controlada em produção;
+5. verificação pós-deploy.
 
-6) Acesse:
-```
-Cliente: http://localhost:3000
-Admin: http://localhost:3000/admin
-```
+Mudanças de banco de dados exigem validação e plano de rollback antes da produção.
 
-### Credenciais Admin
-- **Usuário**: admin
-- **Senha**: admin123 (ou a senha configurada em SEED_ADMIN_PASSWORD)
+## Contribuição
 
-## Scripts
-- `dev`: ambiente de desenvolvimento
-- `build`: build de producao
-- `start`: inicia o build
-- `lint`: lint do projeto
-- `logs:cleanup`: simula ou executa a limpeza de logs antigos
-- `test:auth-security`: testes das primitivas de autenticacao e convite
-- `prisma db seed`: popula dados iniciais no banco
-- `vercel-build`: prisma generate + next build
+Antes de propor alterações:
 
-## Estrutura (principais pastas)
-- `app/`: rotas e paginas
-- `components/`: componentes de UI e paginas
-- `contexts/`: contextos de estado
-- `lib/`: utilitarios e dados mockados
-- `public/`: assets e imagens
-- `docs/`: PRD, API e modelo de dados
-- `prisma/`: schema Prisma
-- `scripts/`: scripts auxiliares (deploy/migrations)
+- confirme a autorização para acessar o projeto;
+- preserve a compatibilidade dos dados existentes;
+- não inclua informações reais de clientes em testes, capturas ou exemplos;
+- execute as validações automatizadas aplicáveis;
+- descreva riscos de segurança, impacto em dados e necessidade de migration no pull request.
 
+## Documentação
 
-3. Acesso ao dashboard com abas:
-   - **Todos**: todos os pedidos
-   - **Novos**: pedidos com status "Pedido Recebido"
-   - **Preparação**: pedidos em preparo
-   - **Entregas**: pedidos entregues
-4. Clique em um pedido para:
-   - Ver detalhes completos (cliente, itens, endereço/bloco/apto)
-   - Aceitar e mudar status
-   - Cancelar pedido se necessário
-
-## Fluxo Cliente
-1. Acesse http://localhost:3000 (home)
-2. Navegue pelo cardápio e adicione produtos ao carrinho
-3. Clique em "Ver carrinho" e "Finalizar Pedido"
-4. No checkout:
-   - Preencha: Nome e Telefone
-   - Selecione tipo de entrega:
-     - **Retirada**: no endereço configurado
-     - **Entrega Reserva Paulistano**: preencha Bloco, Apartamento e WhatsApp
-   - Escolha forma de pagamento (PIX, Cartão ou Dinheiro)
-   - Aplique cupom de desconto (opcional)
-   - Confirme o pedido
-5. Na confirmação:
-   - Veja número do pedido (ex: `B67E5378`)
-   - Clique "Acompanhar Pedido" para enviar mensagem via WhatsApp
-   - Mensagem pré-formatada com número do pedido é enviada
-
-## Tipos de Entrega
-
-### Retirada
-- Endereço configurado no admin
-- Sem taxa adicional
-- Cliente retira no local
-
-### Entrega Reserva Paulistano
-- Entrega dentro do condominio
-- Campos obrigatórios:
-  - **Bloco**: letra ou número do bloco
-  - **Apartamento**: número do apartamento
-  - **WhatsApp**: para acompanhamento da entrega
-- Sem taxa adicional
-
-## Números de Pedido
-- Formato: últimos 8 caracteres do UUID em maiúsculas
-- Exemplo: `B67E5378` (em vez de `EEDFAD68-7A2D-4393-A717-408AB67E5378`)
-- Sincronizados entre:
-  - Painel admin (detalhes do pedido)
-  - Página de confirmação do cliente
-  - Mensagem WhatsApp de acompanhamento
-
-## Campos de Cliente por Tipo de Entrega
-
-### Campos comuns (todos os tipos)
-- `clienteNome`: Nome completo
-- `clienteTelefone`: Telefone para contato
-
-### Campos específicos - Reserva Paulistano
-- `clienteWhatsapp`: WhatsApp para acompanhamento
-- `clienteBloco`: Bloco do condominio (obrigatório)
-- `clienteApartamento`: Número do apartamento (obrigatório)
-
-## Banco de Dados
-- Neon/Postgres via `DATABASE_URL`
-- `DIRECT_URL` recomendado para migrations em producao
-- Schema Prisma em `prisma/schema.prisma`
-- Migrations em `prisma/migrations/`
-
-Tabelas principais:
-- `Pedido`: pedidos dos clientes
-- `ItemPedido`: itens de cada pedido
-- `Produto`: produtos do cardápio
-- `Categoria`: categorias de produtos
-- `AdminUser`: usuários admin
-- `Cupom`: códigos de desconto
-- `Configuracao`: configurações do estabelecimento
-- `Tenant`: informações do estabelecimento (single-tenant: "brookie-pregiato")
-
-## Observações
-- Sistema convertido de multi-tenant para single-tenant (Brookie Pregiato)
-- Checkout customizado para Reserva Paulistano com Bloco/Apartamento
-- Integração WhatsApp para acompanhamento de pedidos
-- Números de pedido amigáveis e sincronizados
-- Para mais informações, veja a documentação em `docs/`
-- Autenticacao e convite seguro documentados em `SECURITY_AUTH.md`
-- Politica de logs e retencao documentadas em `docs/logs-retencao.md`
+Runbooks, arquitetura detalhada, inventário de APIs, configuração de ambientes e procedimentos de segurança são materiais internos. O acesso deve ser concedido apenas a pessoas autorizadas e por um canal privado.

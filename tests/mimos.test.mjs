@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildClienteFidelidade } from '../lib/clientes-summary.ts'
+import { buildClienteFidelidade, ordenarClientesPorFidelidade } from '../lib/clientes-summary.ts'
 import { getMimoLogMetadata, isProdutoMimoNome, MIMO_COOKIE_THRESHOLD, MIMO_LOG_ORIGEM } from '../lib/mimos.ts'
 
 test('buildClienteFidelidade gera mimo a cada 14 cookies', () => {
@@ -50,4 +50,15 @@ test('getMimoLogMetadata extrai apenas logs de mimo fidelidade', () => {
   })
 
   assert.equal(getMimoLogMetadata({ origem: 'OUTRO_EVENTO' }), null)
+})
+
+test('ordenarClientesPorFidelidade prioriza mimos disponiveis e depois os mais proximos', () => {
+  const clientes = ordenarClientesPorFidelidade([
+    { nome: 'Sem consumo', totalCookies: 0, resumoFidelidade: buildClienteFidelidade(0, 0) },
+    { nome: 'Faltam quatro', totalCookies: 10, resumoFidelidade: buildClienteFidelidade(10, 0) },
+    { nome: 'Mimo liberado', totalCookies: 14, resumoFidelidade: buildClienteFidelidade(14, 0) },
+    { nome: 'Falta um', totalCookies: 13, resumoFidelidade: buildClienteFidelidade(13, 0) },
+  ])
+
+  assert.deepEqual(clientes.map((cliente) => cliente.nome), ['Mimo liberado', 'Falta um', 'Faltam quatro'])
 })
