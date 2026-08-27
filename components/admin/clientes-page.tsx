@@ -77,6 +77,7 @@ function getStatusLabel(status: string) {
 }
 
 export function ClientesPage() {
+  const initialClienteHandled = useRef(false)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -86,7 +87,6 @@ export function ClientesPage() {
   const [saving, setSaving] = useState(false)
   const [deliveringMimo, setDeliveringMimo] = useState(false)
   const [message, setMessage] = useState('')
-  const openedFromUrl = useRef(false)
 
   const url = useMemo(() => `/api/admin/clientes?search=${encodeURIComponent(search)}`, [search])
   const { data: clientes, isLoading, mutate } = useSWR<ClienteListItem[]>(url, fetcher, { refreshInterval: 15000 })
@@ -96,13 +96,16 @@ export function ClientesPage() {
   )
 
   useEffect(() => {
-    if (openedFromUrl.current) return
+    if (initialClienteHandled.current) return
+    initialClienteHandled.current = true
+
     const clienteId = new URLSearchParams(window.location.search).get('cliente')
     if (!clienteId) return
-    openedFromUrl.current = true
+
     setSelectedId(clienteId)
     setIsCreating(false)
     setDialogTab('resumo')
+    setMessage('')
     setDialogOpen(true)
   }, [])
 
@@ -232,12 +235,7 @@ export function ClientesPage() {
             <Label htmlFor="cliente-fidelidade" className="text-sm font-semibold">Participa da fidelidade</Label>
             <p className="mt-0.5 text-xs leading-snug text-muted-foreground">Mantenha ligado por padrão e desative somente para exceções.</p>
           </div>
-          <Switch
-            id="cliente-fidelidade"
-            checked={form.fidelidadeAtiva}
-            onCheckedChange={(checked) => setForm((current) => ({ ...current, fidelidadeAtiva: checked }))}
-            aria-label="Participa da fidelidade"
-          />
+          <Switch id="cliente-fidelidade" checked={form.fidelidadeAtiva} onCheckedChange={(checked) => setForm((current) => ({ ...current, fidelidadeAtiva: checked }))} aria-label="Participa da fidelidade" />
         </div>
       </div>
 

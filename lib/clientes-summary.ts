@@ -47,26 +47,30 @@ export function buildClienteFidelidade(totalCookies: number, mimosEntregues: num
   }
 }
 
-export type ClienteFidelidadeResumo = {
-  id: string
+type ClienteFidelidadeAcompanhamento = {
   nome: string
-  telefone: string | null
-  fidelidadeAtiva: boolean
+  fidelidadeAtiva?: boolean
   totalCookies: number
-  totalMimosGerados: number
-  mimosEntregues: number
-  mimosDisponiveis: number
-  progressoAtual: number
-  faltamParaProximo: number
+  ultimoPedidoEm?: Date | string | null
+  resumoFidelidade: ReturnType<typeof buildClienteFidelidade>
 }
 
-export function ordenarClientesPorFidelidade(clientes: ClienteFidelidadeResumo[]) {
+export function ordenarClientesPorFidelidade<T extends ClienteFidelidadeAcompanhamento>(clientes: T[]) {
   return clientes
-    .filter((cliente) => cliente.fidelidadeAtiva && cliente.totalCookies > 0)
-    .sort((a, b) => {
-      if (b.mimosDisponiveis !== a.mimosDisponiveis) return b.mimosDisponiveis - a.mimosDisponiveis
-      if (a.faltamParaProximo !== b.faltamParaProximo) return a.faltamParaProximo - b.faltamParaProximo
-      if (b.totalCookies !== a.totalCookies) return b.totalCookies - a.totalCookies
-      return a.nome.localeCompare(b.nome, 'pt-BR')
+    .filter((cliente) => cliente.fidelidadeAtiva !== false && cliente.totalCookies > 0)
+    .sort((clienteA, clienteB) => {
+      const disponiveisA = clienteA.resumoFidelidade.mimosDisponiveis
+      const disponiveisB = clienteB.resumoFidelidade.mimosDisponiveis
+
+      if (disponiveisA !== disponiveisB) return disponiveisB - disponiveisA
+      if (disponiveisA === 0 && clienteA.resumoFidelidade.faltamParaProximo !== clienteB.resumoFidelidade.faltamParaProximo) {
+        return clienteA.resumoFidelidade.faltamParaProximo - clienteB.resumoFidelidade.faltamParaProximo
+      }
+
+      const ultimoPedidoA = clienteA.ultimoPedidoEm ? new Date(clienteA.ultimoPedidoEm).getTime() : 0
+      const ultimoPedidoB = clienteB.ultimoPedidoEm ? new Date(clienteB.ultimoPedidoEm).getTime() : 0
+      if (ultimoPedidoA !== ultimoPedidoB) return ultimoPedidoB - ultimoPedidoA
+
+      return clienteA.nome.localeCompare(clienteB.nome, 'pt-BR')
     })
 }

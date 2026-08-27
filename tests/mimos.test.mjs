@@ -26,9 +26,9 @@ test('buildClienteFidelidade respeita mimos ja entregues', () => {
 
 test('ordenarClientesPorFidelidade ignora clientes definidos como excecao', () => {
   const clientes = ordenarClientesPorFidelidade([
-    { id: 'inativo', nome: 'Excecao', telefone: null, fidelidadeAtiva: false, totalCookies: 28, totalMimosGerados: 2, mimosEntregues: 0, mimosDisponiveis: 2, progressoAtual: 0, faltamParaProximo: 14 },
-    { id: 'proximo', nome: 'Quase la', telefone: null, fidelidadeAtiva: true, totalCookies: 13, totalMimosGerados: 0, mimosEntregues: 0, mimosDisponiveis: 0, progressoAtual: 13, faltamParaProximo: 1 },
-    { id: 'mimo', nome: 'Com mimo', telefone: null, fidelidadeAtiva: true, totalCookies: 14, totalMimosGerados: 1, mimosEntregues: 0, mimosDisponiveis: 1, progressoAtual: 0, faltamParaProximo: 14 },
+    { id: 'inativo', nome: 'Excecao', fidelidadeAtiva: false, totalCookies: 28, resumoFidelidade: buildClienteFidelidade(28, 0) },
+    { id: 'proximo', nome: 'Quase la', fidelidadeAtiva: true, totalCookies: 13, resumoFidelidade: buildClienteFidelidade(13, 0) },
+    { id: 'mimo', nome: 'Com mimo', fidelidadeAtiva: true, totalCookies: 14, resumoFidelidade: buildClienteFidelidade(14, 0) },
   ])
 
   assert.deepEqual(clientes.map((cliente) => cliente.id), ['mimo', 'proximo'])
@@ -60,4 +60,15 @@ test('getMimoLogMetadata extrai apenas logs de mimo fidelidade', () => {
   })
 
   assert.equal(getMimoLogMetadata({ origem: 'OUTRO_EVENTO' }), null)
+})
+
+test('ordenarClientesPorFidelidade prioriza mimos disponiveis e depois os mais proximos', () => {
+  const clientes = ordenarClientesPorFidelidade([
+    { nome: 'Sem consumo', totalCookies: 0, resumoFidelidade: buildClienteFidelidade(0, 0) },
+    { nome: 'Faltam quatro', totalCookies: 10, resumoFidelidade: buildClienteFidelidade(10, 0) },
+    { nome: 'Mimo liberado', totalCookies: 14, resumoFidelidade: buildClienteFidelidade(14, 0) },
+    { nome: 'Falta um', totalCookies: 13, resumoFidelidade: buildClienteFidelidade(13, 0) },
+  ])
+
+  assert.deepEqual(clientes.map((cliente) => cliente.nome), ['Mimo liberado', 'Falta um', 'Faltam quatro'])
 })

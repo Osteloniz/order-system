@@ -1,55 +1,72 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { buildClienteFidelidade, buildClienteResumoConsumo, ordenarClientesPorFidelidade } from '@/lib/clientes-summary'
+import { buildClienteFidelidade, ordenarClientesPorFidelidade } from '@/lib/clientes-summary'
 import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const admin = await getAdminSession()
   if (!admin) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
 
   try {
-    const requestedTake = Number(request.nextUrl.searchParams.get('take') || 6)
-    const take = Number.isFinite(requestedTake) ? Math.min(Math.max(requestedTake, 1), 20) : 6
-    const clientes = await prisma.cliente.findMany({
-      where: {
-        tenantId: admin.tenantId,
-        fidelidadeAtiva: true,
-      },
-      select: {
-        id: true,
-        nome: true,
-        telefone: true,
-        fidelidadeAtiva: true,
-        mimosEntregues: true,
-        pedidos: {
-          select: {
-            itens: {
-              select: {
-                nomeProdutoSnapshot: true,
-                quantidade: true,
-              },
-            },
+    const [clientes, pedidos] = await Promise.all([
+      prisma.cliente.findMany({
+        where: { tenantId: admin.tenantId, fidelidadeAtiva: true },
+        select: {
+          id: true,
+          nome: true,
+          telefone: true,
+          whatsapp: true,
+          fidelidadeAtiva: true,
+          mimosEntregues: true,
+        },
+      }),
+      prisma.pedido.findMany({
+        where: {
+          tenantId: admin.tenantId,
+          clienteId: { not: null },
+        },
+        select: {
+          clienteId: true,
+          criadoEm: true,
+          itens: {
+            select: { quantidade: true },
           },
         },
-      },
-    })
+        orderBy: { criadoEm: 'desc' },
+      }),
+    ])
 
-    const fidelidade = clientes.map((cliente) => {
-      const consumo = buildClienteResumoConsumo(cliente.pedidos)
+    const consumoPorCliente = new Map<string, { totalCookies: number; ultimoPedidoEm: Date | null }>()
+
+    for (const pedido of pedidos) {
+      if (!pedido.clienteId) continue
+      const atual = consumoPorCliente.get(pedido.clienteId) ?? { totalCookies: 0, ultimoPedidoEm: null }
+      atual.totalCookies += pedido.itens.reduce((total, item) => total + item.quantidade, 0)
+      atual.ultimoPedidoEm ??= pedido.criadoEm
+      consumoPorCliente.set(pedido.clienteId, atual)
+    }
+
+    const fidelidade = ordenarClientesPorFidelidade(clientes.map((cliente) => {
+      const consumo = consumoPorCliente.get(cliente.id) ?? { totalCookies: 0, ultimoPedidoEm: null }
       return {
-        id: cliente.id,
-        nome: cliente.nome,
-        telefone: cliente.telefone,
-        fidelidadeAtiva: cliente.fidelidadeAtiva,
+        ...cliente,
         totalCookies: consumo.totalCookies,
-        ...buildClienteFidelidade(consumo.totalCookies, cliente.mimosEntregues),
+        ultimoPedidoEm: consumo.ultimoPedidoEm,
+        resumoFidelidade: buildClienteFidelidade(consumo.totalCookies, cliente.mimosEntregues ?? 0),
       }
-    })
+    }))
 
-    return NextResponse.json(ordenarClientesPorFidelidade(fidelidade).slice(0, take))
+    return NextResponse.json({
+      resumo: {
+        clientesAcompanhados: fidelidade.length,
+        clientesComMimo: fidelidade.filter((cliente) => cliente.resumoFidelidade.mimosDisponiveis > 0).length,
+        mimosDisponiveis: fidelidade.reduce((total, cliente) => total + cliente.resumoFidelidade.mimosDisponiveis, 0),
+      },
+      clientes: fidelidade.slice(0, 8),
+    })
   } catch (error) {
     return handleApiError('api/admin/clientes/fidelidade GET', error, 'Erro ao carregar fidelidade')
   }
