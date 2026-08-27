@@ -13,12 +13,13 @@ export async function GET() {
   try {
     const [clientes, pedidos] = await Promise.all([
       prisma.cliente.findMany({
-        where: { tenantId: admin.tenantId },
+        where: { tenantId: admin.tenantId, fidelidadeAtiva: true },
         select: {
           id: true,
           nome: true,
           telefone: true,
           whatsapp: true,
+          fidelidadeAtiva: true,
           mimosEntregues: true,
         },
       }),

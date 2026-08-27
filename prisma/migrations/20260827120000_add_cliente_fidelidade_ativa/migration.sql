@@ -1,0 +1,2 @@
+ALTER TABLE "Cliente"
+ADD COLUMN "fidelidadeAtiva" BOOLEAN NOT NULL DEFAULT true;

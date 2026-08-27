@@ -75,6 +75,8 @@
 - Finance: cash flow, accounts receivable, accounts payable, financial categories, and structured financial suppliers for payable accounts.
 - Customers: customer history, gift tracking (`mimosEntregues`), phone, and WhatsApp data.
 - Loyalty rule: every 14 cookies purchased generates 1 `mimo`, and each delivered `mimo` should be accounted for as stock output without creating receivables.
+- Customers participate in loyalty by default through `Cliente.fidelidadeAtiva`. The admin can disable only explicit exceptions in the customer form; disabled customers remain fully preserved in history but are excluded from the Home loyalty ranking and cannot receive a loyalty gift until re-enabled.
+- The admin Home shows loyalty highlights below both order phases and quick access, prioritizing available gifts and then customers closest to the next gift. It links directly to the customer modal and can register an available gift as delivered.
 - Coupons and configuration: discount validation, store settings, and WhatsApp message templates.
 - Coupons now accept an optional expiration date in admin: the UI uses date-only input, leaving it blank means "sem expiracao", and the backend preserves that behavior without requiring a schema migration in this phase.
 
@@ -113,6 +115,7 @@
 7. Validate PRD after deploy.
 
 ## Current Migration Notes
+- Customer loyalty exceptions use migration `20260827120000_add_cliente_fidelidade_ativa`. It is additive, defaults every existing and new customer to eligible, and was applied successfully to HML on 2026-08-27; PRD remains pending the normal validation and approval flow.
 - Supplier/contact expansion and payable payment method use migration `20260813223000_expand_supplier_and_payable_payment_method`. It is additive, has been applied to HML, and must not be applied to PRD before explicit HML approval.
 - Admin MFA and access hardening add active/session-version fields, encrypted TOTP enrollment state, replay protection, recovery-code hashes and MFA audit events through migration `20260813103000_add_admin_mfa_hardening`. Apply and validate this migration in HML before any PRD action.
 - The product-highlight feature adds Prisma field `Produto.novidade`.

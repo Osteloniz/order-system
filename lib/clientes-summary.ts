@@ -49,6 +49,7 @@ export function buildClienteFidelidade(totalCookies: number, mimosEntregues: num
 
 type ClienteFidelidadeAcompanhamento = {
   nome: string
+  fidelidadeAtiva?: boolean
   totalCookies: number
   ultimoPedidoEm?: Date | string | null
   resumoFidelidade: ReturnType<typeof buildClienteFidelidade>
@@ -56,7 +57,7 @@ type ClienteFidelidadeAcompanhamento = {
 
 export function ordenarClientesPorFidelidade<T extends ClienteFidelidadeAcompanhamento>(clientes: T[]) {
   return clientes
-    .filter((cliente) => cliente.totalCookies > 0)
+    .filter((cliente) => cliente.fidelidadeAtiva !== false && cliente.totalCookies > 0)
     .sort((clienteA, clienteB) => {
       const disponiveisA = clienteA.resumoFidelidade.mimosDisponiveis
       const disponiveisB = clienteB.resumoFidelidade.mimosDisponiveis

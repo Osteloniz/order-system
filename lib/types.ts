@@ -137,6 +137,7 @@ export interface Cliente {
   clienteApartamento?: string | null
   observacoes?: string | null
   mimosEntregues?: number
+  fidelidadeAtiva?: boolean
   criadoEm: string
   atualizadoEm: string
   pedidos?: Pedido[]

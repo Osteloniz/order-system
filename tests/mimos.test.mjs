@@ -24,6 +24,16 @@ test('buildClienteFidelidade respeita mimos ja entregues', () => {
   assert.equal(fidelidade.faltamParaProximo, 11)
 })
 
+test('ordenarClientesPorFidelidade ignora clientes definidos como excecao', () => {
+  const clientes = ordenarClientesPorFidelidade([
+    { id: 'inativo', nome: 'Excecao', fidelidadeAtiva: false, totalCookies: 28, resumoFidelidade: buildClienteFidelidade(28, 0) },
+    { id: 'proximo', nome: 'Quase la', fidelidadeAtiva: true, totalCookies: 13, resumoFidelidade: buildClienteFidelidade(13, 0) },
+    { id: 'mimo', nome: 'Com mimo', fidelidadeAtiva: true, totalCookies: 14, resumoFidelidade: buildClienteFidelidade(14, 0) },
+  ])
+
+  assert.deepEqual(clientes.map((cliente) => cliente.id), ['mimo', 'proximo'])
+})
+
 test('isProdutoMimoNome reconhece o produto padrao do mimo', () => {
   assert.equal(isProdutoMimoNome('Cookie Tradicional'), true)
   assert.equal(isProdutoMimoNome('cookie tradicional classico'), true)
