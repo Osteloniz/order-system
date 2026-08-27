@@ -18,6 +18,7 @@ function serializeClienteDetalhe(cliente: {
   clienteApartamento: string | null
   observacoes: string | null
   mimosEntregues: number
+  fidelidadeAtiva: boolean
   criadoEm: Date
   atualizadoEm: Date
   pedidos: {
@@ -64,6 +65,10 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
       if (!atual) {
         return null
+      }
+
+      if (!atual.fidelidadeAtiva) {
+        throw new Error('Cliente nao participa do programa de fidelidade.')
       }
 
       const resumoConsumo = buildClienteResumoConsumo(atual.pedidos ?? [])
@@ -129,6 +134,9 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     return NextResponse.json(serializeClienteDetalhe(cliente))
   } catch (error) {
     if (error instanceof Error && error.message === 'Nenhum mimo disponivel para este cliente.') {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    if (error instanceof Error && error.message === 'Cliente nao participa do programa de fidelidade.') {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     if (error instanceof Error && error.message.includes('Produto do mimo nao encontrado')) {

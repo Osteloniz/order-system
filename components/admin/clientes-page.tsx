@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { formatarMoeda, formatarTelefone } from '@/lib/calc'
@@ -49,6 +50,7 @@ const emptyForm = {
   clienteBloco: '',
   clienteApartamento: '',
   observacoes: '',
+  fidelidadeAtiva: true,
 }
 
 const fetcher = async (url: string) => {
@@ -116,6 +118,7 @@ export function ClientesPage() {
       clienteBloco: selected.clienteBloco || '',
       clienteApartamento: selected.clienteApartamento || '',
       observacoes: selected.observacoes || '',
+      fidelidadeAtiva: selected.fidelidadeAtiva !== false,
     })
   }, [selected])
 
@@ -151,6 +154,7 @@ export function ClientesPage() {
           clienteBloco: form.clienteBloco || undefined,
           clienteApartamento: form.clienteApartamento || undefined,
           observacoes: form.observacoes || undefined,
+          fidelidadeAtiva: form.fidelidadeAtiva,
         }),
       })
       const data = await response.json()
@@ -225,6 +229,13 @@ export function ClientesPage() {
         <div className="space-y-1.5 sm:col-span-2">
           <Label className="text-xs">Observações</Label>
           <Textarea value={form.observacoes} onChange={(event) => setForm((current) => ({ ...current, observacoes: event.target.value }))} placeholder="Preferências, restrições e recados importantes" rows={3} className="rounded-lg" />
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-3 sm:col-span-2">
+          <div className="min-w-0">
+            <Label htmlFor="cliente-fidelidade" className="text-sm font-semibold">Participa da fidelidade</Label>
+            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">Mantenha ligado por padrão e desative somente para exceções.</p>
+          </div>
+          <Switch id="cliente-fidelidade" checked={form.fidelidadeAtiva} onCheckedChange={(checked) => setForm((current) => ({ ...current, fidelidadeAtiva: checked }))} aria-label="Participa da fidelidade" />
         </div>
       </div>
 
@@ -320,17 +331,17 @@ export function ClientesPage() {
 
                   {selected.observacoes ? <div className="rounded-lg border border-[#C56813]/20 bg-[#C56813]/6 p-2.5"><p className="text-[11px] font-medium text-muted-foreground">Observações</p><p className="mt-1 text-sm">{selected.observacoes}</p></div> : null}
 
-                  <div className="rounded-xl border border-border/70 p-3">
+                  <div className={`rounded-xl border p-3 ${selected.fidelidadeAtiva === false ? 'border-muted bg-muted/20' : 'border-border/70'}`}>
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-sm font-semibold">Fidelidade</p><p className="text-xs text-muted-foreground">{fidelidade?.mimosDisponiveis ? `${fidelidade.mimosDisponiveis} mimo(s) disponível(is).` : `Faltam ${fidelidade?.faltamParaProximo ?? MIMO_COOKIE_THRESHOLD} cookie(s) para o próximo.`}</p></div>
-                      <Badge variant="outline" className="shrink-0">{fidelidade?.progressoAtual ?? 0}/{MIMO_COOKIE_THRESHOLD}</Badge>
+                      <div><p className="text-sm font-semibold">Fidelidade</p><p className="text-xs text-muted-foreground">{selected.fidelidadeAtiva === false ? 'Cliente definido como exceção e fora do acompanhamento.' : fidelidade?.mimosDisponiveis ? `${fidelidade.mimosDisponiveis} mimo(s) disponível(is).` : `Faltam ${fidelidade?.faltamParaProximo ?? MIMO_COOKIE_THRESHOLD} cookie(s) para o próximo.`}</p></div>
+                      <Badge variant="outline" className="shrink-0">{selected.fidelidadeAtiva === false ? 'Inativa' : `${fidelidade?.progressoAtual ?? 0}/${MIMO_COOKIE_THRESHOLD}`}</Badge>
                     </div>
-                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-muted-foreground">
+                    {selected.fidelidadeAtiva !== false ? <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-muted-foreground">
                       <div className="rounded-md bg-muted/30 p-1.5"><strong className="block text-sm text-foreground">{fidelidade?.totalMimosGerados ?? 0}</strong>Gerados</div>
                       <div className="rounded-md bg-muted/30 p-1.5"><strong className="block text-sm text-foreground">{fidelidade?.mimosEntregues ?? 0}</strong>Entregues</div>
                       <div className="rounded-md bg-muted/30 p-1.5"><strong className="block text-sm text-foreground">{fidelidade?.mimosDisponiveis ?? 0}</strong>Disponíveis</div>
-                    </div>
-                    <Button size="sm" className="mt-2 h-8 w-full rounded-lg text-xs" onClick={marcarMimoEntregue} disabled={deliveringMimo || !fidelidade?.mimosDisponiveis} variant={fidelidade?.mimosDisponiveis ? 'default' : 'outline'}>
+                    </div> : null}
+                    <Button size="sm" className="mt-2 h-8 w-full rounded-lg text-xs" onClick={marcarMimoEntregue} disabled={selected.fidelidadeAtiva === false || deliveringMimo || !fidelidade?.mimosDisponiveis} variant={selected.fidelidadeAtiva !== false && fidelidade?.mimosDisponiveis ? 'default' : 'outline'}>
                       {deliveringMimo ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Gift className="h-3.5 w-3.5" />}Marcar mimo entregue
                     </Button>
                   </div>

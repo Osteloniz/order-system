@@ -297,6 +297,7 @@ model Cliente {
   clienteApartamento String?
   observacoes        String?
   mimosEntregues     Int      @default(0)
+  fidelidadeAtiva    Boolean  @default(true)
   criadoEm           DateTime @default(now())
   atualizadoEm       DateTime @updatedAt
 
