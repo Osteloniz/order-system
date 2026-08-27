@@ -1,17 +1,30 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { ArrowRight, CalendarClock, ChefHat, CirclePlus, ClipboardList, CreditCard, LayoutPanelTop, PackageCheck, ShoppingBag, Store, Users } from 'lucide-react'
+import { ArrowRight, CalendarClock, ChefHat, CirclePlus, ClipboardList, CreditCard, Gift, LayoutPanelTop, PackageCheck, RefreshCw, ShoppingBag, Store, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MIMO_COOKIE_THRESHOLD } from '@/lib/mimos'
 import { todayInSaoPaulo } from '@/lib/sao-paulo'
 import type { Pedido, StatusPedido } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
+type ClienteFidelidade = {
+  id: string
+  nome: string
+  telefone: string | null
+  totalCookies: number
+  mimosDisponiveis: number
+  progressoAtual: number
+  faltamParaProximo: number
+}
 
 const flow: { status: StatusPedido; label: string; icon: typeof ClipboardList; tone: string }[] = [
   { status: 'FEITO', label: 'Novos', icon: ClipboardList, tone: 'bg-[#C56813]/12 text-[#9A4B0A]' },
@@ -21,12 +34,32 @@ const flow: { status: StatusPedido; label: string; icon: typeof ClipboardList; t
 ]
 
 export function AdminHomePage() {
+  const [deliveringMimoId, setDeliveringMimoId] = useState<string | null>(null)
+  const [fidelidadeMessage, setFidelidadeMessage] = useState('')
   const date = todayInSaoPaulo()
   const { data: pedidos, isLoading } = useSWR<Pedido[]>(`/api/admin/pedidos?date=${date}&carryoverNovos=1`, fetcher, { refreshInterval: 10000 })
+  const { data: clientesFidelidade, isLoading: isLoadingFidelidade, mutate: mutateFidelidade } = useSWR<ClienteFidelidade[]>('/api/admin/clientes/fidelidade?take=6', fetcher, { refreshInterval: 30000 })
   const safePedidos = Array.isArray(pedidos) ? pedidos : []
   const activePedidos = safePedidos.filter((pedido) => pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO')
   const pendingPayments = activePedidos.filter((pedido) => pedido.statusPagamento === 'PENDENTE').length
   const encomendas = activePedidos.filter((pedido) => pedido.tipoEntrega === 'ENCOMENDA').length
+  const safeClientesFidelidade = Array.isArray(clientesFidelidade) ? clientesFidelidade : []
+
+  const marcarMimoEntregue = async (cliente: ClienteFidelidade) => {
+    setDeliveringMimoId(cliente.id)
+    setFidelidadeMessage('')
+    try {
+      const response = await fetch(`/api/admin/clientes/${cliente.id}/mimo`, { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Erro ao registrar mimo entregue')
+      await mutateFidelidade()
+      setFidelidadeMessage(`Mimo de ${cliente.nome} marcado como entregue.`)
+    } catch (error) {
+      setFidelidadeMessage(error instanceof Error ? error.message : 'Erro ao registrar mimo entregue')
+    } finally {
+      setDeliveringMimoId(null)
+    }
+  }
 
   const stats = [
     { label: 'Novos', value: safePedidos.filter((pedido) => pedido.status === 'FEITO').length, icon: ClipboardList, tone: 'text-[#C56813] bg-[#C56813]/10' },
@@ -132,6 +165,59 @@ export function AdminHomePage() {
           </div>
         </section>
       </div>
+
+      <section className="rounded-xl border border-border/70 bg-card p-3" aria-labelledby="fidelidade-clientes">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 id="fidelidade-clientes" className="flex items-center gap-2 font-semibold"><Gift className="h-4 w-4 text-[#C56813]" />Fidelidade em destaque</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Mimos disponíveis primeiro, seguidos pelos clientes mais próximos.</p>
+          </div>
+          <Button asChild variant="ghost" size="sm" className="h-8 shrink-0 rounded-lg px-2 text-xs">
+            <Link href="/admin/clientes">Ver clientes<ArrowRight className="h-3.5 w-3.5" /></Link>
+          </Button>
+        </div>
+
+        {fidelidadeMessage ? <p className="mb-2 rounded-lg border border-primary/20 bg-primary/8 px-3 py-2 text-xs text-primary">{fidelidadeMessage}</p> : null}
+
+        {isLoadingFidelidade ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((item) => <Skeleton key={item} className="h-[112px] rounded-xl" />)}</div>
+        ) : safeClientesFidelidade.length ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {safeClientesFidelidade.map((cliente) => {
+              const temMimo = cliente.mimosDisponiveis > 0
+              const progresso = (cliente.progressoAtual / MIMO_COOKIE_THRESHOLD) * 100
+              return (
+                <article key={cliente.id} className={`rounded-xl border p-3 ${temMimo ? 'border-[#40631A]/35 bg-[#40631A]/5' : 'border-border/60 bg-background/60'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{cliente.nome}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{temMimo ? `${cliente.mimosDisponiveis} mimo(s) para entregar` : `Faltam ${cliente.faltamParaProximo} cookie(s)`}</p>
+                    </div>
+                    <Badge variant={temMimo ? 'default' : 'outline'} className="shrink-0 rounded-md text-[10px]">{temMimo ? 'Mimo pronto' : `${cliente.progressoAtual}/${MIMO_COOKIE_THRESHOLD}`}</Badge>
+                  </div>
+                  <Progress value={temMimo ? 100 : progresso} className="mt-2 h-1.5" />
+                  <div className="mt-2 flex gap-1.5">
+                    <Button asChild variant="outline" size="sm" className="h-7 flex-1 rounded-md px-2 text-[11px]">
+                      <Link href={`/admin/clientes?cliente=${cliente.id}`}>Abrir cadastro</Link>
+                    </Button>
+                    {temMimo ? (
+                      <Button size="sm" className="h-7 flex-1 rounded-md px-2 text-[11px]" disabled={deliveringMimoId === cliente.id} onClick={() => marcarMimoEntregue(cliente)}>
+                        {deliveringMimoId === cliente.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Gift className="h-3 w-3" />}Entregue
+                      </Button>
+                    ) : null}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border/70 px-4 py-6 text-center">
+            <Gift className="mx-auto h-5 w-5 text-muted-foreground" />
+            <p className="mt-2 text-sm font-medium">Nenhum cliente em acompanhamento ainda.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Clientes definidos como exceção não aparecem aqui.</p>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

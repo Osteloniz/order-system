@@ -15,6 +15,7 @@ const clienteSchema = z.object({
   clienteBloco: z.string().trim().max(20).optional(),
   clienteApartamento: z.string().trim().max(20).optional(),
   observacoes: z.string().trim().max(1000).optional(),
+  fidelidadeAtiva: z.boolean().optional(),
 }).strict()
 
 function serializeClienteLista(cliente: {
@@ -27,6 +28,7 @@ function serializeClienteLista(cliente: {
   clienteApartamento: string | null
   observacoes: string | null
   mimosEntregues: number
+  fidelidadeAtiva: boolean
   criadoEm: Date
   atualizadoEm: Date
   pedidos: { criadoEm: Date }[]
@@ -51,6 +53,7 @@ function serializeClienteDetalhe(cliente: {
   clienteApartamento: string | null
   observacoes: string | null
   mimosEntregues: number
+  fidelidadeAtiva: boolean
   criadoEm: Date
   atualizadoEm: Date
   pedidos: {
@@ -175,6 +178,7 @@ export async function POST(request: NextRequest) {
             clienteBloco: body.clienteBloco?.trim() || null,
             clienteApartamento: body.clienteApartamento?.trim() || null,
             observacoes: body.observacoes?.trim() || null,
+            fidelidadeAtiva: body.fidelidadeAtiva ?? true,
           },
           include: {
             pedidos: {

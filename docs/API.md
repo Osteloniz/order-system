@@ -176,14 +176,19 @@ Cupons:
 Clientes:
 - GET `/api/admin/clientes?search=...`
 - GET `/api/admin/clientes/:id`
+- GET `/api/admin/clientes/fidelidade?take=1..20`
+  - Retorna somente clientes com `fidelidadeAtiva = true` e consumo contabilizado, priorizando mimos disponiveis e depois quem esta mais proximo do proximo mimo.
 - POST `/api/admin/clientes`
+  - Body aceita `fidelidadeAtiva?: boolean`; o padrao e `true`.
   - Observacao: se o telefone ja pertencer a outro cadastro, retorna conflito em vez de atualizar o cliente existente implicitamente.
 - PATCH `/api/admin/clientes/:id`
+  - Body aceita `fidelidadeAtiva?: boolean` para tratar apenas as excecoes ao programa.
 - POST `/api/admin/clientes/:id/mimo`
   - Marca 1 mimo entregue no fidelidade.
   - Observacao: cada mimo exige 14 cookies comprados.
   - Observacao: a entrega faz baixa de 1 unidade do produto `Cookie Tradicional` no estoque.
   - Observacao: nao cria contas a receber; o valor fica apenas como referencia operacional/relatorio.
+  - Observacao: clientes com `fidelidadeAtiva = false` nao podem receber mimo ate serem reativados.
 
 Financeiro:
 - GET `/api/admin/financeiro/contas-pagar?from=YYYY-MM-DD&to=YYYY-MM-DD&status=TODOS|PENDENTE|PAGO|CANCELADO`

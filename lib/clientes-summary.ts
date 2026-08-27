@@ -1,4 +1,4 @@
-import { MIMO_COOKIE_THRESHOLD } from './mimos'
+import { MIMO_COOKIE_THRESHOLD } from './mimos.ts'
 
 type PedidoResumoItem = {
   nomeProdutoSnapshot: string
@@ -45,4 +45,28 @@ export function buildClienteFidelidade(totalCookies: number, mimosEntregues: num
     progressoAtual,
     faltamParaProximo,
   }
+}
+
+export type ClienteFidelidadeResumo = {
+  id: string
+  nome: string
+  telefone: string | null
+  fidelidadeAtiva: boolean
+  totalCookies: number
+  totalMimosGerados: number
+  mimosEntregues: number
+  mimosDisponiveis: number
+  progressoAtual: number
+  faltamParaProximo: number
+}
+
+export function ordenarClientesPorFidelidade(clientes: ClienteFidelidadeResumo[]) {
+  return clientes
+    .filter((cliente) => cliente.fidelidadeAtiva && cliente.totalCookies > 0)
+    .sort((a, b) => {
+      if (b.mimosDisponiveis !== a.mimosDisponiveis) return b.mimosDisponiveis - a.mimosDisponiveis
+      if (a.faltamParaProximo !== b.faltamParaProximo) return a.faltamParaProximo - b.faltamParaProximo
+      if (b.totalCookies !== a.totalCookies) return b.totalCookies - a.totalCookies
+      return a.nome.localeCompare(b.nome, 'pt-BR')
+    })
 }
