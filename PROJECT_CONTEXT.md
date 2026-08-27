@@ -115,7 +115,7 @@
 7. Validate PRD after deploy.
 
 ## Current Migration Notes
-- Customer loyalty exceptions use migration `20260827120000_add_cliente_fidelidade_ativa`. It is additive, defaults every existing and new customer to eligible, and was applied successfully to HML on 2026-08-27; PRD remains pending the normal validation and approval flow.
+- Customer loyalty exceptions use migration `20260827120000_add_cliente_fidelidade_ativa`. It is additive, defaults every existing and new customer to eligible, and was applied successfully to HML and PRD on 2026-08-27.
 - Supplier/contact expansion and payable payment method use migration `20260813223000_expand_supplier_and_payable_payment_method`. It is additive, has been applied to HML, and must not be applied to PRD before explicit HML approval.
 - Admin MFA and access hardening add active/session-version fields, encrypted TOTP enrollment state, replay protection, recovery-code hashes and MFA audit events through migration `20260813103000_add_admin_mfa_hardening`. Apply and validate this migration in HML before any PRD action.
 - The product-highlight feature adds Prisma field `Produto.novidade`.
