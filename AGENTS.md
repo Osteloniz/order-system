@@ -18,6 +18,12 @@
 - Protect auth, tenant, stock, and payment flows from regressions.
 - If persistence behavior changes, note any migration or backfill need.
 
+## Delivery Quality
+- For material implementation or release work, apply the `brookie-entrega-qualidade` skill after the demand is ready for execution.
+- Start from a dedicated branch and keep unrelated changes out of the diff.
+- Select checks from the actual risk: targeted tests, auth/security tests, TypeScript, lint, build, migration status and authenticated HML validation.
+- Map the final evidence to the acceptance criteria and update the shared Obsidian continuity before closing the delivery.
+
 ## Release Discipline
 - Always validate in HML before PRD.
 - If Prisma schema or migrations changed, update HML database first, validate, then update PRD database before or alongside deploy.
