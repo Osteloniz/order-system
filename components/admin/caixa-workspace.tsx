@@ -7,11 +7,12 @@ import { Banknote, CreditCard, LogOut, Minus, Plus, ScanLine, ShoppingBag } from
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { formatarMoeda } from '@/lib/calc'
 import { CAIXA_IDLE_MS } from '@/lib/caixa-session-policy'
-import { meiosCaixa, meioCaixaLabel, type MeioCaixa, type VendaCaixa } from '@/lib/caixa-contract'
+import { LIMITE_OBSERVACAO_CAIXA, meiosCaixa, meioCaixaLabel, type MeioCaixa, type VendaCaixa } from '@/lib/caixa-contract'
 import { CaixaRequestError, hashCotacao, requestCaixa, type ClienteCaixa, type LinhaCaixa, type ProdutoCaixa } from '@/components/admin/caixa-client'
 import { CaixaPendencias } from '@/components/admin/caixa-pendencias'
 import { CaixaCustomerPicker } from '@/components/admin/caixa-customer-picker'
@@ -19,7 +20,7 @@ import { CaixaGestao } from '@/components/admin/caixa-gestao'
 
 const icons = { PIX: ScanLine, CREDITO: CreditCard, DEBITO: CreditCard, DINHEIRO: Banknote }
 type Catalogo = { produtos: ProdutoCaixa[]; maisVendidos: string[]; novasVendas: boolean }
-type Draft = { linhas: LinhaCaixa[]; clienteId: string | null; meio: MeioCaixa; pago: boolean | null; tentativa?: VendaCaixa }
+type Draft = { linhas: LinhaCaixa[]; clienteId: string | null; meio: MeioCaixa; pago: boolean | null; observacao?: string; tentativa?: VendaCaixa }
 
 const initial: Draft = { linhas: [], clienteId: null, meio: 'PIX', pago: null }
 
@@ -139,7 +140,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
       const tentativa = draft.tentativa ?? {
         clienteId: draft.clienteId, pago: draft.pago === true, meio: draft.meio, tentativa: crypto.randomUUID(),
         itens: draft.linhas.map(({ produtoId, quantidade }) => ({ produtoId, quantidade })),
-        cotacao: await hashCotacao(draft.linhas),
+        cotacao: await hashCotacao(draft.linhas), observacao: draft.observacao?.trim() || undefined,
       }
       save({ ...draft, tentativa })
       const venda = await requestCaixa<{ numero: string }>('vendas', 'POST', tentativa)
@@ -183,7 +184,10 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
   const total = draft.linhas.reduce((sum, item) => sum + item.preco * item.quantidade, 0)
   const readOnly = Boolean(draft.tentativa) || saving || !ready || !data?.novasVendas
   const produtos = (data?.produtos ?? []).filter((produto) => (produto.nome + ' ' + produto.categoria).toLowerCase().includes(busca.toLowerCase()))
-  const atalhos = produtos.filter((produto) => data?.maisVendidos.includes(produto.id)).slice(0, 6)
+  const atalhos = (data?.maisVendidos ?? []).flatMap((id) => {
+    const produto = produtos.find((item) => item.id === id)
+    return produto ? [produto] : []
+  }).slice(0, 6)
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-7xl px-3 pb-28 pt-3 sm:px-5 sm:pt-5">
@@ -219,11 +223,16 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                 {catalogError ? 'Catálogo indisponível.' : 'Carregando produtos…'}
                 {catalogError && <Button variant="link" onClick={() => mutate()}>Tentar novamente</Button>}
               </p>}
-              {!busca && atalhos.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Mais vendidos">
-                {atalhos.map((produto) => <Button key={produto.id} variant="secondary" className="min-h-11" disabled={readOnly} onClick={() => quantity(produto, 1)}>
-                  <Plus /> {produto.nome}
-                </Button>)}
-              </div>}
+              {!busca && atalhos.length > 0 && <section className="grid gap-1.5" aria-labelledby="caixa-mais-vendidos">
+                <h3 id="caixa-mais-vendidos" className="text-sm font-medium text-muted-foreground">Mais vendidos</h3>
+                <div className="flex flex-wrap gap-2">
+                  {atalhos.map((produto) => <Button key={produto.id} variant="secondary" className="min-h-11"
+                    disabled={readOnly || (draft.linhas.find((linha) => linha.produtoId === produto.id)?.quantidade ?? 0) >= produto.saldo}
+                    aria-label={'Adicionar ' + produto.nome} onClick={() => quantity(produto, 1)}>
+                    <Plus aria-hidden="true" /> {produto.nome}
+                  </Button>)}
+                </div>
+              </section>}
               {data && produtos.length === 0 && <p className="rounded-lg border p-4 text-sm text-muted-foreground">Nenhum produto disponível para esta busca.</p>}
               <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                 {produtos.map((produto) => {
@@ -266,6 +275,13 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                     <CaixaCustomerPicker key={pickerKey} allowCreate requirePhone={draft.pago === false} disabled={readOnly} onExpire={expire}
                       onSelect={(selected) => { edit({ clienteId: selected.id }); setCliente(selected) }} />
                   </>}
+              </details>
+              <details key={pickerKey} className="mb-3 border-b pb-2">
+                <summary className="min-h-10 cursor-pointer py-2 text-sm font-medium">
+                  {draft.observacao?.trim() ? 'Observação da venda' : 'Adicionar observação'}
+                </summary>
+                <Textarea value={draft.observacao ?? ''} disabled={readOnly} maxLength={LIMITE_OBSERVACAO_CAIXA}
+                  aria-label="Observação da venda" rows={2} onChange={(event) => edit({ observacao: event.target.value })} />
               </details>
               <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
                 <legend className="mb-2 text-sm font-medium">Meio de pagamento</legend>

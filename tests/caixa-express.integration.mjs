@@ -160,6 +160,7 @@ try {
   }
   await vender(payload({ pago: false }), 422)
   await vender({ ...payload(), total: 1 }, 400)
+  await vender({ ...payload(), observacao: 'x'.repeat(1001) }, 400)
   await vender(payload({ preco: 776 }), 409)
   assert.equal(await quantity(), 60)
   await db.produto.update({ where: { id: item.id }, data: { ativo: false } })
@@ -187,8 +188,20 @@ try {
 
   const pendentes = []
   const vendasPagas = []
+  const observacao = 'Separar em duas embalagens.'
   for (const meio of ['PIX', 'CREDITO', 'DEBITO', 'DINHEIRO']) {
-    vendasPagas.push(await vender(payload({ meio })))
+    const pagamento = payload({ meio })
+    if (meio === 'PIX') {
+      const pedidoComNota = await vender({ ...pagamento, observacao: '  ' + observacao + '  ' })
+      vendasPagas.push(pedidoComNota)
+      const retryComNota = await vender({ ...pagamento, observacao })
+      assert.equal(retryComNota.pedidoId, pedidoComNota.pedidoId)
+      await vender({ ...pagamento, observacao: 'Outra observação' }, 409)
+      const consulta = await expect(admin.send('/api/caixa/gestao?numero=' + pedidoComNota.numero), 200, 'observação interna')
+      assert.equal(consulta.vendas.find((item) => item.id === pedidoComNota.pedidoId)?.observacoesPedido, observacao)
+    } else {
+      vendasPagas.push(await vender(pagamento))
+    }
     pendentes.push(await vender(payload({ meio, pago: false, clienteId: cliente.id })))
   }
   assert.equal(await quantity(), 52)
@@ -204,6 +217,7 @@ try {
   await login()
   const replay = await vender({ ...duplicado, itens: [{ produtoId: item.id, quantidade: 2 }] })
   assert.equal(replay.pedidoId, venda.pedidoId)
+  assert.equal((await vender({ ...duplicado, observacao: '   ' })).pedidoId, venda.pedidoId)
   await vender({ ...duplicado, meio: 'DINHEIRO' }, 409)
   assert.equal(await quantity(), 50)
   const entregue = await db.pedido.findUniqueOrThrow({ where: { id: venda.pedidoId } })
@@ -467,7 +481,7 @@ try {
   if (process.env.CAIXA_PLAYWRIGHT_MODULE) {
     const { validarBuscaVinculoNavegador } = await import('./caixa-express.browser.mjs')
     await validarBuscaVinculoNavegador({ base, admin, operador, senha, filtro: 'joao ' + suffix,
-      cliente: primeiro, venda: vendasPagas[0].numero })
+      cliente: primeiro, venda: vendasPagas[0].numero, observacao })
   }
 
   const sessionWhere = { adminUserId: operador.id }

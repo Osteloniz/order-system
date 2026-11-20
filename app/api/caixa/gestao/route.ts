@@ -12,7 +12,7 @@ export const GET = caixaRoute(async (request, actor) => {
     where: { tenantId: actor.tenantId, origem: 'CAIXA_EXPRESS', id: { endsWith: numero.toLowerCase() } },
     take: 10,
     select: {
-      id: true, clienteId: true, clienteNome: true, total: true, status: true, statusPagamento: true, pagamento: true, tipoCartao: true,
+      id: true, clienteId: true, clienteNome: true, observacoesPedido: true, total: true, status: true, statusPagamento: true, pagamento: true, tipoCartao: true,
       caixaRecebimentoAtualId: true, itens: { select: { produtoId: true, nomeProdutoSnapshot: true, quantidade: true } },
       caixaEventos: { orderBy: [{ criadoEm: 'asc' }, { id: 'asc' }],
         select: { operacao: true, criadoEm: true, efetivoEm: true, atorId: true, bruto: true,

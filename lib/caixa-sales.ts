@@ -90,8 +90,9 @@ async function retry(tx: Tx, actor: CaixaActor, operacao: CaixaEvento['operacao'
 export async function concluirVendaCaixa(actor: CaixaActor, input: VendaCaixa) {
   const { tenantId, id: atorId } = actor
   const itens = agregarItensCaixa(input.itens)
-  const { clienteId, pago, meio, tentativa, cotacao } = input
-  const intencaoHash = hash([clienteId, itens, cotacao, pago, meio])
+  const { clienteId, pago, meio, tentativa, cotacao, observacao } = input
+  // Preserve hashes for sales and saved attempts created before observations.
+  const intencaoHash = hash([clienteId, itens, cotacao, pago, meio, ...(observacao ? [observacao] : [])])
   return prisma.$transaction(async (tx) => {
     await lockTenantStock(tx, tenantId)
     const existente = await retry(tx, actor, 'VENDA', tentativa, intencaoHash)
@@ -125,7 +126,7 @@ export async function concluirVendaCaixa(actor: CaixaActor, input: VendaCaixa) {
         tenantId, origem: 'CAIXA_EXPRESS', tipoEntrega: 'RETIRADA', status: 'ENTREGUE',
         criadoEm: now, entregueEm: now, estoqueBaixadoEm: now,
         clienteId: cliente?.id, clienteNome: cliente?.nome ?? 'Cliente balcão',
-        clienteTelefone: cliente?.telefone, pagamento: pagamento.meio, tipoCartao: pagamento.tipoCartao,
+        clienteTelefone: cliente?.telefone, observacoesPedido: observacao || null, pagamento: pagamento.meio, tipoCartao: pagamento.tipoCartao,
         caixaPagamentoPrevisto: pagamento.meio, caixaTipoCartaoPrevisto: pagamento.tipoCartao,
         statusPagamento: pago ? 'APROVADO' : 'PENDENTE', enderecoRetirada: config?.enderecoRetirada ?? '',
         frete: 0, subtotal: calculado.total, total: calculado.total, itens: { create: calculado.linhas },

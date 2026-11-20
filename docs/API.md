@@ -232,7 +232,7 @@ Relatorios:
 | GET `/api/caixa/clientes?telefone=...` | Busca exata de cadastro do tenant e devolve identificação mínima. |
 | POST `/api/caixa/clientes` | Cadastro mínimo `{ nome, telefone }`. Responde com o cadastro existente em caso de duplicidade e preserva os campos dele. |
 | GET `/api/caixa/vendas?cursor=...` | Pendências Caixa do tenant. Máximo 50 por página, com telefone limitado aos quatro últimos dígitos. |
-| POST `/api/caixa/vendas` | Concluir venda com `{ itens, clienteId, pago, meio, cotacao, tentativa }`. Preço, total e status são definidos no servidor. |
+| POST `/api/caixa/vendas` | Concluir venda com `{ itens, clienteId, pago, meio, cotacao, tentativa, observacao? }`. A observação opcional da venda tem até 1.000 caracteres, é interna e faz parte da tentativa idempotente. Preço, total e status são definidos no servidor. |
 | POST `/api/caixa/movimentos` | Movimento integral. Comum `{ operacao, pedidoId, tentativa }`. Baixa recebe `meio`. Correção recebe `meio`, `versao`, `motivo` e taxa opcional em centavos. Estorno recebe `versao`, `reabrir` e `motivo`. Cancelamento recebe `motivo`. Devolução exige `aptoParaVenda: true`, itens e motivo. |
 | POST `/api/caixa/gestao` | MASTER/ADMIN com MFA vinculam `{ pedidoId, clienteId }` para venda Caixa entregue, paga e anônima. Repete com sucesso para o mesmo cliente, rejeita troca e grava autoria. |
 | GET `/api/caixa/gestao?numero=...` | Busca de venda e eventos pelo número curto, apenas MASTER/ADMIN com MFA. |

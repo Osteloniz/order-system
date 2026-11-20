@@ -13,7 +13,7 @@ import { useCaixaMovement } from '@/components/admin/use-caixa-movement'
 
 type VendaDetalhe = {
   id: string; numero: string; clienteId: string | null; clienteNome: string; total: number; status: string; statusPagamento: string
-  meio: MeioCaixa; caixaRecebimentoAtualId: string | null
+  observacoesPedido: string | null; meio: MeioCaixa; caixaRecebimentoAtualId: string | null
   itens: { produtoId: string; nomeProdutoSnapshot: string; quantidade: number }[]
   caixaEventos: {
     operacao: OperacaoCaixa['operacao'] | 'VENDA'; criadoEm: string; efetivoEm: string | null
@@ -77,6 +77,10 @@ export function CaixaGestao({ storageKey, expire, initialNumber }: {
       </div>}
       {venda && <div className="mt-4 border-t pt-3">
         <p className="font-semibold">#{venda.numero} · {venda.clienteNome} · {formatarMoeda(venda.total)}</p>
+        {venda.observacoesPedido && <div className="mt-2 rounded-lg bg-muted p-2 text-sm">
+          <p className="font-medium">Observação da venda</p>
+          <p className="whitespace-pre-wrap break-words">{venda.observacoesPedido}</p>
+        </div>}
         <ul className="my-2 space-y-1 text-sm text-muted-foreground">
           {venda.caixaEventos.map((evento, index) => <li key={index}>
             {actions[evento.operacao]} · {new Date(evento.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}

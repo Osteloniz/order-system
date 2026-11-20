@@ -15,9 +15,12 @@ const meio = z.enum(meiosCaixa)
 const pedidoId = z.string().uuid()
 const motivo = z.string().trim().min(3).max(300)
 
+export const LIMITE_OBSERVACAO_CAIXA = 1000
+
 export const vendaCaixa = z.object({
   itens: cestaCaixa, clienteId: z.string().uuid().nullable(), pago: z.boolean(), meio,
   cotacao: z.string().regex(/^[a-f0-9]{64}$/), tentativa,
+  observacao: z.string().max(LIMITE_OBSERVACAO_CAIXA).trim().optional(),
 }).strict()
 
 export const operacaoCaixa = z.discriminatedUnion('operacao', [

@@ -120,6 +120,8 @@ export async function validarNavegador({ base, admin, caixa, produto, pendencia 
     await product.tap()
     const finish = page.getByRole('button', { name: 'Concluir venda' })
     assert(await finish.isDisabled(), 'Exigir confirmação explícita de pagamento')
+    await page.getByText('Adicionar observação', { exact: true }).tap()
+    await page.getByLabel('Observação da venda', { exact: true }).fill('Separar em duas embalagens.')
     await page.getByRole('button', { name: 'Já recebi' }).tap()
     const actionBox = await finish.boundingBox()
     assert(actionBox && actionBox.y + actionBox.height <= 844, 'Ação visível no móvel')
@@ -151,7 +153,7 @@ export async function validarNavegador({ base, admin, caixa, produto, pendencia 
   }
 }
 
-export async function validarBuscaVinculoNavegador({ base, admin, operador, senha, filtro, cliente, venda }) {
+export async function validarBuscaVinculoNavegador({ base, admin, operador, senha, filtro, cliente, venda, observacao }) {
   const { chromium } = await import(process.env.CAIXA_PLAYWRIGHT_MODULE)
   const browser = await chromium.launch({
     ...(process.env.CAIXA_BROWSER_EXE ? { executablePath: process.env.CAIXA_BROWSER_EXE } : {}),
@@ -185,6 +187,11 @@ export async function validarBuscaVinculoNavegador({ base, admin, operador, senh
     }
     await buscarESelecionar(page)
     await page.locator('summary').getByText(cliente.nome, { exact: true }).waitFor()
+    await page.getByText('Adicionar observação', { exact: true }).click()
+    await page.getByLabel('Observação da venda', { exact: true }).fill(observacao)
+    await page.reload()
+    await page.locator('summary').getByText('Observação da venda', { exact: true }).click()
+    assert.equal(await page.getByLabel('Observação da venda', { exact: true }).inputValue(), observacao)
     await page.getByRole('button', { name: 'Sair' }).click()
     await page.waitForURL(base.origin + '/caixa/login')
     await page.waitForFunction((username) => document.querySelector('#caixa-login')?.value === username, operador.username)
@@ -196,6 +203,7 @@ export async function validarBuscaVinculoNavegador({ base, admin, operador, senh
     const adminPage = await adminContext.newPage()
     await adminPage.goto(base.origin + '/caixa?gestao=' + venda)
     await adminPage.getByRole('button', { name: 'Buscar', exact: true }).click()
+    await adminPage.getByText(observacao, { exact: true }).waitFor()
     await adminPage.getByText('Vincular cliente para fidelidade', { exact: true }).click()
     await buscarESelecionar(adminPage)
     await adminPage.getByRole('button', { name: 'Confirmar vínculo' }).click()

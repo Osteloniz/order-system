@@ -971,6 +971,10 @@ export function PedidosDashboard() {
         <ul className="divide-y rounded-lg border px-3">
           {pedido.itens.map((item) => <li key={item.id} className="py-2 text-sm">{item.quantidade} × {item.nomeProdutoSnapshot}</li>)}
         </ul>
+        {pedido.observacoesPedido && <div className="rounded-lg bg-muted p-3 text-sm">
+          <p className="font-medium">Observação da venda</p>
+          <p className="whitespace-pre-wrap break-words">{pedido.observacoesPedido}</p>
+        </div>}
         <Button asChild><Link href={`/caixa?gestao=${pedido.id.slice(-8).toUpperCase()}`}>Gerenciar venda no Caixa</Link></Button>
       </div>
     }
