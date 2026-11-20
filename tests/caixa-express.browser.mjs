@@ -22,7 +22,9 @@ async function checkTokens(page) {
     const root = getComputedStyle(document.documentElement)
     function luminance(token) {
       const value = root.getPropertyValue(token).trim()
-      const rgb = value.slice(1).match(/../g).map((v) => parseInt(v, 16) / 255)
+      if (!/^#(?:[a-f0-9]{3}|[a-f0-9]{6})$/i.test(value)) throw new Error('Cor inválida para ' + token)
+      const hex = value.length === 4 ? [...value.slice(1)].map((digit) => digit.repeat(2)).join('') : value.slice(1)
+      const rgb = hex.match(/../g).map((v) => parseInt(v, 16) / 255)
         .map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
       return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722
     }

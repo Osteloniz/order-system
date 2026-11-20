@@ -253,7 +253,7 @@ export function ClientesPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-3 overflow-x-hidden">
-      <section className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-[#E7B99B]/12 p-3 shadow-sm md:p-4">
+      <section className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-[var(--brand-highlight)]/12 p-3 shadow-sm md:p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">

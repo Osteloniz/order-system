@@ -76,6 +76,7 @@
 - A identificação é opcional na venda paga. O Caixa busca por nome ou telefone e permite ao administrativo vincular posteriormente uma venda de balcão paga a um cadastro existente. O vínculo é auditado e segue a elegibilidade de fidelidade.
 - `CaixaSessao` cobre a conta operacional com turno e ociosidade. Contas administrativas mantêm MFA e governam correções, tema e provisionamento conforme o papel.
 - Identidade `PADRAO`, `NATAL` ou `ANO_NOVO` é aplicada no ambiente interno após identificar o tenant. Modo claro/escuro continua independente. As artes oficiais ficam em `public/brand/themes/`.
+- Na branch de entrega, as identidades internas usam Padrão azul, Natal vinho e Ano Novo dourado, com modo claro/escuro independente. A revalidação visual em HML cobriu 90 combinações de rota, identidade, modo e viewport. A restauração e a reconciliação foram ensaiadas em PostgreSQL LOCAL isolado. A comprovação de capacidade, o ensaio em loja e a restauração no Neon seguem nos gates da SPEC.
 - As duas migrations de 20/11/2026 foram aplicadas em LOCAL e HML. A operação nova fica desativada em PRD enquanto os gates da SPEC estiverem abertos. O roteiro está em `docs/caixa-express-v1.md`.
 
 ## Important Business Areas

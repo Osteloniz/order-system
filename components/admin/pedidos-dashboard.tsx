@@ -33,7 +33,7 @@ import type { Configuracao, Pedido, StatusPedido, TipoCartao, TipoPagamento } fr
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 const statusConfig: Record<StatusPedido, { label: string; color: string; columnClass: string; icon: typeof Clock }> = {
-  FEITO: { label: 'Novo', color: 'bg-warning text-warning-foreground', columnClass: 'border-warning/40 bg-warning/5', icon: Clock },
+  FEITO: { label: 'Novo', color: 'bg-warning text-warning-solid-foreground', columnClass: 'border-warning/40 bg-warning/5', icon: Clock },
   ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground', columnClass: 'border-accent/40 bg-accent/5', icon: Check },
   PREPARACAO: { label: 'Preparando', color: 'bg-primary text-primary-foreground', columnClass: 'border-primary/40 bg-primary/5', icon: ChefHat },
   PRONTO_ENTREGA: { label: 'Pronto para entregar', color: 'bg-success/15 text-success dark:bg-success/20 dark:text-white', columnClass: 'border-success/40 bg-success/5', icon: Package },

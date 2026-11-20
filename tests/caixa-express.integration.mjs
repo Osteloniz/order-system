@@ -186,10 +186,20 @@ try {
   assert.notEqual(precoMudou.novaCotacao.cotacao, cotacaoAntes.cotacao)
   await db.produto.update({ where: { id: item.id }, data: { preco: 777 } })
 
+  const paidMethods = [
+    { meio: 'PIX', pagamento: 'PIX', tipoCartao: null, taxa: 0 },
+    { meio: 'CREDITO', pagamento: 'CARTAO', tipoCartao: 'CREDITO', taxa: Math.round(777 * 0.0309) },
+    { meio: 'DEBITO', pagamento: 'CARTAO', tipoCartao: 'DEBITO', taxa: Math.round(777 * 0.0089) },
+    { meio: 'DINHEIRO', pagamento: 'DINHEIRO', tipoCartao: null, taxa: 0 },
+  ]
+  const getContas = (data) => admin.send('/api/admin/financeiro/contas-receber?from=' + data + '&to=' + data)
+  const fluxo = (date) => expect(admin.send('/api/admin/financeiro/fluxo-caixa?from=' + date + '&to=' + date), 200, 'fluxo ' + date)
+  const relatorio = (date) => expect(admin.send('/api/admin/relatorios?from=' + date + '&to=' + date), 200, 'relatório ' + date)
+  const [fluxoAntesQuatroMeios, relAntesQuatroMeios] = await Promise.all([fluxo(today), relatorio(today)])
   const pendentes = []
   const vendasPagas = []
   const observacao = 'Separar em duas embalagens.'
-  for (const meio of ['PIX', 'CREDITO', 'DEBITO', 'DINHEIRO']) {
+  for (const { meio } of paidMethods) {
     const pagamento = payload({ meio })
     if (meio === 'PIX') {
       const pedidoComNota = await vender({ ...pagamento, observacao: '  ' + observacao + '  ' })
@@ -205,6 +215,36 @@ try {
     pendentes.push(await vender(payload({ meio, pago: false, clienteId: cliente.id })))
   }
   assert.equal(await quantity(), 52)
+  const [contasQuatroMeios, fluxoQuatroMeios, relQuatroMeios] = await Promise.all([
+    expect(getContas(today), 200, 'contas a receber dos quatro meios'), fluxo(today), relatorio(today),
+  ])
+  for (const [index, method] of paidMethods.entries()) {
+    const linhaPaga = contasQuatroMeios.contas.find((row) => row.numero === vendasPagas[index].numero)
+    assert.equal(linhaPaga?.statusFinanceiro, 'REALIZADO', method.meio)
+    assert.equal(linhaPaga.pagamento, method.pagamento)
+    assert.equal(linhaPaga.tipoCartao, method.tipoCartao)
+    assert.equal(linhaPaga.total, 777)
+    assert.equal(linhaPaga.taxa, method.taxa)
+    assert.equal(linhaPaga.liquido, 777 - method.taxa)
+    const linhaPendente = contasQuatroMeios.contas.find((row) => row.numero === pendentes[index].numero)
+    assert.equal(linhaPendente?.statusFinanceiro, 'PREVISTO', method.meio)
+    assert.equal(linhaPendente.total, 777)
+    assert.equal(linhaPendente.taxa, method.taxa)
+    assert.equal(linhaPendente.liquido, 777 - method.taxa)
+  }
+  const brutoQuatroMeios = 777 * paidMethods.length
+  const taxaQuatroMeios = paidMethods.reduce((total, method) => total + method.taxa, 0)
+  const liquidoQuatroMeios = brutoQuatroMeios - taxaQuatroMeios
+  assert.equal(fluxoQuatroMeios.resumo.entradasRealizadas - fluxoAntesQuatroMeios.resumo.entradasRealizadas, liquidoQuatroMeios)
+  assert.equal(fluxoQuatroMeios.resumo.taxasRealizadas - fluxoAntesQuatroMeios.resumo.taxasRealizadas, taxaQuatroMeios)
+  assert.equal(fluxoQuatroMeios.resumo.entradasPrevistas - fluxoAntesQuatroMeios.resumo.entradasPrevistas, liquidoQuatroMeios)
+  assert.equal(fluxoQuatroMeios.resumo.taxasPrevistas - fluxoAntesQuatroMeios.resumo.taxasPrevistas, taxaQuatroMeios)
+  assert.equal(relQuatroMeios.recebimentoRealizado - relAntesQuatroMeios.recebimentoRealizado, brutoQuatroMeios)
+  assert.equal(relQuatroMeios.taxaCartaoRealizada - relAntesQuatroMeios.taxaCartaoRealizada, taxaQuatroMeios)
+  assert.equal(relQuatroMeios.recebimentoLiquido - relAntesQuatroMeios.recebimentoLiquido, liquidoQuatroMeios)
+  assert.equal(relQuatroMeios.recebimentoPrevisto - relAntesQuatroMeios.recebimentoPrevisto, brutoQuatroMeios)
+  assert.equal(relQuatroMeios.taxaCartaoPrevista - relAntesQuatroMeios.taxaCartaoPrevista, taxaQuatroMeios)
+  console.log('OK quatro meios realizados e previstos nas três visões financeiras')
   const pendencia = pendentes[3]
   await expect(cookieOutro.send('/api/caixa/movimentos', 'POST', { operacao: 'BAIXA', pedidoId: pendencia.pedidoId, meio: 'PIX', tentativa: randomUUID() }), 404, 'baixa fora do tenant')
   assert.equal((await expect(cookieOutro.send('/api/caixa/vendas'), 200, 'pendências do outro tenant')).vendas.length, 0)
@@ -237,11 +277,8 @@ try {
   }
 
   await db.pedido.update({ where: { id: pendencia.pedidoId }, data: { entregueEm: new Date(yesterday + 'T12:00:00-03:00'), criadoEm: new Date(yesterday + 'T12:00:00-03:00') } })
-  const getContas = (data) => admin.send('/api/admin/financeiro/contas-receber?from=' + data + '&to=' + data)
   const antes = await expect(getContas(yesterday), 200, 'contas a receber previstas')
   assert.equal(antes.contas.find((row) => row.numero === pendencia.numero)?.statusFinanceiro, 'PREVISTO')
-  const fluxo = (date) => expect(admin.send('/api/admin/financeiro/fluxo-caixa?from=' + date + '&to=' + date), 200, 'fluxo ' + date)
-  const relatorio = (date) => expect(admin.send('/api/admin/relatorios?from=' + date + '&to=' + date), 200, 'relatório ' + date)
   const [fluxoAntesHoje, fluxoAntesOntem, relAntesHoje, relAntesOntem] = await Promise.all([
     fluxo(today), fluxo(yesterday), relatorio(today), relatorio(yesterday),
   ])
@@ -312,7 +349,6 @@ try {
     meio: 'PIX', tentativa: randomUUID() }), 200, 'compra elegível após baixa')
   assert.equal((await getCustomer()).resumoFidelidade.mimosDisponiveis, 1)
 
-
   if (endpoint(url) === '127.0.0.1') {
     const resgates = await Promise.all([1, 2].map(() => admin.send('/api/admin/clientes/' + cliente.id + '/mimo', 'POST')))
     assert.deepEqual(resgates.map((r) => r.status).sort(), [200, 400])
@@ -323,6 +359,8 @@ try {
     assert.equal((await getCustomer()).resumoFidelidade.faltamParaProximo, 15)
     console.log('OK resgates simultâneos e recomposição após estorno em LOCAL')
   }
+
+
 
   await db.produtoEstoque.update({ where: sku, data: { quantidadeDisponivel: 1 } })
   const last = await Promise.all([payload(), payload()].map((pedido) => cookieCaixa.send('/api/caixa/vendas', 'POST', pedido)))
@@ -375,7 +413,6 @@ try {
     tenantId: outro.id, nome: 'Cookie teste checkout', categoriaId: fixtureCategory.id, preco: 777, ordem: 0,
   } })
   productIds.push(produtoPublico.id)
-  await db.produtoEstoque.create({ data: { tenantId: outro.id, produtoId: produtoPublico.id, quantidadeDisponivel: 2 } })
   const publico = client()
   const publicBody = { clienteNome: 'Cliente fixture checkout', clienteTelefone: '11999001199',
     pagamento: 'DINHEIRO', tipoEntrega: 'RETIRADA', itens: [{ produtoId: produtoPublico.id, quantidade: 1 }] }
@@ -384,6 +421,12 @@ try {
     meio: 'DINHEIRO', pago: true, clienteId: null, tentativa: randomUUID(), cotacao: quote(produtoPublico.id, 777, quantidade),
     itens: [{ produtoId: produtoPublico.id, quantidade }],
   })
+
+  const semLinha = await Promise.all([checkoutPublico(), vendaOutro(1)])
+  assert([400, 409, 422].includes(semLinha[0].status), 'Checkout sem linha de estoque')
+  assert.equal(semLinha[1].status, 409, 'Caixa sem linha de estoque')
+  assert.equal(await db.produtoEstoque.count({ where: { tenantId: outro.id, produtoId: produtoPublico.id } }), 0)
+  await db.produtoEstoque.create({ data: { tenantId: outro.id, produtoId: produtoPublico.id, quantidadeDisponivel: 2 } })
   const publicoPrimeiro = await expect(checkoutPublico(), 201, 'checkout público cria retenção')
   legacySaleIds.push(publicoPrimeiro.id)
   const compradorPublico = await db.pedido.findUniqueOrThrow({ where: { id: publicoPrimeiro.id }, select: { clienteId: true } })
@@ -492,6 +535,9 @@ try {
   await db.caixaSessao.updateMany({ where: sessionWhere, data: { expiraEm: new Date(Date.now() - 1000) } })
   await expect(cookieCaixa.send('/api/caixa/catalogo'), 401, 'expiração absoluta')
   await login()
+  await db.adminUser.update({ where: { id: operador.id }, data: { role: 'ADMIN' } })
+  await expect(cookieCaixa.send('/api/caixa/catalogo'), 401, 'mudança de papel invalida a sessão operacional')
+  await db.adminUser.update({ where: { id: operador.id }, data: { role: 'CAIXA' } })
   await expect(admin.send('/api/admin/caixa-contas', 'PATCH', { id: operador.id, ativo: false }), 200, 'desativar pelo MASTER')
   await expect(cookieCaixa.send('/api/caixa/catalogo'), 401, 'revogação imediata')
   assert.equal((await expect(admin.send('/api/caixa/vendas'), 200, 'baixa disponível com MFA após revogação')).vendas.some((row) => row.id === pendentes[0].pedidoId), true)
