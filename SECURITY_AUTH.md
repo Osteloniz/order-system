@@ -123,3 +123,14 @@ npm audit
 ```
 
 Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do autenticador, recuperacao, desafio criptografado entre as duas telas, politica de senha e limite de usuarios.
+
+
+## Sessão operacional do Caixa
+
+A conta CAIXA pertence ao tenant, usa senha forte individual com bcrypt e autentica em `/caixa/login` por uma rota dedicada. MASTER e ADMIN continuam no fluxo administrativo com MFA. O modo legado de enrollment continua restrito ao cadastro de MFA.
+
+O token aleatório operacional usa cookie `HttpOnly`, `SameSite=Strict` e `Secure` no runtime de produção. O banco guarda somente o hash. A cada request, o servidor verifica expiração absoluta de oito horas, quinze minutos de ociosidade, tenant, papel atual, conta ativa e `sessionVersion`. A desativação incrementa a versão e remove sessões. Logout remove o token armazenado, inclusive para bloquear reapresentação. Login operacional limpa o cookie administrativo do navegador.
+
+A sessão CAIXA autoriza `/caixa` e as operações de catálogo, cotação, vendas, cadastro mínimo, baixa e sessão listadas na API. O middleware bloqueia o acesso administrativo e os guardas de servidor validam o papel e a sessão. A gestão de vendas exige MFA. O provisionamento e a desativação exigem MASTER com MFA.
+
+Cliques e teclas confiáveis na área operacional podem enviar interação autenticada por PATCH. Mutações autorizadas também renovam a atividade. Leituras e polling preservam a janela original. O login limita tentativas e audita sucessos e falhas por identificadores protegidos. Eventos da venda guardam ator, tenant, data e alterações sem segredos ou dados de cartão.

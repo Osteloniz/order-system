@@ -24,6 +24,7 @@ const sources = [
   ['MULTI_TENANT.md', join(projectRoot, 'docs', 'MULTI_TENANT.md')],
   ['BROOKIE_BRAND_UI.md', join(projectRoot, 'docs', 'BROOKIE_BRAND_UI.md')],
   ['BROOKIE_TECHNICAL_HANDOFF.md', join(projectRoot, 'docs', 'BROOKIE_TECHNICAL_HANDOFF.md')],
+  ['caixa-express-v1.md', join(projectRoot, 'docs', 'caixa-express-v1.md')],
   ['admin-mobile-order-flow-handoff.md', join(projectRoot, 'docs', 'admin-mobile-order-flow-handoff.md')],
   ['hml-checklist-checkout-publico-seguranca.md', join(projectRoot, 'docs', 'hml-checklist-checkout-publico-seguranca.md')],
   ['hml-mercado-pago-checkout-pro.md', join(projectRoot, 'docs', 'hml-mercado-pago-checkout-pro.md')],
@@ -350,7 +351,7 @@ Instale as skills compartilhadas como links simbólicos, sem substituir diretór
 
 \`\`\`bash
 mkdir -p "$HOME/.codex/skills"
-for skill in brookie-contexto brookie-dados-seguranca brookie-pedidos brookie-ui-ux brookie-operacao-release brookie-entrega-qualidade; do
+for skill in brookie-contexto brookie-dados-seguranca brookie-pedidos brookie-ui-ux brookie-operacao-release brookie-entrega-qualidade brookie-caixa-operacao; do
   ln -s "$BROOKIE_OBSIDIAN_VAULT/Projetos/Brookie/90 Skills/$skill" "$HOME/.codex/skills/$skill"
 done
 \`\`\`

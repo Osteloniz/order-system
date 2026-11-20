@@ -24,6 +24,10 @@
 - Select checks from the actual risk: targeted tests, auth/security tests, TypeScript, lint, build, migration status and authenticated HML validation.
 - Map the final evidence to the acceptance criteria and update the shared Obsidian continuity before closing the delivery.
 
+## Caixa Express
+- Para operação, implementação ou homologação do Caixa, use a skill `brookie-caixa-operacao`, a SPEC vigente do Obsidian e `docs/caixa-express-v1.md`.
+- Antes de alterar financeiro, estoque, acesso ou apresentação, siga também as skills do domínio. Use os gates das §§19–21 antes de liberar produção.
+
 ## Release Discipline
 - Always validate in HML before PRD.
 - If Prisma schema or migrations changed, update HML database first, validate, then update PRD database before or alongside deploy.
