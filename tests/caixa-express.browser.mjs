@@ -150,3 +150,59 @@ export async function validarNavegador({ base, admin, caixa, produto, pendencia 
     await browser.close()
   }
 }
+
+export async function validarBuscaVinculoNavegador({ base, admin, operador, senha, filtro, cliente, venda }) {
+  const { chromium } = await import(process.env.CAIXA_PLAYWRIGHT_MODULE)
+  const browser = await chromium.launch({
+    ...(process.env.CAIXA_BROWSER_EXE ? { executablePath: process.env.CAIXA_BROWSER_EXE } : {}),
+    headless: true,
+  })
+  try {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+    const page = await context.newPage()
+    await page.goto(base.origin + '/caixa/login')
+    await page.getByRole('combobox', { name: 'Loja' }).selectOption('brookie-pregiato')
+    await page.getByLabel('Login', { exact: true }).fill(operador.username)
+    const password = page.getByLabel('Senha', { exact: true })
+    assert.equal(await password.getAttribute('autocomplete'), 'current-password')
+    await password.fill(senha)
+    await page.getByRole('checkbox', { name: 'Lembrar loja e login neste navegador' }).check()
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click()
+    await page.getByRole('heading', { name: 'Caixa Express' }).waitFor()
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('brookie-caixa-login'))),
+      { loja: 'brookie-pregiato', login: operador.username })
+    await page.goto(base.origin + '/caixa/login')
+    await page.waitForURL(base.origin + '/caixa')
+    await page.getByText('Cliente balcão · Fidelidade', { exact: true }).click()
+    async function buscarESelecionar(page) {
+      await page.getByLabel('Buscar cliente por nome ou telefone').fill(filtro)
+      await page.getByLabel('Buscar cliente por nome ou telefone').press('Enter')
+      const results = page.getByRole('list', { name: 'Resultados da busca' })
+      await results.getByText('Telefone final ' + cliente.telefone.slice(-4)).waitFor()
+      assert.equal(await results.getByRole('listitem').count(), 2)
+      await results.getByRole('listitem').filter({ hasText: 'Telefone final ' + cliente.telefone.slice(-4) })
+        .getByRole('button', { name: 'Selecionar' }).click()
+    }
+    await buscarESelecionar(page)
+    await page.locator('summary').getByText(cliente.nome, { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Sair' }).click()
+    await page.waitForURL(base.origin + '/caixa/login')
+    await page.waitForFunction((username) => document.querySelector('#caixa-login')?.value === username, operador.username)
+    assert.equal(await page.getByLabel('Senha', { exact: true }).inputValue(), '')
+    await context.close()
+
+    const adminContext = await browser.newContext()
+    await adminContext.addCookies(cookiesFrom(admin, base))
+    const adminPage = await adminContext.newPage()
+    await adminPage.goto(base.origin + '/caixa?gestao=' + venda)
+    await adminPage.getByRole('button', { name: 'Buscar', exact: true }).click()
+    await adminPage.getByText('Vincular cliente para fidelidade', { exact: true }).click()
+    await buscarESelecionar(adminPage)
+    await adminPage.getByRole('button', { name: 'Confirmar vínculo' }).click()
+    await adminPage.getByText('Cliente vinculado à venda.', { exact: true }).waitFor()
+    await adminContext.close()
+    console.log('OK navegador: seleção de loja, lembrança de login, retomada de sessão, busca e vínculo')
+  } finally {
+    await browser.close()
+  }
+}

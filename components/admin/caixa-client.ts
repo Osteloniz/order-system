@@ -2,7 +2,7 @@ import type { MeioCaixa } from '@/lib/caixa-contract'
 
 export type ProdutoCaixa = { id: string; nome: string; categoria: string; preco: number; saldo: number }
 export type LinhaCaixa = { produtoId: string; nome: string; preco: number; quantidade: number }
-export type ClienteCaixa = { id: string; nome: string; telefone: string | null }
+export type ClienteCaixa = { id: string; nome: string; telefoneFinal: string | null }
 export type PendenciaCaixa = { id: string; numero: string; clienteNome: string; telefoneFinal?: string; total: number; meio: MeioCaixa }
 export type CotacaoCaixa = { total: number; cotacao: string; linhas: {
   produtoId: string; nomeProdutoSnapshot: string; precoUnitarioSnapshot: number; quantidade: number

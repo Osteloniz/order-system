@@ -2,20 +2,19 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Banknote, CreditCard, LogOut, Minus, Plus, ScanLine, ShoppingBag } from 'lucide-react'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { formatarMoeda } from '@/lib/calc'
-import { formatPhoneDisplay } from '@/lib/phone'
 import { CAIXA_IDLE_MS } from '@/lib/caixa-session-policy'
 import { meiosCaixa, meioCaixaLabel, type MeioCaixa, type VendaCaixa } from '@/lib/caixa-contract'
 import { CaixaRequestError, hashCotacao, requestCaixa, type ClienteCaixa, type LinhaCaixa, type ProdutoCaixa } from '@/components/admin/caixa-client'
 import { CaixaPendencias } from '@/components/admin/caixa-pendencias'
+import { CaixaCustomerPicker } from '@/components/admin/caixa-customer-picker'
 import { CaixaGestao } from '@/components/admin/caixa-gestao'
 
 const icons = { PIX: ScanLine, CREDITO: CreditCard, DEBITO: CreditCard, DINHEIRO: Banknote }
@@ -40,9 +39,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
   const [ready, setReady] = useState(false)
   const [busca, setBusca] = useState('')
   const [cliente, setCliente] = useState<ClienteCaixa | null>(null)
-  const [telefone, setTelefone] = useState('')
-  const [nome, setNome] = useState('')
-  const [clienteBusca, setClienteBusca] = useState<'idle' | 'busy' | 'missing' | 'found'>('idle')
+  const [pickerKey, setPickerKey] = useState(0)
   const [error, setError] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [saving, setSaving] = useState(false)
@@ -129,25 +126,12 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
     setError(error instanceof Error ? error.message : 'Falha na comunicação com o servidor.')
   }
 
-  async function lookup(event: FormEvent, create: boolean) {
-    event.preventDefault()
-    setClienteBusca('busy')
-    setError('')
-    try {
-      const result = create
-        ? await requestCaixa<{ cliente: ClienteCaixa }>('clientes', 'POST', { nome, telefone })
-        : await requestCaixa<{ cliente: ClienteCaixa | null }>('clientes?telefone=' + encodeURIComponent(telefone))
-      setCliente(result.cliente)
-      setClienteBusca(result.cliente ? 'found' : 'missing')
-    } catch (error) {
-      setClienteBusca('idle')
-      showError(error)
-    }
-  }
+  const faltaClienteParaPendencia = draft.pago === false && (!draft.clienteId ||
+    (cliente?.id === draft.clienteId && !cliente.telefoneFinal))
 
   async function concluir() {
     if (!ready || inFlight.current) return
-    if (!draft.tentativa && (!data?.novasVendas || !draft.linhas.length || draft.pago === null || (draft.pago === false && !draft.clienteId))) return
+    if (!draft.tentativa && (!data?.novasVendas || !draft.linhas.length || draft.pago === null || faltaClienteParaPendencia)) return
     inFlight.current = true
     setSaving(true)
     setError('')
@@ -162,9 +146,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
       save(initial)
       setConfirmation('Venda #' + venda.numero + ' concluída.')
       setCliente(null)
-      setClienteBusca('idle')
-      setTelefone('')
-      setNome('')
+      setPickerKey((version) => version + 1)
       void mutate()
     } catch (error) {
       if (error instanceof CaixaRequestError && error.status === 401) {
@@ -271,26 +253,19 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
               </ul>
               <details className="my-3 border-y py-2" open={draft.pago === false ? true : undefined}>
                 <summary className="min-h-10 cursor-pointer py-2 text-sm font-medium">
-                  {draft.clienteId ? 'Cliente vinculado' : draft.pago === false ? 'Vincular cliente para receber depois' : 'Cliente balcão'}
+                  {draft.clienteId ? (cliente?.id === draft.clienteId ? cliente.nome : 'Cliente vinculado')
+                    : draft.pago === false ? 'Vincular cliente para receber depois' : 'Cliente balcão · Fidelidade'}
                 </summary>
-                <form onSubmit={(event) => lookup(event, false)} className="grid gap-2">
-                  <Label htmlFor="telefone-caixa">Telefone do cliente</Label>
-                  <div className="flex gap-2">
-                    <Input id="telefone-caixa" type="tel" className="h-11" maxLength={32} value={telefone} disabled={readOnly}
-                      onChange={(event) => { setTelefone(event.target.value); setClienteBusca('idle'); setCliente(null) }} required />
-                    <Button variant="outline" className="h-11" disabled={readOnly || clienteBusca === 'busy'}>Buscar</Button>
-                  </div>
-                </form>
-                {clienteBusca === 'missing' && <form onSubmit={(event) => lookup(event, true)} className="mt-2 grid gap-2">
-                  <Label htmlFor="nome-caixa">Nome para novo cadastro</Label>
-                  <Input id="nome-caixa" className="h-11" value={nome} onChange={(event) => setNome(event.target.value)} minLength={2} maxLength={80} required disabled={readOnly} />
-                  <Button variant="outline" disabled={readOnly}>Cadastrar</Button>
-                </form>}
-                {cliente && <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span>{cliente.nome} · {formatPhoneDisplay(cliente.telefone)}</span>
-                  {draft.clienteId !== cliente.id && <Button variant="outline" disabled={readOnly} onClick={() => edit({ clienteId: cliente.id })}>Vincular</Button>}
-                </div>}
-                {draft.clienteId && <Button variant="link" className="px-0" disabled={readOnly} onClick={() => edit({ clienteId: null })}>Remover vínculo</Button>}
+                {draft.clienteId
+                  ? <>
+                    {faltaClienteParaPendencia && <p className="text-sm text-muted-foreground">Escolha um cliente com telefone válido para receber depois.</p>}
+                    <Button variant="link" className="px-0" disabled={readOnly} onClick={() => edit({ clienteId: null })}>Remover vínculo</Button>
+                  </>
+                  : <>
+                    {draft.pago !== false && <p className="mb-2 text-sm text-muted-foreground">Vincule um cliente para acumular na fidelidade. Você também pode seguir como cliente balcão.</p>}
+                    <CaixaCustomerPicker key={pickerKey} allowCreate requirePhone={draft.pago === false} disabled={readOnly} onExpire={expire}
+                      onSelect={(selected) => { edit({ clienteId: selected.id }); setCliente(selected) }} />
+                  </>}
               </details>
               <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
                 <legend className="mb-2 text-sm font-medium">Meio de pagamento</legend>
@@ -313,7 +288,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                   <p className="text-lg font-bold tabular-nums" aria-label={'Total ' + formatarMoeda(total)}>{formatarMoeda(total)}</p>
                 </div>
                 <Button className="min-h-11" onClick={concluir}
-                  disabled={saving || (!draft.tentativa && (readOnly || !draft.linhas.length || (!draft.pago && !draft.clienteId)))}>
+                  disabled={saving || (!draft.tentativa && (readOnly || !draft.linhas.length || draft.pago === null || faltaClienteParaPendencia))}>
                   {saving ? 'Confirmando…' : draft.tentativa ? 'Consultar tentativa' : 'Concluir venda'}
                 </Button>
               </div>

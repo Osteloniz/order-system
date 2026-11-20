@@ -3,36 +3,57 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export function CaixaLogin() {
+const preferenciaCaixa = 'brookie-caixa-login'
+
+export function CaixaLogin({ lojas }: { lojas: { nome: string; slug: string }[] }) {
   const router = useRouter()
-  const expired = useSearchParams().has('expirada')
+  const params = useSearchParams()
+  const expired = params.has('expirada')
+  const erroLogin = params.get('erro')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loja, setLoja] = useState(lojas[0]?.slug ?? '')
+  const [lembrar, setLembrar] = useState(false)
+  const loginRef = useRef<HTMLInputElement>(null)
 
-  async function entrar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setBusy(true)
-    setError('')
-    const payload = Object.fromEntries(new FormData(event.currentTarget))
+  useEffect(() => {
     try {
-      const response = await fetch('/api/caixa/acesso', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-      })
-      if (!response.ok) throw new Error((await response.json()).error)
-      router.replace('/caixa')
-      router.refresh()
-    } catch (error) {
-      setError(error instanceof Error && !(error instanceof TypeError) ? error.message : 'Conexão indisponível. Tente novamente.')
-    } finally {
-      setBusy(false)
+      const valor = localStorage.getItem(preferenciaCaixa)
+      if (!valor) return
+      const preferencia = JSON.parse(valor) as { loja?: string; login?: string }
+      if (preferencia.loja && lojas.some(({ slug }) => slug === preferencia.loja)) setLoja(preferencia.loja)
+      if (loginRef.current && !loginRef.current.value && typeof preferencia.login === 'string') {
+        loginRef.current.value = preferencia.login
+      }
+      setLembrar(true)
+    } catch {
+      // Browser storage can be unavailable in private or restricted sessions.
+    }
+  }, [lojas])
+
+  function lembrarAcesso(event: FormEvent<HTMLFormElement>) {
+    setBusy(true)
+    try {
+      if (lembrar) {
+        const login = new FormData(event.currentTarget).get('login')
+        localStorage.setItem(preferenciaCaixa, JSON.stringify({ loja, login }))
+      } else {
+        localStorage.removeItem(preferenciaCaixa)
+      }
+    } catch {
+      // Sign-in also works when the device blocks local preferences.
     }
   }
+
+  const mensagem = error || (erroLogin === 'limite' ? 'Muitas tentativas. Aguarde para tentar novamente.'
+    : erroLogin === 'credenciais' ? 'Credenciais inválidas.'
+    : erroLogin === 'indisponivel' ? 'Acesso indisponível. Tente novamente.' : '')
 
   return (
     <main className="brookie-login-background grid min-h-dvh place-items-center p-4">
@@ -43,15 +64,30 @@ export function CaixaLogin() {
         </CardHeader>
         <CardContent>
           {expired && <p role="status" className="mb-3 text-sm text-muted-foreground">Sessão expirada. Entre para retomar sua cesta.</p>}
-          <form onSubmit={entrar} className="grid gap-3">
+          <form method="post" action="/api/caixa/acesso" onSubmit={lembrarAcesso} className="grid gap-3">
             <Label htmlFor="caixa-loja">Loja</Label>
-            <Input name="tenant" id="caixa-loja" defaultValue="brookie-pregiato" autoCapitalize="none" required />
+            <select name="tenant" id="caixa-loja" value={loja} onChange={(event) => setLoja(event.target.value)} required
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring">
+              <option value="" disabled>Selecione a loja</option>
+              {lojas.map(({ slug, nome }) => <option key={slug} value={slug}>{nome}</option>)}
+            </select>
             <Label htmlFor="caixa-login">Login</Label>
-            <Input name="login" id="caixa-login" autoComplete="username" autoCapitalize="none" required />
+            <Input ref={loginRef} name="login" id="caixa-login" autoComplete="username" autoCapitalize="none" required />
             <Label htmlFor="caixa-senha">Senha</Label>
             <Input name="senha" id="caixa-senha" type="password" autoComplete="current-password" required />
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button className="h-11" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</Button>
+            {mensagem && <p role="alert" className="text-sm text-destructive">{mensagem}</p>}
+            <label className="flex min-h-10 items-center gap-2 text-sm">
+              <input type="checkbox" className="size-4 accent-primary" checked={lembrar}
+                onChange={(event) => {
+                  setLembrar(event.target.checked)
+                  if (!event.target.checked) {
+                    try { localStorage.removeItem(preferenciaCaixa) } catch { /* Browser storage may be unavailable. */ }
+                  }
+                }} />
+              Lembrar loja e login neste navegador
+            </label>
+            <p className="text-xs text-muted-foreground">A senha pode ser salva pelo gerenciador do navegador. A sessão dura até 8 horas e bloqueia após 15 minutos sem uso.</p>
+            <Button className="h-11" disabled={busy || !loja}>{busy ? 'Entrando…' : 'Entrar'}</Button>
           </form>
           <Button variant="link" asChild className="mt-2 px-0">
             <Link href="/admin/login" onClick={async (event) => {

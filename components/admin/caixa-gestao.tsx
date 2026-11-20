@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatarMoeda } from '@/lib/calc'
 import { meiosCaixa, meioCaixaLabel, operacaoCaixa, type MeioCaixa, type OperacaoCaixa } from '@/lib/caixa-contract'
-import { CaixaRequestError, requestCaixa } from '@/components/admin/caixa-client'
+import { CaixaRequestError, requestCaixa, type ClienteCaixa } from '@/components/admin/caixa-client'
+import { CaixaCustomerPicker } from '@/components/admin/caixa-customer-picker'
 import { useCaixaMovement } from '@/components/admin/use-caixa-movement'
 
 type VendaDetalhe = {
-  id: string; numero: string; clienteNome: string; total: number; statusPagamento: string
+  id: string; numero: string; clienteId: string | null; clienteNome: string; total: number; status: string; statusPagamento: string
   meio: MeioCaixa; caixaRecebimentoAtualId: string | null
   itens: { produtoId: string; nomeProdutoSnapshot: string; quantidade: number }[]
   caixaEventos: {
@@ -83,10 +84,51 @@ export function CaixaGestao({ storageKey, expire, initialNumber }: {
             {evento.taxa !== null && ' · taxa ' + formatarMoeda(evento.taxa)}{evento.motivo && ' · ' + evento.motivo}
           </li>)}
         </ul>
+        {!venda.clienteId && venda.status === 'ENTREGUE' && venda.statusPagamento === 'APROVADO' &&
+          <VinculoCliente key={venda.id} pedidoId={venda.id} expire={expire} disabled={movement.busy || Boolean(movement.pending)}
+            onSaved={async () => { await buscar(venda.numero); setAlert('Cliente vinculado à venda.') }} />}
         <MovementForm key={JSON.stringify([venda.id, venda.statusPagamento, venda.caixaRecebimentoAtualId, venda.caixaEventos.length])}
           venda={venda} disabled={movement.busy || Boolean(movement.pending)} run={movement.run} />
       </div>}
     </section>
+  )
+}
+
+function VinculoCliente({ pedidoId, expire, onSaved, disabled }: {
+  pedidoId: string; expire: () => void; onSaved: () => Promise<void>; disabled: boolean
+}) {
+  const [selecionado, setSelecionado] = useState<ClienteCaixa>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function vincular() {
+    if (!selecionado || busy || disabled) return
+    setBusy(true)
+    setError('')
+    try {
+      await requestCaixa('gestao', 'POST', { pedidoId, clienteId: selecionado.id })
+      await onSaved()
+    } catch (error) {
+      if (error instanceof CaixaRequestError && error.status === 401) expire()
+      setError(error instanceof Error ? error.message : 'Não foi possível vincular o cliente.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="my-3 rounded-xl border p-3">
+      <summary className="cursor-pointer font-medium">Vincular cliente para fidelidade</summary>
+      <div className="mt-3 grid gap-3">
+        <CaixaCustomerPicker disabled={disabled || busy} onSelect={setSelecionado} onExpire={expire} />
+        {selecionado && <p className="text-sm">Cliente selecionado: <strong>{selecionado.nome}</strong>
+          {selecionado.telefoneFinal && ' · Telefone final ' + selecionado.telefoneFinal}</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <Button type="button" className="min-h-11 justify-self-start" disabled={disabled || busy || !selecionado} onClick={vincular}>
+          {busy ? 'Vinculando…' : 'Confirmar vínculo'}
+        </Button>
+      </div>
+    </details>
   )
 }
 

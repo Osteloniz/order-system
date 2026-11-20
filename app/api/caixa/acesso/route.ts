@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { getPasswordUtf8ByteLength, normalizeAdminUsername } from '@/lib/admin-credential-policy'
@@ -15,10 +15,16 @@ const schema = z.object({
 }).strict()
 const dummyHash = '$2a$12$Gz0ovJNY3tkQPVbTI5NLzOStyTtv/kCkFOP6TM3uKmPh1jkpkSdhu'
 
+function redirecionarLogin(path: string) {
+  return new NextResponse(null, { status: 303, headers: { Location: path, 'Cache-Control': 'private, no-store' } })
+}
+
 export async function POST(request: NextRequest) {
   if (!caixaMutationOrigin(request)) return caixaJson({ error: 'Origem inválida.' }, 403)
+  const formulario = request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')
   try {
-    const { tenant, login, senha } = schema.parse(await request.json())
+    const dados = formulario ? Object.fromEntries(await request.formData()) : await request.json()
+    const { tenant, login, senha } = schema.parse(dados)
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip') || 'unknown'
     const ipHash = hashIpAddress(ip)
@@ -35,15 +41,18 @@ export async function POST(request: NextRequest) {
         data: { action: 'LOGIN_FAILURE', tenantId: user?.tenantId, adminUserId: user?.id, ipHash, identifier,
           metadata: { role: 'CAIXA', reason: blocked ? 'rate_limited' : 'invalid_credentials' } },
       })
+      if (formulario) return redirecionarLogin(blocked ? '/caixa/login?erro=limite' : '/caixa/login?erro=credenciais')
       return caixaJson({ error: blocked ? 'Muitas tentativas. Aguarde para tentar novamente.' : 'Credenciais inválidas.' },
         blocked ? 429 : 401)
     }
 
     await endCaixaSession()
     await newCaixaSession(user, ipHash, identifier)
-    return caixaJson({ ok: true })
+    return formulario ? redirecionarLogin('/caixa') : caixaJson({ ok: true })
   } catch (error) {
-    return caixaHttpError(error)
+    const response = caixaHttpError(error)
+    if (!formulario) return response
+    return redirecionarLogin(response.status < 500 ? '/caixa/login?erro=credenciais' : '/caixa/login?erro=indisponivel')
   }
 }
 

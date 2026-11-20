@@ -2,9 +2,9 @@
 
 ## Operação
 
-`/caixa/login` recebe a conta individual do operador. O MASTER cria e desativa contas em **Segurança → Acessos do Caixa** com MFA. MASTER e ADMIN autenticados abrem o Caixa a partir da navegação interna.
+`/caixa/login` recebe a conta individual do operador. Selecione a loja e escolha se deseja lembrar loja e login neste navegador. Use o gerenciador do navegador para guardar a senha. Reabrir o Caixa retoma a sessão enquanto ela estiver válida. O MASTER cria e desativa contas em **Segurança → Acessos do Caixa** com MFA. MASTER e ADMIN autenticados abrem o Caixa a partir da navegação interna.
 
-Em **Nova venda**, selecione produtos, meio e situação do pagamento. Para **Receber depois**, busque o telefone e vincule o cliente. A criação mínima preserva o cadastro quando o telefone já existe e exige confirmação do vínculo. Uma venda paga pode usar **Cliente balcão**. A confirmação mostra o número curto. O pedido nasce entregue, dá baixa física uma vez e fica no histórico interno.
+Em **Nova venda**, selecione produtos, meio e situação do pagamento. Em **Cliente balcão · Fidelidade**, busque um cadastro por nome ou telefone completo e confirme a seleção. Para **Receber depois**, vincule um cadastro com telefone válido. A criação mínima preserva o cadastro quando o telefone já existe e exige confirmação do vínculo. Uma venda paga pode usar **Cliente balcão**. Em **Gerenciar venda**, MASTER e ADMIN com MFA podem vincular uma venda paga de balcão a um cliente existente. A operação preserva pagamento, estoque e a data da venda. A confirmação mostra o número curto. O pedido nasce entregue, dá baixa física uma vez e fica no histórico interno.
 
 Em **Pendências**, confira a venda, o valor integral e o meio efetivo antes de confirmar. O meio efetivo pode ser diferente do previsto. Em **Gerenciar venda**, MASTER e ADMIN podem consultar pelo número e registrar correção, estorno, cancelamento de pendência ou devolução física. Correção, estorno, cancelamento e devolução exigem motivo. Estorno exige escolher entre reabrir a dívida e encerrar a venda. Reposição exige confirmar os itens aptos para venda.
 

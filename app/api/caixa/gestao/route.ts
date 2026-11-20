@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { caixaJson } from '@/lib/caixa-http'
 import { caixaRoute } from '@/lib/caixa-route'
 import { expressMeio } from '@/lib/caixa-sales'
+import { vincularClienteVendaCaixa } from '@/lib/caixa-vinculo'
 import { prisma } from '@/lib/db'
 import { numeroPedidoCurto } from '@/lib/operation-log'
 
@@ -11,7 +12,7 @@ export const GET = caixaRoute(async (request, actor) => {
     where: { tenantId: actor.tenantId, origem: 'CAIXA_EXPRESS', id: { endsWith: numero.toLowerCase() } },
     take: 10,
     select: {
-      id: true, clienteNome: true, total: true, status: true, statusPagamento: true, pagamento: true, tipoCartao: true,
+      id: true, clienteId: true, clienteNome: true, total: true, status: true, statusPagamento: true, pagamento: true, tipoCartao: true,
       caixaRecebimentoAtualId: true, itens: { select: { produtoId: true, nomeProdutoSnapshot: true, quantidade: true } },
       caixaEventos: { orderBy: [{ criadoEm: 'asc' }, { id: 'asc' }],
         select: { operacao: true, criadoEm: true, efetivoEm: true, atorId: true, bruto: true,
@@ -22,3 +23,10 @@ export const GET = caixaRoute(async (request, actor) => {
     ...venda, numero: numeroPedidoCurto(venda.id), meio: expressMeio(pagamento, tipoCartao),
   })) })
 }, { admin: true })
+
+const vinculo = z.object({ pedidoId: z.string().uuid(), clienteId: z.string().uuid() }).strict()
+
+export const POST = caixaRoute(async (request, actor) => {
+  const { pedidoId, clienteId } = vinculo.parse(await request.json())
+  return caixaJson(await vincularClienteVendaCaixa(actor, pedidoId, clienteId))
+}, { admin: true, mutation: true })

@@ -73,6 +73,7 @@
 
 - `/caixa` é a frente de retirada imediata. Usa `Pedido.origem = CAIXA_EXPRESS`, entrega e baixa no mesmo commit, cotação por preço unitário e tentativa idempotente. O histórico do Caixa é interno.
 - `CaixaEvento` registra venda, baixa, correção, estorno, cancelamento e devolução. Entrega, data de recebimento e data de estorno governam competências diferentes. A origem `LEGADO` preserva a regra de dinheiro entregue.
+- A identificação é opcional na venda paga. O Caixa busca por nome ou telefone e permite ao administrativo vincular posteriormente uma venda de balcão paga a um cadastro existente. O vínculo é auditado e segue a elegibilidade de fidelidade.
 - `CaixaSessao` cobre a conta operacional com turno e ociosidade. Contas administrativas mantêm MFA e governam correções, tema e provisionamento conforme o papel.
 - Identidade `PADRAO`, `NATAL` ou `ANO_NOVO` é aplicada no ambiente interno após identificar o tenant. Modo claro/escuro continua independente. As artes oficiais ficam em `public/brand/themes/`.
 - As duas migrations de 20/11/2026 foram aplicadas em LOCAL e HML. A operação nova fica desativada em PRD enquanto os gates da SPEC estiverem abertos. O roteiro está em `docs/caixa-express-v1.md`.

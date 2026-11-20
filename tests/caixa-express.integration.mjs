@@ -186,8 +186,9 @@ try {
   await db.produto.update({ where: { id: item.id }, data: { preco: 777 } })
 
   const pendentes = []
+  const vendasPagas = []
   for (const meio of ['PIX', 'CREDITO', 'DEBITO', 'DINHEIRO']) {
-    await vender(payload({ meio }))
+    vendasPagas.push(await vender(payload({ meio })))
     pendentes.push(await vender(payload({ meio, pago: false, clienteId: cliente.id })))
   }
   assert.equal(await quantity(), 52)
@@ -412,10 +413,61 @@ try {
     assert.equal(await db.configuracao.findUnique({ where: { tenantId: outro.id } }), null)
   }
 
-  if (process.env.CAIXA_PLAYWRIGHT_MODULE) {
+  if (process.env.CAIXA_PLAYWRIGHT_MODULE && !process.env.CAIXA_FOCUSED_BROWSER_ONLY) {
     await db.produtoEstoque.update({ where: sku, data: { quantidadeDisponivel: 2 } })
     const { validarNavegador } = await import('./caixa-express.browser.mjs')
     await validarNavegador({ base, admin, caixa: cookieCaixa, produto: item.nome, pendencia: pendentes[0].numero })
+  }
+
+  const nomeBusca = 'JOÃO DE TESTE ' + suffix
+  const cadastroBusca = []
+  for (const [tenantId, final] of [[tenant.id, 1], [tenant.id, 2], [outro.id, 3]]) {
+    const telefone = '118' + String(parseInt(suffix, 16) % 10_000_000).padStart(7, '0') + final
+    const cadastro = await db.cliente.create({ data: { tenantId, nome: nomeBusca, telefone } })
+    cadastroBusca.push(cadastro)
+    buyerIds.push(cadastro.id)
+  }
+  const [primeiro, segundo, terceiro] = cadastroBusca
+  const busca = (q) => cookieCaixa.send('/api/caixa/clientes?q=' + encodeURIComponent(q))
+  const homonimos = await expect(busca('joao ' + suffix), 200, 'pesquisa de homônimos sem acento')
+  assert.deepEqual(homonimos.clientes.map(({ id }) => id).sort(), [primeiro.id, segundo.id].sort())
+  assert(homonimos.clientes.every((item) => !('telefone' in item) && item.telefoneFinal?.length === 4))
+  const telefoneExato = await expect(busca('+55 ' + segundo.telefone), 200, 'busca pelo telefone com DDI')
+  assert.equal(telefoneExato.clientes[0]?.id, segundo.id)
+  const novoTelefone = primeiro.telefone.slice(0, -1) + '9'
+  assert.equal((await expect(busca(novoTelefone), 200, 'telefone ainda não cadastrado')).cadastroRapidoTelefone, novoTelefone)
+  assert.equal((await expect(busca('ausente ' + suffix), 200, 'nome não localizado')).cadastroRapidoTelefone, null)
+
+  const vincular = (operador, pedidoId, clienteId) => operador.send('/api/caixa/gestao', 'POST', { pedidoId, clienteId })
+  assert.equal(await db.cliente.count({ where: { id: { in: [primeiro.id, segundo.id] }, pedidos: { some: { id: venda.pedidoId } } } }), 0)
+  await expect(vincular(cookieCaixa, venda.pedidoId, primeiro.id), 403, 'somente administração com MFA vincula venda concluída')
+  await expect(vincular(admin, venda.pedidoId, terceiro.id), 404, 'cliente de outro tenant')
+  await expect(vincular(admin, pendentes[0].pedidoId, primeiro.id), 409, 'pendência não pode trocar cliente')
+  const antesVinculo = await db.pedido.findUniqueOrThrow({ where: { id: venda.pedidoId } })
+  const estoqueAntesVinculo = await quantity()
+  const concorrenciaVinculo = await Promise.all([primeiro.id, segundo.id].map((id) => vincular(admin, venda.pedidoId, id)))
+  assert.deepEqual(concorrenciaVinculo.map(({ status }) => status).sort(), [200, 409])
+  const vencedor = concorrenciaVinculo.find(({ status }) => status === 200).data.clienteId
+  await expect(vincular(admin, venda.pedidoId, vencedor), 200, 'retry do vínculo')
+  const depoisVinculo = await db.pedido.findUniqueOrThrow({ where: { id: venda.pedidoId } })
+  assert.equal(depoisVinculo.clienteId, vencedor)
+  for (const campo of ['statusPagamento', 'total', 'estoqueBaixadoEm', 'entregueEm', 'caixaRecebimentoAtualId']) {
+    assert.deepEqual(depoisVinculo[campo], antesVinculo[campo], campo)
+  }
+  assert.equal(await quantity(), estoqueAntesVinculo)
+  assert.equal(await db.caixaEvento.count({ where: { pedidoId: venda.pedidoId } }), 1)
+  assert.equal(await db.logOperacao.count({
+    where: { pedidoId: venda.pedidoId, metadata: { path: ['operacao'], equals: 'CAIXA_VINCULO_CLIENTE' } },
+  }), 1)
+  const perfilVinculado = await expect(admin.send('/api/admin/clientes/' + vencedor), 200, 'fidelidade após vínculo')
+  assert.equal(perfilVinculado.resumoFidelidade.progressoAtual, 2)
+  await expect(client().send('/api/pedidos/' + venda.pedidoId), 404, 'venda vinculada continua privada')
+  console.log('OK busca e vínculo posterior: homônimos, telefone, fidelidade, retry, isolamento e invariantes')
+
+  if (process.env.CAIXA_PLAYWRIGHT_MODULE) {
+    const { validarBuscaVinculoNavegador } = await import('./caixa-express.browser.mjs')
+    await validarBuscaVinculoNavegador({ base, admin, operador, senha, filtro: 'joao ' + suffix,
+      cliente: primeiro, venda: vendasPagas[0].numero })
   }
 
   const sessionWhere = { adminUserId: operador.id }

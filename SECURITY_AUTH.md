@@ -134,3 +134,7 @@ O token aleatório operacional usa cookie `HttpOnly`, `SameSite=Strict` e `Secur
 A sessão CAIXA autoriza `/caixa` e as operações de catálogo, cotação, vendas, cadastro mínimo, baixa e sessão listadas na API. O middleware bloqueia o acesso administrativo e os guardas de servidor validam o papel e a sessão. A gestão de vendas exige MFA. O provisionamento e a desativação exigem MASTER com MFA.
 
 Cliques e teclas confiáveis na área operacional podem enviar interação autenticada por PATCH. Mutações autorizadas também renovam a atividade. Leituras e polling preservam a janela original. O login limita tentativas e audita sucessos e falhas por identificadores protegidos. Eventos da venda guardam ator, tenant, data e alterações sem segredos ou dados de cartão.
+
+Na tela do Caixa, a loja é selecionada na lista. A opção de lembrar guarda apenas loja e login no navegador. A senha usa o gerenciador do navegador. Reabrir o endereço de login redireciona para o Caixa enquanto a sessão operacional for válida. O prazo e a revogação continuam sendo verificados no servidor.
+
+Somente MASTER ou ADMIN com MFA podem vincular um cliente existente do mesmo tenant após uma venda de balcão. O vínculo é transacional e auditado em `LogOperacao`.
