@@ -1,9 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Banknote, CreditCard, LogOut, Minus, Plus, ScanLine, ShoppingBag } from 'lucide-react'
+import { ArrowRight, Banknote, Check, ChevronDown, Clock3, CreditCard, Flame, LogOut, Minus, NotebookPen, Plus, ScanLine, Search, ShoppingBag, UserRound } from 'lucide-react'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,6 +182,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
     }
   }
 
+  const quantidadeNaSacola = draft.linhas.reduce((sum, item) => sum + item.quantidade, 0)
   const total = draft.linhas.reduce((sum, item) => sum + item.preco * item.quantidade, 0)
   const readOnly = Boolean(draft.tentativa) || saving || !ready || !data?.novasVendas
   const produtos = (data?.produtos ?? []).filter((produto) => (produto.nome + ' ' + produto.categoria).toLowerCase().includes(busca.toLowerCase()))
@@ -190,9 +192,13 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
   }).slice(0, 6)
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-7xl px-3 pb-28 pt-3 sm:px-5 sm:pt-5">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Caixa Express</h1>
+    <main className="mx-auto min-h-dvh w-full max-w-6xl px-3 pb-28 pt-3 sm:px-5">
+      <header className="mb-3 flex items-center justify-between gap-3 rounded-2xl border bg-card p-2.5 shadow-sm sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Image src="/brand/brookie-mark-color.jpg" width={36} height={36} alt="" priority
+            className="size-9 shrink-0 rounded-full border border-border object-cover" />
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Caixa Express</h1>
+        </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
           {operacional
@@ -201,9 +207,9 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
         </div>
       </header>
       <Tabs defaultValue={initialNumber && !operacional ? 'gestao' : 'venda'}>
-        <TabsList className="mb-2">
-          <TabsTrigger value="venda">Nova venda</TabsTrigger>
-          <TabsTrigger value="pendencias">Pendências</TabsTrigger>
+        <TabsList className="mb-3 h-auto max-w-full flex-wrap justify-start gap-1 rounded-xl bg-muted p-1">
+          <TabsTrigger value="venda" className="min-h-10"><ShoppingBag aria-hidden="true" />Nova venda</TabsTrigger>
+          <TabsTrigger value="pendencias" className="min-h-10"><Clock3 aria-hidden="true" />Pendências</TabsTrigger>
           {!operacional && <TabsTrigger value="gestao">Gerenciar venda</TabsTrigger>}
         </TabsList>
         <TabsContent value="venda">
@@ -214,19 +220,25 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
             Há uma tentativa sem confirmação. Consulte o resultado antes de cobrar novamente.
           </p>}
           <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(320px,0.75fr)] lg:gap-6">
-            <section className="grid gap-3" aria-labelledby="caixa-produtos">
+            <section className="grid min-w-0 gap-3 rounded-2xl border bg-card p-3 shadow-sm sm:p-4" aria-labelledby="caixa-produtos">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 id="caixa-produtos" className="text-lg font-semibold">Produtos</h2>
-                <Input className="min-h-11 w-full sm:w-56" aria-label="Buscar produto" placeholder="Buscar produto" value={busca} onChange={(event) => setBusca(event.target.value)} />
+                <div className="relative w-full sm:w-56">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input className="min-h-11 bg-background pl-9" aria-label="Buscar produto" placeholder="Buscar produto"
+                    value={busca} onChange={(event) => setBusca(event.target.value)} />
+                </div>
               </div>
               {!data && <p role={catalogError ? 'alert' : 'status'} className="text-sm text-muted-foreground">
                 {catalogError ? 'Catálogo indisponível.' : 'Carregando produtos…'}
                 {catalogError && <Button variant="link" onClick={() => mutate()}>Tentar novamente</Button>}
               </p>}
-              {!busca && atalhos.length > 0 && <section className="grid gap-1.5" aria-labelledby="caixa-mais-vendidos">
-                <h3 id="caixa-mais-vendidos" className="text-sm font-medium text-muted-foreground">Mais vendidos</h3>
+              {!busca && atalhos.length > 0 && <section className="grid gap-2 rounded-xl border border-border/70 bg-secondary/35 p-2" aria-labelledby="caixa-mais-vendidos">
+                <h3 id="caixa-mais-vendidos" className="flex items-center gap-1.5 px-0.5 text-sm font-semibold">
+                  <Flame className="size-4 text-primary" aria-hidden="true" />Mais vendidos
+                </h3>
                 <div className="flex flex-wrap gap-2">
-                  {atalhos.map((produto) => <Button key={produto.id} variant="secondary" className="min-h-11"
+                  {atalhos.map((produto) => <Button key={produto.id} variant="outline" className="min-h-11 max-w-full whitespace-normal rounded-full bg-card text-left"
                     disabled={readOnly || (draft.linhas.find((linha) => linha.produtoId === produto.id)?.quantidade ?? 0) >= produto.saldo}
                     aria-label={'Adicionar ' + produto.nome} onClick={() => quantity(produto, 1)}>
                     <Plus aria-hidden="true" /> {produto.nome}
@@ -234,24 +246,37 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                 </div>
               </section>}
               {data && produtos.length === 0 && <p className="rounded-lg border p-4 text-sm text-muted-foreground">Nenhum produto disponível para esta busca.</p>}
-              <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2">
                 {produtos.map((produto) => {
                   const quantidade = draft.linhas.find((item) => item.produtoId === produto.id)?.quantidade ?? 0
                   return <button key={produto.id} type="button" disabled={readOnly || quantidade >= produto.saldo}
                     onClick={() => quantity(produto, 1)}
-                    className="min-h-20 rounded-xl border bg-card p-2.5 text-left transition-colors hover:border-primary/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-55 motion-reduce:transition-none">
-                    <span className="block text-sm font-semibold">{produto.nome}</span>
-                    <span className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">{formatarMoeda(produto.preco)}</span>
-                      <span>{produto.saldo} disponíveis{quantidade > 0 && ' · ' + quantidade + ' na sacola'}</span>
+                    className="group grid min-h-20 grid-rows-[1fr_auto] gap-1.5 rounded-xl border bg-background p-2.5 text-left transition-colors hover:border-primary/65 hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-55 motion-reduce:transition-none">
+                    <span className="min-w-0 break-words text-sm font-semibold leading-tight">{produto.nome}</span>
+                    <span className="flex items-end justify-between gap-1">
+                      <span className="grid gap-0.5">
+                        <span className="font-bold tabular-nums text-primary">{formatarMoeda(produto.preco)}</span>
+                        <span className="text-xs text-muted-foreground">{produto.saldo} disponíveis{quantidade > 0 && ' · ' + quantidade + ' na sacola'}</span>
+                      </span>
+                      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground" aria-hidden="true">
+                        <Plus className="size-4" />
+                      </span>
                     </span>
                   </button>
                 })}
               </div>
             </section>
-            <section className="rounded-xl border bg-card p-3 md:p-4" aria-labelledby="caixa-sacola">
-              <h2 id="caixa-sacola" className="mb-2 flex items-center gap-2 text-lg font-semibold"><ShoppingBag className="size-4" /> Sacola</h2>
-              {draft.linhas.length === 0 && <p className="py-3 text-sm text-muted-foreground">Adicione um produto para começar.</p>}
+            <section className="rounded-2xl border bg-card p-3 shadow-sm sm:p-4" aria-labelledby="caixa-sacola">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 id="caixa-sacola" className="flex items-center gap-2 text-lg font-bold">
+                  <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary"><ShoppingBag className="size-4" aria-hidden="true" /></span>
+                  Sacola
+                </h2>
+                {quantidadeNaSacola > 0 && <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold tabular-nums">
+                  {quantidadeNaSacola} {quantidadeNaSacola === 1 ? 'item' : 'itens'}
+                </span>}
+              </div>
+              {draft.linhas.length === 0 && <p className="rounded-xl border border-dashed bg-background p-3 text-sm text-muted-foreground">Adicione um produto para começar.</p>}
               <ul className="divide-y">
                 {draft.linhas.map((line) => <li key={line.produtoId} className="flex items-center justify-between gap-2 py-1.5">
                   <div className="min-w-0 text-sm"><p className="font-medium">{line.quantidade} × {line.nome}</p>
@@ -260,11 +285,14 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                   <Button variant="ghost" size="icon" className="size-11" disabled={readOnly} onClick={() => remove(line)} aria-label={'Remover uma unidade de ' + line.nome}><Minus /></Button>
                 </li>)}
               </ul>
-              <details className="my-3 border-y py-2" open={draft.pago === false ? true : undefined}>
-                <summary className="min-h-10 cursor-pointer py-2 text-sm font-medium">
+              <details className="group mt-3 rounded-xl border bg-background px-2.5" open={draft.pago === false ? true : undefined}>
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                  <UserRound className="size-4 shrink-0 text-primary" aria-hidden="true" />
                   {draft.clienteId ? (cliente?.id === draft.clienteId ? cliente.nome : 'Cliente vinculado')
                     : draft.pago === false ? 'Vincular cliente para receber depois' : 'Cliente balcão · Fidelidade'}
+                  <ChevronDown className="ml-auto size-4 shrink-0 group-open:rotate-180" aria-hidden="true" />
                 </summary>
+                <div className="border-t border-border/60 py-2.5">
                 {draft.clienteId
                   ? <>
                     {faltaClienteParaPendencia && <p className="text-sm text-muted-foreground">Escolha um cliente com telefone válido para receber depois.</p>}
@@ -275,20 +303,26 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                     <CaixaCustomerPicker key={pickerKey} allowCreate requirePhone={draft.pago === false} disabled={readOnly} onExpire={expire}
                       onSelect={(selected) => { edit({ clienteId: selected.id }); setCliente(selected) }} />
                   </>}
+                </div>
               </details>
-              <details key={pickerKey} className="mb-3 border-b pb-2">
-                <summary className="min-h-10 cursor-pointer py-2 text-sm font-medium">
+              <details key={pickerKey} className="group mb-4 mt-2 rounded-xl border bg-background px-2.5">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                  <NotebookPen className="size-4 shrink-0 text-primary" aria-hidden="true" />
                   {draft.observacao?.trim() ? 'Observação da venda' : 'Adicionar observação'}
+                  <ChevronDown className="ml-auto size-4 shrink-0 group-open:rotate-180" aria-hidden="true" />
                 </summary>
                 <Textarea value={draft.observacao ?? ''} disabled={readOnly} maxLength={LIMITE_OBSERVACAO_CAIXA}
-                  aria-label="Observação da venda" rows={2} onChange={(event) => edit({ observacao: event.target.value })} />
+                  className="mb-2 bg-card" aria-label="Observação da venda" rows={2} onChange={(event) => edit({ observacao: event.target.value })} />
               </details>
               <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
                 <legend className="mb-2 text-sm font-medium">Meio de pagamento</legend>
                 {meiosCaixa.map((meio) => {
                   const Icon = icons[meio]
-                  return <Button key={meio} type="button" className="min-h-11" variant={draft.meio === meio ? 'default' : 'outline'}
-                    aria-pressed={draft.meio === meio} onClick={() => edit({ meio })}><Icon /> {meioCaixaLabel[meio]}</Button>
+                  return <Button key={meio} type="button" className="min-h-12 justify-start rounded-xl px-2.5" variant={draft.meio === meio ? 'default' : 'outline'}
+                    aria-pressed={draft.meio === meio} onClick={() => edit({ meio })}>
+                    <Icon aria-hidden="true" /> {meioCaixaLabel[meio]}
+                    {draft.meio === meio && <Check className="ml-auto" aria-hidden="true" />}
+                  </Button>
                 })}
               </fieldset>
               <fieldset disabled={readOnly} className="mt-3 flex flex-wrap gap-2">
@@ -297,7 +331,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                 <Button className="min-h-11" variant={draft.pago === false ? 'secondary' : 'outline'} aria-pressed={draft.pago === false} onClick={() => edit({ pago: false })}>Receber depois</Button>
               </fieldset>
               {draft.pago === false && <p role="status" className="my-3 rounded-lg border border-warning/35 bg-warning/10 p-2 text-sm">A venda dará baixa no estoque e ficará pendente até confirmar o recebimento.</p>}
-              <div className="caixa-action fixed inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 border-t bg-card p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:static md:mt-3 md:px-0 md:pb-0">
+              <div className="caixa-action fixed inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 border-t bg-card px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-7px_24px_-12px_var(--foreground)] md:static md:mt-4 md:rounded-xl md:border md:bg-secondary/40 md:p-3 md:shadow-none">
                 <div>
                   <a href="#caixa-sacola" className="text-xs font-semibold text-primary underline underline-offset-4 md:hidden">Ver sacola</a>
                   <p className="hidden text-xs text-muted-foreground md:block">Total</p>
@@ -306,6 +340,7 @@ export function CaixaWorkspace({ conta, operacional, initialNumber }: { conta: s
                 <Button className="min-h-11" onClick={concluir}
                   disabled={saving || (!draft.tentativa && (readOnly || !draft.linhas.length || draft.pago === null || faltaClienteParaPendencia))}>
                   {saving ? 'Confirmando…' : draft.tentativa ? 'Consultar tentativa' : 'Concluir venda'}
+                  {!saving && <ArrowRight aria-hidden="true" />}
                 </Button>
               </div>
             </section>

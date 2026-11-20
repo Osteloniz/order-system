@@ -47,3 +47,5 @@ A seleção em Configurações → Aparência controla as identidades Padrão, N
 - A variante unitária aparece na prévia de Configuração. As quatro artes WebP ficam em `public/brand/themes/{natal,ano-novo}`.
 - O Caixa e o KDS abrem na área de trabalho, com superfícies sólidas e rótulos semânticos. No Caixa, catálogo e sacola dividem a área em telas largas. Em celular, a barra de total e confirmação permanece acessível.
 - Verifique foco, status, diálogo e contraste nos dois modos dentro dos três temas. Use 4,5:1 para texto normal e 3:1 para foco e componentes aplicáveis.
+
+No Caixa Express, o cabeçalho usa a marca compacta. **Mais vendidos** tem uma superfície própria, e os cartões de produto deixam preço, estoque e adição na mesma área. Sacola, cliente, observação e pagamento usam os tokens do tenant. O total e a conclusão ficam na barra inferior em telas estreitas.
