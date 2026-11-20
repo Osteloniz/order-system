@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
 
+import { CaixaAccounts } from '@/components/admin/caixa-accounts'
+
 type AccessData = {
   isMaster: boolean
   currentUserId: string
@@ -119,6 +121,7 @@ export function AdminSecurityCenter() {
         </form>
       </section>
 
+      {data?.isMaster && <CaixaAccounts />}
       <section className="rounded-xl border border-border bg-background/65 p-4">
         <div className="mb-3 flex items-start gap-2"><UserRound className="mt-0.5 h-4 w-4 text-primary" /><div><h2 className="font-semibold">Acessos administrativos</h2><p className="text-xs text-muted-foreground">Novos acessos so ficam ativos depois da senha e do autenticador.</p></div></div>
         {data?.isMaster ? <form onSubmit={invite} className="flex flex-col gap-2 sm:flex-row"><Input type="email" value={inviteEmail} onChange={event => setInviteEmail(event.target.value)} placeholder="novo.usuario@email.com" /><Button disabled={inviteBusy || !inviteEmail}><MailPlus className="mr-2 h-4 w-4" />Enviar convite</Button></form> : <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">Somente o usuario master pode enviar convites.</p>}

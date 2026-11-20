@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
@@ -44,7 +45,7 @@ export async function PATCH(
 
   const { id } = await params
   const pedido = await prisma.pedido.findFirst({
-    where: { id, tenantId: admin.tenantId },
+    where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
     include: { itens: true },
   })
 
@@ -61,8 +62,9 @@ export async function PATCH(
 
   const actorNome = admin.session.user?.name?.toString().trim() || null
   const atualizado = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
     const pedidoAtualTransacao = await tx.pedido.findFirst({
-      where: { id, tenantId: admin.tenantId },
+      where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
       include: { itens: true },
     })
 
@@ -138,7 +140,7 @@ export async function POST(
 
     const { id } = await params
     const pedido = await prisma.pedido.findFirst({
-      where: { id, tenantId: admin.tenantId },
+      where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
       include: { itens: true },
     })
 
@@ -163,7 +165,12 @@ export async function POST(
     const actorNome = admin.session.user?.name?.toString().trim() || null
     const pedidoNumero = numeroPedidoCurto(pedido.id) ?? pedido.id
     const atualizado = await prisma.$transaction(async (tx) => {
-      const pedidoComPagamentoAtualizado = await switchOrderPaymentMethod(tx, pedido, {
+      await lockTenantStock(tx, admin.tenantId)
+      const atual = await tx.pedido.findFirst({
+        where: { id, tenantId: admin.tenantId, origem: 'LEGADO' }, include: { itens: true },
+      })
+      if (!atual) throw new Error('Pedido nao encontrado')
+      const pedidoComPagamentoAtualizado = await switchOrderPaymentMethod(tx, atual, {
         pagamento: parsed.data.pagamento ?? 'DINHEIRO',
         tipoCartao: parsed.data.tipoCartao ?? null,
       })
@@ -171,7 +178,7 @@ export async function POST(
       const estoqueControle = await syncOrderStockForTransition({
         tx,
         tenantId: admin.tenantId,
-        pedidoAtual: pedido,
+        pedidoAtual: atual,
         targetStatus: pedidoComPagamentoAtualizado.status,
         targetStatusPagamento: pedidoComPagamentoAtualizado.statusPagamento,
         targetPagamento: pedidoComPagamentoAtualizado.pagamento,

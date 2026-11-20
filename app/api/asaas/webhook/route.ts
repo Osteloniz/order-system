@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAsaasWebhookToken, retrieveAsaasPayment, retrieveAsaasPixQrCode } from '@/lib/asaas'
@@ -152,15 +153,16 @@ export async function POST(request: NextRequest) {
   }
 
   const externalReference = payment?.externalReference?.trim() || null
-  const pedido = externalReference
-    ? await prisma.pedido.findUnique({
-        where: { id: externalReference },
-        include: { itens: true },
-      })
-    : null
-
-  await prisma.$transaction(async (tx) => {
-    await tx.asaasWebhookEvent.create({
+  const outcome = await prisma.$transaction(async (tx) => {
+    const scope = externalReference
+      ? await tx.pedido.findUnique({ where: { id: externalReference }, select: { origem: true, tenantId: true } })
+      : null
+    if (scope?.origem === 'CAIXA_EXPRESS') return 'ignored'
+    if (scope?.tenantId) await lockTenantStock(tx, scope.tenantId)
+    const pedido = externalReference
+      ? await tx.pedido.findUnique({ where: { id: externalReference, origem: 'LEGADO' }, include: { itens: true } })
+      : null
+    const inserted = await tx.asaasWebhookEvent.createMany({
       data: {
         id: eventId,
         event: parsed.data.event,
@@ -170,9 +172,10 @@ export async function POST(request: NextRequest) {
         pedidoId: pedido?.id ?? null,
         tenantId: pedido?.tenantId ?? null,
       },
+      skipDuplicates: true,
     })
-
-    if (!pedido) return
+    if (!inserted.count) return 'duplicate'
+    if (!pedido) return 'ignored'
 
     const mappedStatus =
       mapAsaasPaymentStatus(payment?.status ?? parsed.data.payment?.status) ??
@@ -231,5 +234,5 @@ export async function POST(request: NextRequest) {
     }
   })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ...(outcome === 'duplicate' && { duplicate: true }) })
 }

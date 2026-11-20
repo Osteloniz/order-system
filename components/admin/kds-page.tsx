@@ -536,38 +536,21 @@ export function KdsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-primary/18 via-card to-secondary/10">
-        <div className="flex flex-col gap-5 px-4 py-5 md:px-7 md:py-7 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <ChefHat className="h-3.5 w-3.5" />
-              KDS operacional
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Execucao de pedidos</h1>
-              <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                Painel rapido para producao, separacao e fechamento. Ele reaproveita as regras do kanban, mas com leitura mais direta para celular e tablet.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="rounded-full border-primary/25 bg-background/60">
-                Referencia {formatDateInSaoPaulo(referenceDate)}
-              </Badge>
-              <Badge variant="outline" className="rounded-full border-border/70 bg-background/60">
-                Agenda ate {formatDateInSaoPaulo(agendaLimite)}
-              </Badge>
-              <Badge variant="outline" className="rounded-full border-border/70 bg-background/60">
-                {pedidos.length} pedidos abertos no radar
-              </Badge>
-            </div>
-          </div>
+    <div className="space-y-4">
+      <section className="rounded-xl border bg-card">
+        <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
+          <header>
+            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+              <ChefHat className="size-5 text-primary" aria-hidden="true" /> KDS
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">{pedidos.length} pedidos abertos · Agenda até {formatDateInSaoPaulo(agendaLimite)}</p>
+          </header>
 
-          <Card className="w-full border-border/70 bg-background/70 xl:max-w-xl">
-            <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <Card className="w-full gap-0 border-border/70 bg-background py-0 shadow-none lg:max-w-xl">
+            <CardContent className="grid gap-2 p-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="kds-reference-date">Dia de referencia</Label>
+                  <Label htmlFor="kds-reference-date">Dia de referência</Label>
                   <Input
                     id="kds-reference-date"
                     type="date"
@@ -595,14 +578,14 @@ export function KdsPage() {
               </div>
               <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => void refreshData()}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Atualizar painel
+                Atualizar
               </Button>
             </CardContent>
           </Card>
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="flex gap-2 overflow-x-auto pb-1 xl:grid xl:grid-cols-6">
         {[
           { label: 'Aceite agora', value: resumo.aceite, tone: 'border-warning/35 bg-warning/8' },
           { label: 'Separando', value: resumo.separando, tone: 'border-accent/35 bg-accent/8' },
@@ -611,8 +594,8 @@ export function KdsPage() {
           { label: 'Pagto. pendente', value: resumo.pagamentos, tone: 'border-warning/35 bg-warning/8' },
           { label: 'Agenda', value: resumo.agenda, tone: 'border-secondary/35 bg-secondary/8' },
         ].map((item) => (
-          <Card key={item.label} className={cn('border-border/70 bg-card/95', item.tone)}>
-            <CardContent className="p-3 sm:p-4">
+          <Card key={item.label} className={cn('min-w-28 flex-1 gap-0 border-border/70 bg-card py-0 shadow-none', item.tone)}>
+            <CardContent className="p-2.5">
               <p className="text-xs text-muted-foreground sm:text-sm">{item.label}</p>
               <p className="mt-1 text-2xl font-bold sm:text-3xl">{item.value}</p>
             </CardContent>

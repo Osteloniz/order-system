@@ -59,9 +59,14 @@ function serializeClienteDetalhe(cliente: {
   pedidos: {
     id: string
     criadoEm: Date
+    origem?: 'LEGADO' | 'CAIXA_EXPRESS'
+    status?: string
+    statusPagamento?: string
     itens: {
       nomeProdutoSnapshot: string
       quantidade: number
+      totalItem: number
+      caixaElegivelFidelidade: boolean
     }[]
   }[]
 } | null) {
@@ -74,7 +79,7 @@ function serializeClienteDetalhe(cliente: {
     totalPedidos: cliente.pedidos?.length ?? 0,
     ultimoPedidoEm: cliente.pedidos?.[0]?.criadoEm ?? null,
     resumoConsumo,
-    resumoFidelidade: buildClienteFidelidade(resumoConsumo.totalCookies, cliente.mimosEntregues ?? 0),
+    resumoFidelidade: buildClienteFidelidade(cliente.fidelidadeAtiva ? resumoConsumo.totalCookies : 0, cliente.mimosEntregues ?? 0),
   }
 }
 
@@ -95,7 +100,6 @@ export async function GET(request: NextRequest) {
           pedidos: {
             include: { itens: true },
             orderBy: { criadoEm: 'desc' },
-            take: 20,
           },
         },
       })
@@ -184,7 +188,6 @@ export async function POST(request: NextRequest) {
             pedidos: {
               include: { itens: true },
               orderBy: { criadoEm: 'desc' },
-              take: 20,
             },
           },
         })

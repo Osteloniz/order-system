@@ -27,6 +27,7 @@ import type { TipoCartao, TipoPagamento } from '@/lib/types'
 type Tx = Prisma.TransactionClient
 
 type PedidoPagamentoBase = {
+  origem?: 'LEGADO' | 'CAIXA_EXPRESS'
   id: string
   tenantId: string | null
   status: 'FEITO' | 'ACEITO' | 'PREPARACAO' | 'PRONTO_ENTREGA' | 'ENTREGUE' | 'CANCELADO'
@@ -421,6 +422,7 @@ export async function ensureOrderHostedCheckout(
     mercadoPagoPixMode?: 'CHECKOUT' | 'DIRECT'
   },
 ): Promise<CheckoutRefreshResult> {
+  if (pedido.origem === 'CAIXA_EXPRESS') throw new Error('Vendas do Caixa não usam cobrança online.')
   const pagamento = options?.pagamento ?? (pedido.pagamento === 'DINHEIRO' ? 'PIX' : pedido.pagamento)
   const tipoCartao = pagamento === 'CARTAO' ? (options?.tipoCartao ?? pedido.tipoCartao ?? 'CREDITO') : null
   const forceRefresh = options?.forceRefresh ?? false

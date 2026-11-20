@@ -46,6 +46,7 @@
   --brand-surface: #fffdf8;
   --brand-strong-surface: #f5edd9;
   --brand-highlight: #e7b99b;
+  --info: #1c5a90;
 }
 
 .dark {
@@ -90,6 +91,7 @@
   --brand-surface: #3a1b14;
   --brand-strong-surface: #4c281c;
   --brand-highlight: #6c402d;
+  --info: #acd8ff;
 }
 
 @theme inline {
@@ -101,6 +103,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -197,4 +200,81 @@
   background-image:
     linear-gradient(110deg, rgba(40, 17, 12, 0.93), rgba(64, 99, 26, 0.68)),
     url('/brand/brookie-cookie-bite-light.jpg');
+}
+
+html[data-brookie-internal] {
+  --input: #866c56;
+  --ring: #80400a;
+  --sidebar-ring: var(--ring);
+  --destructive: #af1717;
+  --warning-foreground: #572a08;
+  scroll-padding-block: 4.5rem 6.5rem;
+}
+
+html[data-brookie-internal].dark {
+  --input: #b08468;
+  --ring: #ffc278;
+  --destructive: #ff9a9a;
+  --warning-foreground: #ffd498;
+}
+
+html[data-brookie-internal='NATAL'] {
+  --primary: #245337;
+  --primary-foreground: #fffaf0;
+  --secondary: #f0e4d4;
+  --secondary-foreground: #3d231a;
+  --accent: #dce9dc;
+  --accent-foreground: #264330;
+  --sidebar: #f4f0e6;
+  --sidebar-accent: #dce9dc;
+  --sidebar-accent-foreground: #264330;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+}
+
+html[data-brookie-internal='NATAL'].dark {
+  --primary: #acd9b2;
+  --primary-foreground: #19351e;
+  --secondary: #442c25;
+  --secondary-foreground: #fff0dc;
+  --accent: #2e4936;
+  --accent-foreground: #e8f4df;
+  --sidebar: #201b16;
+  --sidebar-accent: #2e4936;
+  --sidebar-accent-foreground: #e8f4df;
+}
+
+html[data-brookie-internal='ANO_NOVO'] {
+  --primary: #67511b;
+  --primary-foreground: #fff9eb;
+  --secondary: #f1e6c9;
+  --secondary-foreground: #392817;
+  --accent: #ede2c4;
+  --accent-foreground: #392817;
+  --sidebar: #f8f3e8;
+  --sidebar-accent: #ede2c4;
+  --sidebar-accent-foreground: #392817;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+}
+
+html[data-brookie-internal='ANO_NOVO'].dark {
+  --primary: #f0d28c;
+  --primary-foreground: #3d2b0e;
+  --secondary: #493d25;
+  --secondary-foreground: #fff0d0;
+  --accent: #50432c;
+  --accent-foreground: #fff0d0;
+  --sidebar: #251d14;
+  --sidebar-accent: #50432c;
+  --sidebar-accent-foreground: #fff0d0;
+}
+
+html[data-brookie-internal] body {
+  background-image: none;
+}
+
+html[data-brookie-internal] :where(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }

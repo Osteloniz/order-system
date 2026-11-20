@@ -59,7 +59,7 @@ export async function POST(
 
     const { id } = await params
     const pedido = await prisma.pedido.findFirst({
-      where: { id, tenantId: tenant.id },
+      where: { id, tenantId: tenant.id, origem: 'LEGADO' },
       select: pagamentoPedidoSelect,
     })
 

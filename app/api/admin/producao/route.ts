@@ -1,3 +1,5 @@
+import { reservedInShadow } from '@/lib/stock-commitments'
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { compare } from 'bcryptjs'
@@ -21,6 +23,7 @@ const patchSchema = z.discriminatedUnion('action', [
     action: z.literal('SET_STOCK'),
     produtoId: z.string().uuid(),
     quantidadeDisponivel: z.number().int().min(0).max(9999),
+    saldoConfirmado: z.number().int().nonnegative(),
     adminPassword: z.string().min(1),
   }).strict(),
   z.object({
@@ -181,6 +184,7 @@ export async function GET(request: NextRequest) {
         tenantId: admin.tenantId,
         tipoEntrega: { not: 'ENCOMENDA' },
         status: 'ENTREGUE',
+        origem: 'LEGADO',
         estoqueBaixadoEm: null,
       },
       include: { itens: true },
@@ -373,7 +377,7 @@ export async function PATCH(request: NextRequest) {
     const adminUser = await prisma.adminUser.findFirst({
       where: {
         tenantId: admin.tenantId,
-        nome: adminName,
+        id: admin.adminUserId,
       },
       select: {
         id: true,
@@ -398,15 +402,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Produto nao encontrado' }, { status: 404 })
     }
 
-    const estoque = await prisma.$transaction((tx) =>
-      setAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidadeDisponivel, {
-        tipo: 'AJUSTE_ESTOQUE',
-        descricao: 'Ajuste manual de saldo disponivel.',
-        actorNome: adminName,
+    const resultado = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
+      const atual = await tx.produtoEstoque.findUnique({
+        where: { tenantId_produtoId: { tenantId: admin.tenantId, produtoId: data.produtoId } },
+        select: { quantidadeDisponivel: true },
       })
-    )
+      const saldo = atual?.quantidadeDisponivel ?? 0
+      if (saldo !== data.saldoConfirmado) return { error: 'O saldo mudou. Confira a quantidade atual e confirme novamente.', saldo }
+      const comprometido = await reservedInShadow(tx, admin.tenantId, data.produtoId)
+      if (data.quantidadeDisponivel < comprometido) {
+        return { error: `Há ${comprometido} unidades comprometidas com pedidos em aberto.`, saldo }
+      }
+      return setAvailableStock(tx, admin.tenantId, data.produtoId, data.quantidadeDisponivel, {
+        tipo: 'AJUSTE_ESTOQUE', descricao: 'Ajuste manual de saldo disponível.', actorNome: adminName,
+        metadata: { atorId: admin.adminUserId },
+      })
+    })
 
-    return NextResponse.json(estoque)
+    return NextResponse.json(resultado, { status: 'error' in resultado ? 409 : 200 })
   }
 
   if (parsed.data.action === 'ADD_PRODUCTION') {
@@ -420,6 +434,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
       const registro = await tx.producaoRegistro.create({
         data: {
           tenantId: admin.tenantId,
@@ -481,6 +496,7 @@ export async function PATCH(request: NextRequest) {
     const actorNome = admin.session.user?.name?.toString().trim() || null
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
       const registros = []
 
       for (const item of itensNormalizados) {
@@ -528,6 +544,7 @@ export async function PATCH(request: NextRequest) {
         tenantId: admin.tenantId,
         tipoEntrega: { not: 'ENCOMENDA' },
         status: 'ENTREGUE',
+        origem: 'LEGADO',
         estoqueBaixadoEm: null,
       },
       include: { itens: true },
@@ -542,6 +559,9 @@ export async function PATCH(request: NextRequest) {
       const pedidoNumero = numeroPedidoCurto(pedido.id) ?? pedido.id
       try {
         await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
+          const atual = await tx.pedido.findFirst({ where: { id: pedido.id, tenantId: admin.tenantId, origem: 'LEGADO', status: 'ENTREGUE', estoqueBaixadoEm: null } })
+          if (!atual) return
           for (const item of pedido.itens) {
             await consumeAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, item.nomeProdutoSnapshot, {
               tipo: 'SINCRONIZACAO_LEGADA',
@@ -592,6 +612,12 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
+      const atual = await tx.itemPedido.findUnique({
+        where: { id: item.id }, select: { quantidade: true, quantidadePreparada: true, pedido: { select: { status: true } } },
+      })
+      if (!atual || atual.quantidade !== item.quantidade || atual.quantidadePreparada !== quantidadeAtual ||
+        atual.pedido.status !== item.pedido.status) throw new Error('O pedido mudou. Atualize a produção antes de confirmar.')
       if (deltaReservado > 0) {
         await reserveFromAvailableStock(tx, admin.tenantId, item.produtoId, deltaReservado, item.nomeProdutoSnapshot, {
           tipo: 'RESERVA_ENCOMENDA',

@@ -17,7 +17,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import Link from 'next/link'
+import { Sheet, SheetDescription, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { NovoPedidoAdminPage } from '@/components/admin/novo-pedido-page'
 import { formatarMoeda, formatarHora, formatarTelefone } from '@/lib/calc'
 import { getAdminAlertSoundEnabled, getAdminAlertsEnabled, getNotificationPermission, setAdminAlertsEnabled } from '@/lib/admin-alert-settings'
@@ -113,11 +114,11 @@ function getNextStatusLabel(pedido: Pedido, nextStatus: StatusPedido | null) {
 
 function getGatewayBadgeClass(gateway: ReturnType<typeof inferHostedCheckoutGateway>) {
   if (gateway === 'MERCADO_PAGO') {
-    return 'border-[#559eee]/35 bg-[#559eee]/10 text-[#2468a8] dark:text-[#b9dbff]'
+    return 'border-info/35 bg-info/10 text-info'
   }
 
   if (gateway === 'ASAAS') {
-    return 'border-[#c56813]/35 bg-[#c56813]/10 text-[#94500d] dark:text-[#f2bd80]'
+    return 'border-warning/35 bg-warning/10 text-foreground'
   }
 
   return 'border-border/70 bg-background/70 text-muted-foreground'
@@ -264,7 +265,7 @@ export function PedidosDashboard() {
 
   const selectedPedidos = useMemo(() => {
     const ids = new Set(selectedPedidoIds)
-    return (pedidos || []).filter((pedido) => ids.has(pedido.id))
+    return (pedidos || []).filter((pedido) => pedido.origem !== 'CAIXA_EXPRESS' && ids.has(pedido.id))
   }, [pedidos, selectedPedidoIds])
 
   const selectedPedidosEntregaveis = useMemo(
@@ -706,7 +707,7 @@ export function PedidosDashboard() {
   const handleSelectAllFiltered = () => {
     setSelectedPedidoIds((atual) => {
       const ids = new Set(atual)
-      pedidosFiltrados.forEach((pedido) => ids.add(pedido.id))
+      pedidosFiltrados.forEach((pedido) => { if (pedido.origem !== 'CAIXA_EXPRESS') ids.add(pedido.id) })
       return Array.from(ids)
     })
   }
@@ -880,7 +881,7 @@ export function PedidosDashboard() {
         <CardContent className="p-2.5">
           <div className="flex items-start gap-2">
             <Checkbox
-              checked={isSelected}
+              checked={isSelected} disabled={pedido.origem === 'CAIXA_EXPRESS'}
               aria-label={`Selecionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
               onCheckedChange={(checked) => togglePedidoSelection(pedido.id, checked === true)}
               onClick={(event) => event.stopPropagation()}
@@ -923,7 +924,7 @@ export function PedidosDashboard() {
         className={`flex items-start gap-2 rounded-xl border bg-card/95 p-2 transition-colors hover:border-primary/35 hover:bg-primary/[0.025] ${isSelected ? 'border-primary/50 ring-1 ring-primary/40' : 'border-border/70'}`}
       >
         <Checkbox
-          checked={isSelected}
+          checked={isSelected} disabled={pedido.origem === 'CAIXA_EXPRESS'}
           aria-label={`Selecionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
           onCheckedChange={(checked) => togglePedidoSelection(pedido.id, checked === true)}
           className="mt-1"
@@ -961,6 +962,18 @@ export function PedidosDashboard() {
   }
 
   const renderSelectedPedidoSheet = (pedido: Pedido) => {
+    if (pedido.origem === 'CAIXA_EXPRESS') {
+      return <div className="space-y-3 py-3">
+        <SheetHeader className="px-0">
+          <SheetTitle>Venda do Caixa #{pedido.id.slice(-8).toUpperCase()}</SheetTitle>
+          <SheetDescription>{pedido.clienteNome} · {statusPagamentoLabels[pedido.statusPagamento]}</SheetDescription>
+        </SheetHeader>
+        <ul className="divide-y rounded-lg border px-3">
+          {pedido.itens.map((item) => <li key={item.id} className="py-2 text-sm">{item.quantidade} × {item.nomeProdutoSnapshot}</li>)}
+        </ul>
+        <Button asChild><Link href={`/caixa?gestao=${pedido.id.slice(-8).toUpperCase()}`}>Gerenciar venda no Caixa</Link></Button>
+      </div>
+    }
     const status = statusConfig[pedido.status]
     const canEdit = pedido.status !== 'ENTREGUE' && pedido.status !== 'CANCELADO' && pedido.status !== 'PRONTO_ENTREGA'
     const canResendStatus = pedido.status !== 'FEITO' && pedido.status !== 'CANCELADO'

@@ -118,7 +118,7 @@ export const authOptions: NextAuthOptions = {
             sessionVersion: challenge.sessionVersion,
           }
         })
-        if (!user || !user.ativo) {
+        if (!user || !user.ativo || user.role === 'CAIXA') {
           await createAuthAuditLog({
             tenantId: tenant.id,
             adminUserId: user?.id ?? null,

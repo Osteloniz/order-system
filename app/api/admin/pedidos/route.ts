@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
@@ -202,6 +203,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pedido = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
       const configuracao = await tx.configuracao.findFirst({
         where: { tenantId: admin.tenantId }
       })

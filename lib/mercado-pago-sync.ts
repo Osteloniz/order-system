@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { prisma } from '@/lib/db'
 import { inferHostedCheckoutGateway } from '@/lib/hosted-payment'
 import { retrieveMercadoPagoPayment } from '@/lib/mercado-pago'
@@ -50,6 +51,7 @@ function parseExternalReference(externalReference?: string | null) {
 }
 
 export type PendingMercadoPagoPixSyncCandidate = {
+  origem?: 'LEGADO' | 'CAIXA_EXPRESS'
   status: string
   statusPagamento: string
   pagamento: string
@@ -66,7 +68,7 @@ export function shouldSyncPendingMercadoPagoPix(
   now = new Date(),
 ) {
   if (pedido.status === 'CANCELADO') return false
-  if (pedido.statusPagamento !== 'PENDENTE') return false
+  if (pedido.origem === 'CAIXA_EXPRESS' || pedido.statusPagamento !== 'PENDENTE') return false
   if (pedido.pagamento !== 'PIX') return false
 
   const paymentId = pedido.asaasPaymentId?.trim()
@@ -106,28 +108,22 @@ export async function syncMercadoPagoPaymentById(input: {
     return { ok: false as const, reason: 'missing-order-reference' }
   }
 
-  const pedido = await prisma.pedido.findUnique({
-    where: { id: pedidoId },
-    include: { itens: true },
-  })
+  return prisma.$transaction(async (tx) => {
+    const scope = await tx.pedido.findUnique({ where: { id: pedidoId, origem: 'LEGADO' }, select: { tenantId: true } })
+    if (scope?.tenantId) await lockTenantStock(tx, scope.tenantId)
+    const pedido = await tx.pedido.findUnique({ where: { id: pedidoId, origem: 'LEGADO' }, include: { itens: true } })
+    if (!pedido) return { ok: false as const, reason: 'order-not-found' }
 
-  if (!pedido) {
-    return { ok: false as const, reason: 'order-not-found' }
-  }
+    if (!returnToken || !pedido.asaasReturnTokenHash || hashAsaasReturnToken(returnToken) !== pedido.asaasReturnTokenHash) {
+      return { ok: false as const, reason: 'stale-return-token', pedidoId }
+    }
+    if (pedido.asaasLastEventId === input.notificationId) {
+      return { ok: true as const, duplicate: true, pedidoId: pedido.id }
+    }
 
-  if (!returnToken || !pedido.asaasReturnTokenHash || hashAsaasReturnToken(returnToken) !== pedido.asaasReturnTokenHash) {
-    return { ok: false as const, reason: 'stale-return-token', pedidoId }
-  }
-
-  if (pedido.asaasLastEventId === input.notificationId) {
-    return { ok: true as const, duplicate: true, pedidoId: pedido.id }
-  }
-
-  const mappedStatus = mapMercadoPagoStatusToPaymentStatus(payment.status)
-  const statusPagamento = resolveNextStatusPagamento(pedido.statusPagamento, mappedStatus)
-  const nextStatus = resolveStatusAfterPaymentChange(pedido.status, statusPagamento, pedido.tipoEntrega)
-
-  await prisma.$transaction(async (tx) => {
+    const mappedStatus = mapMercadoPagoStatusToPaymentStatus(payment.status)
+    const statusPagamento = resolveNextStatusPagamento(pedido.statusPagamento, mappedStatus)
+    const nextStatus = resolveStatusAfterPaymentChange(pedido.status, statusPagamento, pedido.tipoEntrega)
     const estoqueControle = pedido.tenantId
       ? await syncOrderStockForTransition({
           tx,
@@ -197,13 +193,6 @@ export async function syncMercadoPagoPaymentById(input: {
         },
       })
     }
+    return { ok: true as const, pedidoId: pedido.id, statusPagamento, nextStatus, duplicate: false }
   })
-
-  return {
-    ok: true as const,
-    pedidoId: pedido.id,
-    statusPagamento,
-    nextStatus,
-    duplicate: false,
-  }
 }

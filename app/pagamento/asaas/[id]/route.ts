@@ -21,6 +21,7 @@ export async function GET(
   const pedido = await prisma.pedido.findUnique({
     where: { id },
     select: {
+      origem: true,
       id: true,
       asaasReturnTokenHash: true,
       tenantId: true,
@@ -29,7 +30,7 @@ export async function GET(
     },
   })
 
-  if (!pedido?.asaasReturnTokenHash || !isValidAsaasReturnToken(returnToken, pedido.asaasReturnTokenHash)) {
+  if (pedido?.origem !== 'LEGADO' || !pedido.asaasReturnTokenHash || !isValidAsaasReturnToken(returnToken, pedido.asaasReturnTokenHash)) {
     return NextResponse.redirect(new URL('/menu', request.url))
   }
 

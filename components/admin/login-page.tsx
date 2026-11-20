@@ -60,8 +60,8 @@ export function LoginPage() {
 
   return (
     <div className="brookie-login-background relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,104,19,.24),transparent_42%)]" />
-      <Card className="relative z-10 w-full max-w-[390px] border-[#E7DBB3]/35 bg-[#FFF8EE]/95 shadow-2xl backdrop-blur-md">
+      <div aria-hidden="true" className="absolute inset-0 bg-linear-to-br from-transparent to-background/45" />
+      <Card className="relative z-10 w-full max-w-[390px] border-border bg-card text-card-foreground shadow-2xl backdrop-blur-md">
         <CardHeader className="space-y-2 p-5 pb-3 text-center">
           <Image
             src="/brand/brookie-mark-color.jpg"
@@ -69,10 +69,10 @@ export function LoginPage() {
             width={72}
             height={72}
             priority
-            className="mx-auto h-16 w-16 rounded-full border-2 border-[#E7DBB3] object-cover shadow-sm"
+            className="mx-auto h-16 w-16 rounded-full border-2 border-border object-cover shadow-sm"
           />
-          <CardTitle className="text-[#421C14]">Acesso restrito</CardTitle>
-          <CardDescription className="text-[#421C14]/70">
+          <CardTitle className="text-card-foreground">Acesso restrito</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Primeiro confirme seu e-mail e senha.
           </CardDescription>
         </CardHeader>
@@ -117,7 +117,7 @@ export function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-[#40631A] hover:bg-[#365416]"
+              className="w-full min-h-11"
               disabled={isSubmitting || !username || !senha}
             >
               {isSubmitting ? (
@@ -130,7 +130,8 @@ export function LoginPage() {
               )}
             </Button>
           </form>
-          <p className="mt-4 text-center text-[11px] text-[#421C14]/55">
+          <a href="/caixa/login" className="mt-3 block text-center text-sm font-medium text-primary underline underline-offset-4">Acesso ao Caixa</a>
+          <p className="mt-4 text-center text-[11px] text-muted-foreground">
             Tentativas e acessos sao monitorados. Nao compartilhe credenciais.
           </p>
         </CardContent>

@@ -1,3 +1,4 @@
+import { CAIXA_COOKIE } from '@/lib/caixa-session-policy'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
@@ -12,7 +13,7 @@ function withSecurityHeaders(response: NextResponse, pathname = '') {
   if (process.env.NODE_ENV === 'production') {
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }
-  if (pathname.startsWith('/admin') || pathname.startsWith('/api/auth')) {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/auth') || pathname.startsWith('/caixa') || pathname.startsWith('/api/caixa')) {
     response.headers.set('Cache-Control', 'no-store, max-age=0')
   }
   return response
@@ -21,6 +22,15 @@ function withSecurityHeaders(response: NextResponse, pathname = '') {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const defaultTenantSlug = 'brookie-pregiato'
+
+  if (req.cookies.has(CAIXA_COOKIE)) {
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+      return withSecurityHeaders(NextResponse.redirect(new URL('/caixa', req.url)), pathname)
+    }
+    if (pathname.startsWith('/api/admin/')) {
+      return withSecurityHeaders(NextResponse.json({ error: 'Não autorizado.' }, { status: 403 }), pathname)
+    }
+  }
 
   if (
     pathname.startsWith('/admin') &&
@@ -31,7 +41,7 @@ export async function middleware(req: NextRequest) {
       secret: process.env.NEXTAUTH_SECRET,
       cookieName: 'next-auth.session-token',
     })
-    if (!token) {
+    if (!token || token.role === 'CAIXA') {
       const loginUrl = new URL('/admin/login', req.url)
       return withSecurityHeaders(NextResponse.redirect(loginUrl), pathname)
     }
@@ -58,5 +68,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/(cliente)/:path*', '/admin-access', '/admin/:path*', '/api/:path*']
+  matcher: ['/(cliente)/:path*', '/admin-access', '/admin/:path*', '/caixa/:path*', '/api/:path*']
 }

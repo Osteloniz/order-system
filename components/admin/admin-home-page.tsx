@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+import { InternalThemeArtwork } from '@/components/admin/internal-theme'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { ArrowRight, CalendarClock, ChefHat, CirclePlus, ClipboardList, CreditCard, Gift, LayoutPanelTop, LoaderCircle, PackageCheck, RefreshCw, ShoppingBag, Store, UserRound, Users } from 'lucide-react'
@@ -57,9 +57,9 @@ type FidelidadeHomeResponse = {
 }
 
 const flow: { status: StatusPedido; label: string; icon: typeof ClipboardList; tone: string }[] = [
-  { status: 'FEITO', label: 'Novos', icon: ClipboardList, tone: 'bg-[#C56813]/12 text-[#9A4B0A]' },
-  { status: 'ACEITO', label: 'Aceitos', icon: PackageCheck, tone: 'bg-[#559EEE]/12 text-[#2F6FAF]' },
-  { status: 'PREPARACAO', label: 'Em preparo', icon: ChefHat, tone: 'bg-[#40631A]/12 text-[#40631A]' },
+  { status: 'FEITO', label: 'Novos', icon: ClipboardList, tone: 'bg-warning/12 text-muted-foreground' },
+  { status: 'ACEITO', label: 'Aceitos', icon: PackageCheck, tone: 'bg-info/12 text-info' },
+  { status: 'PREPARACAO', label: 'Em preparo', icon: ChefHat, tone: 'bg-primary/12 text-primary' },
   { status: 'PRONTO_ENTREGA', label: 'Prontos', icon: ShoppingBag, tone: 'bg-success/12 text-success' },
 ]
 
@@ -82,10 +82,10 @@ export function AdminHomePage() {
   const encomendas = activePedidos.filter((pedido) => pedido.tipoEntrega === 'ENCOMENDA').length
 
   const stats = [
-    { label: 'Novos', value: safePedidos.filter((pedido) => pedido.status === 'FEITO').length, icon: ClipboardList, tone: 'text-[#C56813] bg-[#C56813]/10' },
-    { label: 'Em andamento', value: safePedidos.filter((pedido) => pedido.status === 'ACEITO' || pedido.status === 'PREPARACAO').length, icon: ChefHat, tone: 'text-[#40631A] bg-[#40631A]/10' },
+    { label: 'Novos', value: safePedidos.filter((pedido) => pedido.status === 'FEITO').length, icon: ClipboardList, tone: 'text-foreground bg-warning/10' },
+    { label: 'Em andamento', value: safePedidos.filter((pedido) => pedido.status === 'ACEITO' || pedido.status === 'PREPARACAO').length, icon: ChefHat, tone: 'text-primary bg-primary/10' },
     { label: 'Prontos', value: safePedidos.filter((pedido) => pedido.status === 'PRONTO_ENTREGA').length, icon: PackageCheck, tone: 'text-success bg-success/10' },
-    { label: 'Pagamentos', value: pendingPayments, icon: CreditCard, tone: 'text-[#559EEE] bg-[#559EEE]/10' },
+    { label: 'Pagamentos', value: pendingPayments, icon: CreditCard, tone: 'text-info bg-info/10' },
   ]
 
   const confirmarMimo = (cliente: ClienteFidelidadeHome) => {
@@ -117,27 +117,21 @@ export function AdminHomePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-3 md:space-y-4">
-      <section className="relative overflow-hidden rounded-2xl border border-[#E7DBB3] bg-[#E7DBB3] text-[#421C14] shadow-sm dark:border-[#421C14] dark:bg-[#421C14] dark:text-[#E7DBB3]">
-        <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#C56813]/16" aria-hidden="true" />
+      <section className="relative overflow-hidden rounded-2xl border border-border bg-secondary text-secondary-foreground shadow-sm">
         <div className="relative grid min-h-[188px] grid-cols-[minmax(0,1fr)_112px] items-center gap-2 p-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:p-5 md:min-h-[220px]">
           <div className="min-w-0">
-            <Badge className="mb-3 border-0 bg-[#40631A] text-[#E7DBB3] hover:bg-[#40631A]">Central Brookie</Badge>
-            <h1 className="max-w-xl text-2xl font-bold leading-tight sm:text-3xl">Tudo da operação em um só lugar.</h1>
-            <p className="mt-2 max-w-lg text-sm text-[#421C14]/72 dark:text-[#E7DBB3]/72">Pedidos, produção, clientes e financeiro organizados para a rotina da Brookie Pregiato.</p>
+            <h1 className="max-w-xl text-2xl font-bold leading-tight sm:text-3xl">Operação de hoje</h1>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button asChild size="sm" className="h-9 rounded-lg bg-[#40631A] text-[#E7DBB3] hover:bg-[#365416]">
-                <Link href="/admin/novo-pedido"><CirclePlus className="h-4 w-4" />Nova venda</Link>
+              <Button asChild size="sm" className="h-9 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90">
+                <Link href="/caixa"><CirclePlus className="h-4 w-4" />Caixa Express</Link>
               </Button>
-              <Button asChild variant="outline" size="sm" className="h-9 rounded-lg border-[#421C14]/20 bg-white/35 text-[#421C14] hover:bg-white/55 dark:border-[#E7DBB3]/25 dark:bg-white/5 dark:text-[#E7DBB3]">
+              <Button asChild variant="outline" size="sm" className="h-9 rounded-lg border-border bg-background">
                 <Link href="/admin">Ver pedidos<ArrowRight className="h-4 w-4" /></Link>
               </Button>
             </div>
           </div>
-          <div className="relative aspect-square w-full overflow-hidden rounded-full border border-[#421C14]/10 bg-[#E7DBB3] shadow-sm dark:hidden">
-            <Image src="/brand/brookie-logo-light.jpg" alt="Logo Brookie Pregiato" fill priority sizes="(max-width: 640px) 112px, 180px" className="object-cover" />
-          </div>
-          <div className="relative hidden aspect-square w-full overflow-hidden rounded-full border border-[#E7DBB3]/15 bg-[#421C14] shadow-sm dark:block">
-            <Image src="/brand/brookie-logo-dark.jpg" alt="Logo Brookie Pregiato" fill priority sizes="(max-width: 640px) 112px, 180px" className="object-cover" />
+          <div className="relative aspect-square w-full">
+            <InternalThemeArtwork />
           </div>
         </div>
       </section>
@@ -185,8 +179,8 @@ export function AdminHomePage() {
             })}
           </div>
           {encomendas > 0 ? (
-            <div className="mt-2 flex items-center gap-2 rounded-lg bg-[#C56813]/8 px-3 py-2 text-xs text-muted-foreground">
-              <CalendarClock className="h-4 w-4 shrink-0 text-[#C56813]" />
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-warning/8 px-3 py-2 text-xs text-muted-foreground">
+              <CalendarClock className="h-4 w-4 shrink-0 text-foreground" />
               <span><strong className="text-foreground">{encomendas}</strong> encomenda(s) aberta(s) na agenda.</span>
             </div>
           ) : null}
@@ -196,10 +190,10 @@ export function AdminHomePage() {
           <h2 id="atalhos" className="mb-2 font-semibold">Acesso rápido</h2>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { href: '/admin/novo-pedido', label: 'Nova venda', detail: 'Lançar pedido', icon: CirclePlus, color: 'text-[#40631A]' },
-              { href: '/admin/kds', label: 'KDS', detail: 'Acompanhar produção', icon: LayoutPanelTop, color: 'text-[#C56813]' },
-              { href: '/admin/clientes', label: 'Clientes', detail: 'Buscar cadastro', icon: Users, color: 'text-[#559EEE]' },
-              { href: '/admin/estoque', label: 'Estoque', detail: 'Saldo e produção', icon: Store, color: 'text-[#421C14]' },
+              { href: '/admin/novo-pedido', label: 'Nova venda', detail: 'Lançar pedido', icon: CirclePlus, color: 'text-primary' },
+              { href: '/admin/kds', label: 'KDS', detail: 'Acompanhar produção', icon: LayoutPanelTop, color: 'text-foreground' },
+              { href: '/admin/clientes', label: 'Clientes', detail: 'Buscar cadastro', icon: Users, color: 'text-info' },
+              { href: '/admin/estoque', label: 'Estoque', detail: 'Saldo e produção', icon: Store, color: 'text-foreground' },
             ].map((item) => {
               const Icon = item.icon
               return (
@@ -216,7 +210,7 @@ export function AdminHomePage() {
       <section className="overflow-hidden rounded-xl border border-border/70 bg-card" aria-labelledby="fidelidade-clientes">
         <div className="flex items-start justify-between gap-3 border-b border-border/60 p-3">
           <div className="flex min-w-0 items-start gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#C56813]/10 text-[#C56813]"><Gift className="h-4 w-4" /></span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-foreground"><Gift className="h-4 w-4" /></span>
             <div className="min-w-0">
               <h2 id="fidelidade-clientes" className="font-semibold">Fidelidade em destaque</h2>
               <p className="text-xs text-muted-foreground">Mimos liberados primeiro, seguidos por quem está mais perto.</p>
@@ -242,7 +236,7 @@ export function AdminHomePage() {
           ) : fidelidade?.clientes.length ? (
             <>
               <div className="mb-2 flex flex-wrap gap-1.5">
-                <Badge className="border-0 bg-[#40631A]/12 text-[#40631A] hover:bg-[#40631A]/12">{fidelidade.resumo.mimosDisponiveis} mimo(s) disponível(is)</Badge>
+                <Badge className="border-0 bg-primary/12 text-primary hover:bg-primary/12">{fidelidade.resumo.mimosDisponiveis} mimo(s) disponível(is)</Badge>
                 <Badge variant="outline">{fidelidade.resumo.clientesComMimo} cliente(s) para presentear</Badge>
                 <Badge variant="outline">{fidelidade.resumo.clientesAcompanhados} em acompanhamento</Badge>
               </div>
@@ -255,9 +249,9 @@ export function AdminHomePage() {
                     : Math.round((cliente.resumoFidelidade.progressoAtual / MIMO_COOKIE_THRESHOLD) * 100)
 
                   return (
-                    <article key={cliente.id} className={`rounded-lg border p-2.5 ${mimoDisponivel ? 'border-[#40631A]/30 bg-[#40631A]/[0.045]' : 'border-border/60 bg-background/60'}`}>
+                    <article key={cliente.id} className={`rounded-lg border p-2.5 ${mimoDisponivel ? 'border-primary/30 bg-primary/[0.045]' : 'border-border/60 bg-background/60'}`}>
                       <div className="flex items-start gap-2.5">
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${mimoDisponivel ? 'bg-[#40631A] text-[#E7DBB3]' : 'bg-[#C56813]/10 text-[#C56813]'}`}>
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${mimoDisponivel ? 'bg-primary text-primary-foreground' : 'bg-warning/10 text-foreground'}`}>
                           {mimoDisponivel ? <Gift className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
                         </span>
                         <div className="min-w-0 flex-1">

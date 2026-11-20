@@ -1,8 +1,11 @@
+import { cookies } from 'next/headers'
+import { CAIXA_COOKIE } from '@/lib/caixa-session-policy'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
 export async function getPendingAdminSession() {
+  if ((await cookies()).has(CAIXA_COOKIE)) return null
   const session = await getServerSession(authOptions)
   if (!session?.user) return null
   const tenantId = (session.user as any).tenantId as string | undefined
@@ -31,7 +34,7 @@ export async function getPendingAdminSession() {
 
   if (
     !user ||
-    !user.ativo ||
+    !user.ativo || user.role === 'CAIXA' ||
     user.sessionVersion !== sessionVersion
   ) {
     return null

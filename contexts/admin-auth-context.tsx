@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getSession, signIn, signOut, useSession } from 'next-auth/react'
 
 interface AdminAuthContextType {
+  tenantId?: string
   isAuthenticated: boolean
   isLoading: boolean
   mfaVerified: boolean
@@ -21,6 +22,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
   const isLoading = status === 'loading'
   const isAuthenticated = status === 'authenticated'
+  const tenantId = (session?.user as { tenantId?: string } | undefined)?.tenantId
   const mfaVerified = Boolean((session?.user as any)?.mfaVerified)
   const mfaEnrollmentRequired = Boolean((session?.user as any)?.mfaEnrollmentRequired)
 
@@ -88,7 +90,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, [router])
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, isLoading, mfaVerified, mfaEnrollmentRequired, beginLogin, completeLogin, logout }}>
+    <AdminAuthContext.Provider value={{ tenantId, isAuthenticated, isLoading, mfaVerified, mfaEnrollmentRequired, beginLogin, completeLogin, logout }}>
       {children}
     </AdminAuthContext.Provider>
   )

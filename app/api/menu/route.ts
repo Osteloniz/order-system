@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { hasActiveAsaasPixKey } from '@/lib/asaas'
 import { prisma } from '@/lib/db'
-import { loadShadowCommittedQuantityMap } from '@/lib/order-stock'
+import { loadShadowCommittedQuantityMap } from '@/lib/stock-commitments'
 import { resolvePublicCardAvailability } from '@/lib/payment-gateway'
 import { resolveProductOrderMode } from '@/lib/product-availability'
 import { resolveStoreHoursStatus } from '@/lib/store-hours'

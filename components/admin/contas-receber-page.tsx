@@ -47,13 +47,13 @@ type ContaReceberItem = {
   total: number
   taxa: number
   liquido: number
-  statusFinanceiro: 'PREVISTO' | 'REALIZADO' | 'CANCELADO'
+  statusFinanceiro: 'PREVISTO' | 'REALIZADO' | 'CANCELADO' | 'ESTORNADO'
 }
 
 type ContasReceberData = {
   from: string
   to: string
-  status: 'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO'
+  status: 'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO' | 'ESTORNADO'
   totalRegistros: number
   resumo: {
     totalBruto: number
@@ -64,6 +64,7 @@ type ContasReceberData = {
     realizado: number
     realizadoLiquido: number
     cancelado: number
+    estornado?: number
   }
   contas: ContaReceberItem[]
 }
@@ -94,10 +95,10 @@ export function ContasReceberPage() {
   const defaultRange = getCurrentMonthRangeInSaoPaulo()
   const [fromInput, setFromInput] = useState(defaultRange.from)
   const [toInput, setToInput] = useState(defaultRange.to)
-  const [statusInput, setStatusInput] = useState<'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO'>('TODOS')
+  const [statusInput, setStatusInput] = useState<'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO' | 'ESTORNADO'>('TODOS')
   const [from, setFrom] = useState(defaultRange.from)
   const [to, setTo] = useState(defaultRange.to)
-  const [status, setStatus] = useState<'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO'>('TODOS')
+  const [status, setStatus] = useState<'TODOS' | 'PREVISTO' | 'REALIZADO' | 'CANCELADO' | 'ESTORNADO'>('TODOS')
   const [search, setSearch] = useState('')
 
   const periodoPendente = from !== fromInput || to !== toInput || status !== statusInput
@@ -161,7 +162,7 @@ export function ContasReceberPage() {
     {
       titulo: 'Titulos no filtro',
       valor: String(data?.totalRegistros ?? 0),
-      detalhe: `Cancelado: ${formatarMoeda(data?.resumo.cancelado ?? 0)}`,
+      detalhe: `Cancelado: ${formatarMoeda(data?.resumo.cancelado ?? 0)} · Estornado: ${formatarMoeda(data?.resumo.estornado ?? 0)}`,
       icon: ReceiptText,
       tone: 'text-muted-foreground',
     },
@@ -254,6 +255,7 @@ export function ContasReceberPage() {
                   <SelectItem value="PREVISTO">Previsto</SelectItem>
                   <SelectItem value="REALIZADO">Realizado</SelectItem>
                   <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                      <SelectItem value="ESTORNADO">Estornado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
