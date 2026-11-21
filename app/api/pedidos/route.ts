@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -17,7 +18,8 @@ import {
   getMercadoPagoWebhookUrl,
   isMercadoPagoApiError,
 } from '@/lib/mercado-pago'
-import { lockProductStockRows, loadShadowCommittedQuantityMap, loadShadowCommittedQuantityMapTx } from '@/lib/order-stock'
+import { loadShadowCommittedQuantityMap, loadShadowCommittedQuantityMapTx } from '@/lib/stock-commitments'
+import { lockProductStockRows } from '@/lib/order-stock'
 import { numeroPedidoCurto, registrarLogOperacao } from '@/lib/operation-log'
 import { getOnlinePaymentGateway, resolvePublicCardAvailability } from '@/lib/payment-gateway'
 import { getPhoneLookupCandidates, isValidPhone, normalizePhone } from '@/lib/phone'
@@ -596,6 +598,7 @@ export async function POST(request: NextRequest) {
         })
 
     const novoPedido = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, tenant.id)
       await lockProductStockRows(tx, tenant.id, itemIds)
 
       const produtosAtualizados = await tx.produto.findMany({

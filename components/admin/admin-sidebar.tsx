@@ -27,6 +27,7 @@ import {
   Users,
   X,
   type LucideIcon,
+  CreditCard,
 } from 'lucide-react'
 import useSWR from 'swr'
 import { useEffect, useState } from 'react'
@@ -41,6 +42,7 @@ type MenuItem = { href: string; label: string; icon: LucideIcon }
 const operationItems: MenuItem[] = [
   { href: '/admin/inicio', label: 'Início', icon: Home },
   { href: '/admin', label: 'Pedidos', icon: ClipboardList },
+  { href: '/caixa', label: 'Caixa Express', icon: CreditCard },
   { href: '/admin/novo-pedido', label: 'Nova venda', icon: CirclePlus },
   { href: '/admin/kds', label: 'KDS operacional', icon: LayoutPanelTop },
 ]
@@ -72,7 +74,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json())
 function BrandMark({ size = 36 }: { size?: number }) {
   return (
     <span
-      className="relative shrink-0 overflow-hidden rounded-full border border-[#E7DBB3] bg-[#E7DBB3] shadow-sm"
+      className="relative shrink-0 overflow-hidden rounded-full border border-sidebar-border bg-sidebar-accent shadow-sm"
       style={{ width: size, height: size }}
     >
       <Image src="/brand/brookie-mark-color.jpg" alt="" fill sizes={`${size}px`} className="object-cover" />
@@ -208,7 +210,7 @@ export function AdminSidebar({
 
   return (
     <>
-      <div className="fixed left-0 right-0 top-0 z-50 flex min-h-12 items-center justify-between border-b border-border bg-card/95 px-2.5 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
+      <div className="fixed left-0 right-0 top-0 z-50 flex min-h-12 items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-2.5 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
         <div className="flex min-w-0 items-center gap-1.5">
           <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'} onClick={() => setMobileOpen((current) => !current)}>
             {mobileOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}

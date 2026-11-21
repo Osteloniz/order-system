@@ -1,3 +1,4 @@
+import { caixaDeliveryPeriod, caixaFinanceMovements, legacyFinancePeriod } from '@/lib/caixa-finance'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
@@ -48,13 +49,13 @@ export async function GET(request: NextRequest) {
     const { from, to } = parsed.data
     const { start, end } = getPeriodRange(from, to)
 
-    const [pedidos, contasPagar] = await Promise.all([
+    const [pedidos, contasPagar, movimentosCaixa] = await Promise.all([
       prisma.pedido.findMany({
         where: {
           tenantId: admin.tenantId,
           OR: [
-            { tipoEntrega: { not: 'ENCOMENDA' }, criadoEm: { gte: start, lt: end } },
-            { tipoEntrega: 'ENCOMENDA', encomendaPara: { gte: start, lt: end } },
+            legacyFinancePeriod(start, end),
+            { ...caixaDeliveryPeriod(start, end), status: 'ENTREGUE', statusPagamento: 'PENDENTE' },
           ],
         },
       }),
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
         },
         orderBy: [{ vencimento: 'asc' }, { criadoEm: 'asc' }],
       }),
+      caixaFinanceMovements(admin.tenantId, start, end),
     ])
 
     const rows = new Map<
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
 
     for (const pedido of pedidos) {
       const dataCompetencia =
-        pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara ? pedido.encomendaPara : pedido.criadoEm
+        pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara ? pedido.encomendaPara : (pedido.entregueEm ?? pedido.criadoEm)
       const key = groupByDateKey(dataCompetencia)
       const row = rows.get(key)
       if (!row) continue
@@ -112,6 +114,17 @@ export async function GET(request: NextRequest) {
       if (statusFinanceiro === 'REALIZADO') {
         row.entradasRealizadas += liquido
         row.taxasRealizadas += taxa
+      }
+    }
+
+    for (const movimento of movimentosCaixa) {
+      const row = rows.get(groupByDateKey(movimento.efetivoEm))
+      if (!row) continue
+      if (movimento.saida) {
+        row.saidasRealizadas += movimento.bruto
+      } else {
+        row.entradasRealizadas += movimento.liquido
+        row.taxasRealizadas += movimento.taxa
       }
     }
 

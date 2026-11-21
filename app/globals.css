@@ -46,6 +46,7 @@
   --brand-surface: #fffdf8;
   --brand-strong-surface: #f5edd9;
   --brand-highlight: #e7b99b;
+  --info: #1c5a90;
 }
 
 .dark {
@@ -90,6 +91,7 @@
   --brand-surface: #3a1b14;
   --brand-strong-surface: #4c281c;
   --brand-highlight: #6c402d;
+  --info: #acd8ff;
 }
 
 @theme inline {
@@ -101,6 +103,8 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-solid-foreground: var(--warning-solid-foreground, var(--warning-foreground));
+  --color-info: var(--info);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -196,5 +200,226 @@
   background-color: #28110c;
   background-image:
     linear-gradient(110deg, rgba(40, 17, 12, 0.93), rgba(64, 99, 26, 0.68)),
+    url('/brand/brookie-cookie-bite-light.jpg');
+}
+
+html[data-brookie-internal] {
+  --input: #866c56;
+  --ring: #80400a;
+  --sidebar-ring: var(--ring);
+  --destructive: #af1717;
+  --warning-foreground: #572a08;
+  scroll-padding-block: 4.5rem 6.5rem;
+}
+
+html[data-brookie-internal].dark {
+  --input: #b08468;
+  --ring: #ffc278;
+  --destructive: #ff9a9a;
+  --warning-foreground: #ffd498;
+}
+
+html[data-brookie-internal='NATAL'] {
+  --background: #fff4f1;
+  --foreground: #451d29;
+  --card: #fffaf8;
+  --primary: #8b263b;
+  --primary-foreground: #fff7f8;
+  --secondary: #f6e0e3;
+  --muted: #f9e9e8;
+  --muted-foreground: #734653;
+  --accent: #f0d8de;
+  --border: #e7c6cc;
+  --input: #a36777;
+  --sidebar: #fff0ee;
+  --brand-secondary: #be655f;
+  --brand-highlight: #d58a98;
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+  --ring: var(--primary);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --brand-primary: var(--primary);
+  --brand-surface: var(--card);
+  --brand-strong-surface: var(--secondary);
+}
+
+html[data-brookie-internal='NATAL'].dark {
+  --background: #25151c;
+  --foreground: #fff0ef;
+  --card: #35202a;
+  --primary: #f3a7b6;
+  --primary-foreground: #381320;
+  --secondary: #4d2837;
+  --muted: #3e2430;
+  --muted-foreground: #e7b9c3;
+  --accent: #593142;
+  --border: #633b4b;
+  --input: #ab7488;
+  --sidebar: #2d1922;
+  --brand-secondary: #f19a8a;
+  --brand-highlight: #ab697d;
+}
+
+html[data-brookie-internal='ANO_NOVO'] {
+  --background: #faf5e8;
+  --foreground: #392917;
+  --card: #fffdf6;
+  --primary: #78540d;
+  --primary-foreground: #fff8e4;
+  --secondary: #f3e4ba;
+  --muted: #f6ecd4;
+  --muted-foreground: #6e5634;
+  --accent: #f1dfad;
+  --border: #e3d0a4;
+  --input: #917545;
+  --sidebar: #fcf7eb;
+  --brand-secondary: #a66c12;
+  --brand-highlight: #c08f30;
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+  --ring: var(--primary);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --brand-primary: var(--primary);
+  --brand-surface: var(--card);
+  --brand-strong-surface: var(--secondary);
+}
+
+html[data-brookie-internal='ANO_NOVO'].dark {
+  --background: #1e1a15;
+  --foreground: #fff2dc;
+  --card: #2b251c;
+  --primary: #f0d28c;
+  --primary-foreground: #38270a;
+  --secondary: #46391f;
+  --muted: #362e22;
+  --muted-foreground: #e3caa0;
+  --accent: #544328;
+  --border: #5d4c32;
+  --input: #a08858;
+  --sidebar: #251e16;
+  --brand-secondary: #e7ad55;
+  --brand-highlight: #b58e4c;
+}
+
+html[data-brookie-internal] body {
+  background-image: none;
+}
+
+html[data-brookie-internal] :where(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Default identity. Seasonal selectors keep their original token cascade. */
+html:not([data-brookie-internal='NATAL'], [data-brookie-internal='ANO_NOVO']) {
+  --background: #ffffff;
+  --foreground: #142338;
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover: #ffffff;
+  --popover-foreground: var(--foreground);
+  --primary: #215d9c;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f4f8;
+  --secondary-foreground: #172b45;
+  --muted: #f2f4f7;
+  --muted-foreground: #4e5e72;
+  --accent: #edf2f8;
+  --accent-foreground: #172b45;
+  --destructive: #af1717;
+  --destructive-foreground: #ffffff;
+  --border: #d5dce5;
+  --input: #7c8b9f;
+  --ring: #215d9c;
+  --chart-1: #215d9c;
+  --chart-2: #a55316;
+  --chart-3: #077b82;
+  --chart-4: #7c4ab0;
+  --chart-5: #526177;
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --success: #237245;
+  --success-foreground: #ffffff;
+  --warning: #a05310;
+  --warning-foreground: #683308;
+  --warning-solid-foreground: #ffffff;
+  --brand-primary: var(--primary);
+  --brand-secondary: #559eed;
+  --brand-surface: var(--card);
+  --brand-strong-surface: var(--muted);
+  --brand-highlight: #559eed;
+  --info: #215d9c;
+}
+
+html:not([data-brookie-internal='NATAL'], [data-brookie-internal='ANO_NOVO']).dark {
+  --background: #0d1727;
+  --foreground: #f7faff;
+  --card: #142239;
+  --popover: #142239;
+  --primary: #559eed;
+  --primary-foreground: #0d1727;
+  --secondary: #1c2d44;
+  --secondary-foreground: #f7faff;
+  --muted: #1c2d44;
+  --muted-foreground: #b6c5d9;
+  --accent: #233a55;
+  --accent-foreground: #f7faff;
+  --destructive: #ff9a9a;
+  --destructive-foreground: #32141a;
+  --border: #354861;
+  --input: #7187a5;
+  --ring: #83bbf7;
+  --chart-1: #559eed;
+  --chart-2: #f4a967;
+  --chart-3: #65d3d1;
+  --chart-4: #c8a7ff;
+  --chart-5: #b6c5d9;
+  --sidebar: #101e31;
+  --success: #78d5a0;
+  --success-foreground: #10251c;
+  --warning: #f4b36b;
+  --warning-foreground: #f4b36b;
+  --warning-solid-foreground: #302012;
+  --info: #8cc5ff;
+}
+
+html:not([data-brookie-internal='NATAL'], [data-brookie-internal='ANO_NOVO']) body {
+  background-image: none;
+}
+
+html:not([data-brookie-internal='NATAL'], [data-brookie-internal='ANO_NOVO']) .brookie-login-background {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(110deg, var(--background), color-mix(in srgb, var(--background) 76%, transparent)),
+    url('/brand/brookie-cookie-bite-dark.jpg');
+}
+
+html:not([data-brookie-internal='NATAL'], [data-brookie-internal='ANO_NOVO']).dark .brookie-login-background {
+  background-image:
+    linear-gradient(110deg, var(--background), color-mix(in srgb, var(--background) 78%, transparent)),
     url('/brand/brookie-cookie-bite-light.jpg');
 }

@@ -24,7 +24,7 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
   const [users, invites] = await Promise.all([
     prisma.adminUser.findMany({
-      where: { tenantId: admin.tenantId },
+      where: { tenantId: admin.tenantId, role: { not: 'CAIXA' } },
       orderBy: [{ role: 'asc' }, { nome: 'asc' }],
       select: { id: true, nome: true, username: true, email: true, role: true, ativo: true, totpEnabledAt: true, criadoEm: true },
     }),

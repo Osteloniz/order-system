@@ -37,3 +37,16 @@ The original designer files remain outside the repository. The project copies ab
 - Financeiro: reports, receivables, cash flow, payables and financial categories.
 - Gestão: settings and logs.
 - `/admin` remains the orders route; `/admin/inicio` is the branded overview.
+
+
+## Identidade interna por tenant
+
+A seleção em Configurações → Aparência controla as identidades Padrão, Natal e Ano Novo. O seletor claro, escuro e sistema continua disponível de forma independente. O atributo `data-brookie-internal` no elemento `html` aplica os tokens a navegação, componentes e portais. A área pública e o login pré-sessão usam a identidade padrão.
+
+- Os controles principais, o item ativo da navegação e os indicadores de progresso seguem a cor da identidade. O Padrão usa azul, o Natal usa vinho com superfícies rosadas e o Ano Novo usa dourado com superfícies champanhe. Cada identidade ajusta fundos, painéis e foco para os modos claro e escuro.
+- A arte transparente dos temas sazonais entra na composição do Início, sobre superfície clara delimitada para preservar a leitura da marca nos dois modos.
+- A variante unitária aparece na prévia de Configuração. As quatro artes WebP ficam em `public/brand/themes/{natal,ano-novo}`.
+- O Caixa e o KDS abrem na área de trabalho, com superfícies sólidas e rótulos semânticos. No Caixa, catálogo e sacola dividem a área em telas largas. Em celular, a barra de total e confirmação permanece acessível.
+- Verifique foco, status, diálogo e contraste nos dois modos dentro dos três temas. Use 4,5:1 para texto normal e 3:1 para foco e componentes aplicáveis.
+
+No Caixa Express, o cabeçalho usa a marca compacta. **Mais vendidos** tem uma superfície própria, e os cartões de produto deixam preço, estoque e adição na mesma área. Sacola, cliente, observação e pagamento usam os tokens do tenant. O total e a conclusão ficam na barra inferior em telas estreitas.

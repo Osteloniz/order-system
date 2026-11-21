@@ -20,9 +20,10 @@ export function calcularTaxaCartao(totalEmCentavos: number, tipoCartao?: TipoCar
 }
 
 export function isPedidoRealizadoFinanceiramente(pedido: {
+  origem?: 'LEGADO' | 'CAIXA_EXPRESS'
   pagamento: TipoPagamento
   status: StatusPedido
   statusPagamento: StatusPagamento
 }) {
-  return pedido.statusPagamento === 'APROVADO' || (pedido.pagamento === 'DINHEIRO' && pedido.status === 'ENTREGUE')
+  return pedido.statusPagamento === 'APROVADO' || (pedido.origem !== 'CAIXA_EXPRESS' && pedido.pagamento === 'DINHEIRO' && pedido.status === 'ENTREGUE')
 }

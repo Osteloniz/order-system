@@ -1,3 +1,5 @@
+import { reservedInShadow } from '@/lib/stock-commitments'
+import { lockTenantStock } from '@/lib/stock-lock'
 import type { LogOperacaoTipo, Prisma } from '@prisma/client'
 import { registrarLogOperacao } from '@/lib/operation-log'
 
@@ -14,6 +16,7 @@ type StockLogOptions = {
 }
 
 async function getOrCreateStock(tx: Tx, tenantId: string, produtoId: string) {
+  await lockTenantStock(tx, tenantId)
   return tx.produtoEstoque.upsert({
     where: { tenantId_produtoId: { tenantId, produtoId } },
     create: {
@@ -113,8 +116,9 @@ export async function consumeAvailableStock(
   options?: StockLogOptions
 ) {
   const estoque = await getOrCreateStock(tx, tenantId, produtoId)
-  if (estoque.quantidadeDisponivel < quantidade) {
-    throw new Error(`Estoque insuficiente para ${nomeProduto}. Disponivel: ${estoque.quantidadeDisponivel}. Necessario: ${quantidade}.`)
+  const saldo = estoque.quantidadeDisponivel - await reservedInShadow(tx, tenantId, produtoId, options?.pedidoId)
+  if (saldo < quantidade) {
+    throw new Error(`Estoque insuficiente para ${nomeProduto}. Disponivel: ${Math.max(0, saldo)}. Necessario: ${quantidade}.`)
   }
 
   const atualizado = await tx.produtoEstoque.update({
@@ -141,8 +145,9 @@ export async function reserveFromAvailableStock(
   options?: StockLogOptions
 ) {
   const estoque = await getOrCreateStock(tx, tenantId, produtoId)
-  if (estoque.quantidadeDisponivel < quantidade) {
-    throw new Error(`Estoque insuficiente para reservar ${nomeProduto}. Disponivel: ${estoque.quantidadeDisponivel}. Necessario: ${quantidade}.`)
+  const saldo = estoque.quantidadeDisponivel - await reservedInShadow(tx, tenantId, produtoId, options?.pedidoId)
+  if (saldo < quantidade) {
+    throw new Error(`Estoque insuficiente para reservar ${nomeProduto}. Disponivel: ${Math.max(0, saldo)}. Necessario: ${quantidade}.`)
   }
 
   const atualizado = await tx.produtoEstoque.update({
@@ -196,7 +201,9 @@ export async function consumeReservedStock(
   const quantidadeReservadaConsumida = Math.min(quantidade, estoque.quantidadeReservada)
   const quantidadeConsumirDisponivel = quantidade - quantidadeReservadaConsumida
 
-  if (quantidadeConsumirDisponivel > 0 && estoque.quantidadeDisponivel < quantidadeConsumirDisponivel) {
+  const saldoSuficiente = quantidadeConsumirDisponivel <= 0 ||
+    estoque.quantidadeDisponivel - await reservedInShadow(tx, tenantId, produtoId, options?.pedidoId) >= quantidadeConsumirDisponivel
+  if (!saldoSuficiente) {
     throw new Error(
       `Estoque insuficiente para concluir a baixa. Reservado: ${estoque.quantidadeReservada}. Disponivel: ${estoque.quantidadeDisponivel}. Necessario: ${quantidade}.`,
     )

@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
 
     const pedidos = await prisma.pedido.findMany({
       where: {
+        origem: 'LEGADO',
         tenantId: tenant.id,
         OR: orFilters,
       },

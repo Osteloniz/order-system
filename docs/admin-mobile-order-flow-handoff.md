@@ -299,3 +299,10 @@ Use something like:
   3. Confirm there are no pending local-only adjustments.
   4. Ask the user explicitly if everything is OK.
   5. Only then run PRD migration flow.
+
+
+## Caixa Express e identidade interna
+
+O fluxo de venda rápida de retirada fica em `/caixa`. O lançamento completo continua em `/admin/novo-pedido`. Vendas Caixa aparecem no histórico de Pedidos e abrem uma visão com acesso à gestão específica. A ação fixa em celular mostra o total, a sacola e a conclusão. Após uma resposta inconclusiva, o operador retoma pela mesma tentativa com a conta e o tenant originais.
+
+A Configuração ganhou a seção Aparência. A área de trabalho do KDS mantém o painel de execução com navegação horizontal nas telas menores. As artes sazonais ficam no Início e na prévia de Aparência. Consulte `docs/caixa-express-v1.md` para operação, testes e recuperação.

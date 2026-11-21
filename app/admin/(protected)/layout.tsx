@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
+import { AdminInternalTheme } from '@/components/admin/internal-theme'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
 
 export default function ProtectedLayout({
@@ -58,8 +59,9 @@ export default function ProtectedLayout({
 
   return (
     <div className="flex min-h-dvh overflow-x-hidden bg-background">
+      <AdminInternalTheme />
       <AdminSidebar collapsed={sidebarCollapsed} onToggleCollapsed={handleToggleSidebar} />
-      <main className={`min-w-0 flex-1 overflow-x-hidden px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+3.75rem)] transition-[margin] duration-200 md:p-5 md:pt-5 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
+      <main className={`min-w-0 flex-1 overflow-x-hidden px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+3.75rem)] transition-[margin] duration-200 motion-reduce:transition-none md:p-5 md:pt-5 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
         {children}
       </main>
     </div>

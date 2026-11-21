@@ -1,3 +1,4 @@
+import { caixaDeliveryPeriod, caixaFinanceMovements, legacyFinancePeriod } from '@/lib/caixa-finance'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
@@ -50,20 +51,11 @@ export async function GET(request: NextRequest) {
     }
 
     const hasStructuredSchema = await hasFornecedorFinanceiroSchema()
-    const [pedidos, contasPagar, logsOperacionais] = await Promise.all([
+    const [pedidos, contasPagar, logsOperacionais, movimentosCaixa] = await Promise.all([
       prisma.pedido.findMany({
         where: {
           tenantId: admin.tenantId,
-          OR: [
-            {
-              tipoEntrega: { not: 'ENCOMENDA' },
-              criadoEm: { gte: start, lt: end },
-            },
-            {
-              tipoEntrega: 'ENCOMENDA',
-              encomendaPara: { gte: start, lt: end },
-            },
-          ],
+          OR: [legacyFinancePeriod(start, end), caixaDeliveryPeriod(start, end)],
         },
         include: { itens: true },
         orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
@@ -101,6 +93,7 @@ export async function GET(request: NextRequest) {
           metadata: true,
         },
       }),
+      caixaFinanceMovements(admin.tenantId, start, end),
     ])
 
     const porStatus = {
@@ -150,7 +143,7 @@ export async function GET(request: NextRequest) {
     const entregues = pedidos.filter((pedido) => pedido.status === 'ENTREGUE')
     const cancelados = pedidos.filter((pedido) => pedido.status === 'CANCELADO')
     const pagamentosPendentes = pedidos.filter((pedido) => pedido.statusPagamento === 'PENDENTE')
-    const pedidosRealizados = pedidos.filter((pedido) => isPedidoRealizadoFinanceiramente(pedido))
+    const pedidosRealizados = pedidos.filter((pedido) => pedido.origem === 'LEGADO' && isPedidoRealizadoFinanceiramente(pedido))
     const pedidosPrevistos = pedidos.filter(
       (pedido) => pedido.status !== 'CANCELADO' && !isPedidoRealizadoFinanceiramente(pedido)
     )
@@ -171,7 +164,10 @@ export async function GET(request: NextRequest) {
     )
     const receitaCartaoLiquida = Math.max(0, receitaCartaoBruta - taxaCartao)
     const recebimentoPrevisto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
+    const entradasCaixa = movimentosCaixa.filter((movimento) => !movimento.saida)
+    const estornosCaixa = movimentosCaixa.filter((movimento) => movimento.saida).reduce((acc, movimento) => acc + movimento.bruto, 0)
     const recebimentoRealizado = pedidosRealizados.reduce((acc, pedido) => acc + pedido.total, 0)
+      + entradasCaixa.reduce((acc, movimento) => acc + movimento.bruto, 0)
     const recebimentoEmAberto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
     const taxaCartaoPrevista = cartaoPrevisto.reduce(
       (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
@@ -181,6 +177,7 @@ export async function GET(request: NextRequest) {
       (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
       0
     )
+      + entradasCaixa.reduce((acc, movimento) => acc + movimento.taxa, 0)
     const cartaoCreditoBruto = cartaoEntregue
       .filter((pedido) => normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao) === 'CREDITO')
       .reduce((acc, pedido) => acc + pedido.total, 0)
@@ -193,7 +190,7 @@ export async function GET(request: NextRequest) {
     const custosTotal = contasPagar
       .filter((conta) => conta.status !== 'CANCELADO')
       .reduce((acc, conta) => acc + conta.valor, 0)
-    const resultadoRealizado = recebimentoRealizado - custosPagos
+    const resultadoRealizado = recebimentoRealizado - custosPagos - estornosCaixa
     const mimosConcedidos = logsOperacionais.reduce((acc, log) => {
       const metadata = getMimoLogMetadata(log.metadata)
       if (!metadata) return acc
@@ -249,6 +246,8 @@ export async function GET(request: NextRequest) {
       valorMimosConcedidos,
       recebimentoPrevisto,
       recebimentoRealizado,
+      recebimentoLiquido: recebimentoRealizado - taxaCartaoRealizada,
+      estornosCaixa,
       recebimentoEmAberto,
       taxaCartaoPrevista,
       taxaCartaoRealizada,

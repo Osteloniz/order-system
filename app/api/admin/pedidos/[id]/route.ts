@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
@@ -117,7 +118,7 @@ export async function PATCH(
     }
 
     const pedido = await prisma.pedido.findFirst({
-      where: { id, tenantId: admin.tenantId },
+      where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
       include: { itens: true },
     })
     if (!pedido) {
@@ -128,6 +129,11 @@ export async function PATCH(
     }
 
     const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
+      const atual = await tx.pedido.findFirst({
+        where: { id, tenantId: admin.tenantId, origem: 'LEGADO' }, include: { itens: true },
+      })
+      if (!atual) throw new Error('Pedido nao encontrado')
       const configuracao = await tx.configuracao.findFirst({
         where: { tenantId: admin.tenantId },
         select: { enderecoRetirada: true },
@@ -136,7 +142,7 @@ export async function PATCH(
       return atualizarPedidoAdmin(
         tx,
         admin.tenantId,
-        pedido,
+        atual,
         parsed.data,
         configuracao,
         admin.session.user?.name?.toString().trim() || null
@@ -164,7 +170,7 @@ export async function DELETE(
 
   const { id } = await params
   const pedido = await prisma.pedido.findFirst({
-    where: { id, tenantId: admin.tenantId },
+    where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
     include: {
       itens: {
         select: {
@@ -191,7 +197,12 @@ export async function DELETE(
     )
   }
 
-  await prisma.$transaction(async (tx) => {
+  const removed = await prisma.$transaction(async (tx) => {
+    await lockTenantStock(tx, admin.tenantId)
+    const atual = await tx.pedido.findFirst({ where: { id, tenantId: admin.tenantId, origem: 'LEGADO' }, include: { itens: true } })
+    if (!atual || (atual.statusPagamento === 'APROVADO' && atual.status !== 'CANCELADO') || atual.atualizadoEm.getTime() !== pedido.atualizadoEm.getTime()) {
+      return false
+    }
     if (
       pedido.tipoEntrega !== 'ENCOMENDA' &&
       pedido.estoqueBaixadoEm
@@ -253,7 +264,10 @@ export async function DELETE(
 
     await tx.itemPedido.deleteMany({ where: { pedidoId: id } })
     await tx.pedido.delete({ where: { id } })
+    return true
   })
+
+  if (!removed) return NextResponse.json({ error: 'O pedido mudou. Atualize a consulta.' }, { status: 409 })
 
   appLogger.info(`[api/admin/pedidos/[id]] Pedido ${id} excluido`)
 

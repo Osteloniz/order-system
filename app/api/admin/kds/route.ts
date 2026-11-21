@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
   let orders = await prisma.pedido.findMany({
     where: {
       tenantId: admin.tenantId,
+      origem: 'LEGADO',
       status: { in: [...OPEN_ORDER_STATUSES] },
       OR: [
         {
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
     orders = await prisma.pedido.findMany({
       where: {
         tenantId: admin.tenantId,
+        origem: 'LEGADO',
         status: { in: [...OPEN_ORDER_STATUSES] },
         OR: [
           {

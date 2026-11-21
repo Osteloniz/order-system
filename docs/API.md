@@ -215,3 +215,30 @@ Financeiro:
 Relatorios:
 - GET `/api/admin/relatorios?from=YYYY-MM-DD&to=YYYY-MM-DD`
   - Observacao: agora inclui agregacao de custos por fornecedor no periodo.
+
+
+## Caixa Express V1
+
+`/caixa` aceita sessão operacional ou sessão administrativa com MFA. Os dados ficam no tenant da sessão. As mutações exigem origem da aplicação e as respostas usam `Cache-Control: private, no-store`.
+
+| Método e rota | Contrato |
+| --- | --- |
+| POST `/api/caixa/acesso` | Login individual CAIXA. Corpo `{ tenant, login, senha }`. |
+| PATCH `/api/caixa/acesso` | Registrar interação explícita e renovar a janela de ociosidade. |
+| DELETE `/api/caixa/acesso` | Revogar o token operacional no servidor e limpar o cookie. |
+| GET `/api/caixa/catalogo` | Produtos vendáveis, saldo efetivo, atalhos e estado da flag. |
+| POST `/api/caixa/cotacao` | Recebe uma lista de `{ produtoId, quantidade }` e devolve a cotação atual. |
+| GET `/api/caixa/clientes?q=...` | Busca pelo nome (sem depender de acentos) ou telefone completo no tenant. Retorna até oito cadastros, com nome e final do telefone. Telefone completo sem resultado permite abrir cadastro rápido. |
+| GET `/api/caixa/clientes?telefone=...` | Busca exata de cadastro do tenant e devolve identificação mínima. |
+| POST `/api/caixa/clientes` | Cadastro mínimo `{ nome, telefone }`. Responde com o cadastro existente em caso de duplicidade e preserva os campos dele. |
+| GET `/api/caixa/vendas?cursor=...` | Pendências Caixa do tenant. Máximo 50 por página, com telefone limitado aos quatro últimos dígitos. |
+| POST `/api/caixa/vendas` | Concluir venda com `{ itens, clienteId, pago, meio, cotacao, tentativa, observacao? }`. A observação opcional da venda tem até 1.000 caracteres, é interna e faz parte da tentativa idempotente. Preço, total e status são definidos no servidor. |
+| POST `/api/caixa/movimentos` | Movimento integral. Comum `{ operacao, pedidoId, tentativa }`. Baixa recebe `meio`. Correção recebe `meio`, `versao`, `motivo` e taxa opcional em centavos. Estorno recebe `versao`, `reabrir` e `motivo`. Cancelamento recebe `motivo`. Devolução exige `aptoParaVenda: true`, itens e motivo. |
+| POST `/api/caixa/gestao` | MASTER/ADMIN com MFA vinculam `{ pedidoId, clienteId }` para venda Caixa entregue, paga e anônima. Repete com sucesso para o mesmo cliente, rejeita troca e grava autoria. |
+| GET `/api/caixa/gestao?numero=...` | Busca de venda e eventos pelo número curto, apenas MASTER/ADMIN com MFA. |
+| GET, POST, PATCH `/api/admin/caixa-contas` | MASTER com MFA. Lista, cria conta `{ nome, login, senha }` e desativa por `{ id, ativo: false }`. |
+| GET, PATCH `/api/admin/tema` | MASTER/ADMIN com MFA. Lê e grava `{ temaVisual }` no tenant da sessão. |
+
+Os meios de entrada são `PIX`, `CREDITO`, `DEBITO` e `DINHEIRO`. Internamente, cartões usam `CARTAO` e subtipo. A cotação é o SHA-256 do JSON da lista ordenada por produto de triplas `[produtoId, quantidadeAgregada, preçoUnitárioEmCentavos]`. O servidor reconstrói a referência e devolve conflito com nova cotação quando o preço muda. Uma tentativa idêntica retorna o resultado original. Mudança de intenção com a mesma chave retorna conflito.
+
+Contas a receber também retorna `ESTORNADO`, com a saída na competência do estorno. Pedidos Caixa usam origem `CAIXA_EXPRESS` e são excluídos das operações públicas, de cobrança online e das mutações gerais de pedido. Consulte [Caixa Express V1](caixa-express-v1.md) para a matriz e o roteiro operacional.

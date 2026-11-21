@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
@@ -24,6 +25,8 @@ function serializeClienteDetalhe(cliente: {
   pedidos: {
     id: string
     criadoEm: Date
+    origem?: 'LEGADO' | 'CAIXA_EXPRESS'
+    statusPagamento?: string
     status: string
     total: number
     itens: {
@@ -31,6 +34,7 @@ function serializeClienteDetalhe(cliente: {
       nomeProdutoSnapshot: string
       quantidade: number
       totalItem: number
+      caixaElegivelFidelidade: boolean
     }[]
   }[]
 }) {
@@ -41,7 +45,7 @@ function serializeClienteDetalhe(cliente: {
     totalPedidos: cliente.pedidos?.length ?? 0,
     ultimoPedidoEm: cliente.pedidos?.[0]?.criadoEm ?? null,
     resumoConsumo,
-    resumoFidelidade: buildClienteFidelidade(resumoConsumo.totalCookies, cliente.mimosEntregues ?? 0),
+    resumoFidelidade: buildClienteFidelidade(cliente.fidelidadeAtiva ? resumoConsumo.totalCookies : 0, cliente.mimosEntregues ?? 0),
   }
 }
 
@@ -53,6 +57,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const { id } = (await params) as { id: string }
 
     const cliente = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
       const atual = await tx.cliente.findFirst({
         where: { id, tenantId: admin.tenantId },
         include: {
@@ -123,7 +128,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
           pedidos: {
             include: { itens: true },
             orderBy: { criadoEm: 'desc' },
-            take: 20,
           },
         },
       })
