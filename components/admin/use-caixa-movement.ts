@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from 'sonner'
 import { useEffect, useRef, useState } from 'react'
 import type { OperacaoCaixa } from '@/lib/caixa-contract'
 import { CaixaRequestError, requestCaixa } from '@/components/admin/caixa-client'
@@ -30,7 +31,7 @@ export function useCaixaMovement(storageKey: string, expire: () => void, onSucce
       const result = await requestCaixa<{ numero: string }>('movimentos', 'POST', operacao)
       sessionStorage.removeItem(storageKey)
       setPending(undefined)
-      setMessage('Operação confirmada na venda #' + result.numero + '.')
+      toast.success('Operação confirmada na venda #' + result.numero + '.')
       onSuccess()
     } catch (error) {
       if (error instanceof CaixaRequestError && error.status === 401) {

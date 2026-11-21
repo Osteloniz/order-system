@@ -1,5 +1,7 @@
 ﻿'use client'
 
+import { CaixaFeeSettings } from '@/components/admin/caixa-fee-settings'
+
 import { InternalThemeSettings } from '@/components/admin/internal-theme'
 
 import React from "react"
@@ -328,6 +330,7 @@ export function ConfigPage() {
 
       <nav className="flex gap-1.5 overflow-x-auto rounded-xl border border-border/70 bg-card p-1.5 text-xs" aria-label="Seções das configurações">
         <a href="#config-aparencia" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Aparência</a>
+        <a href="#config-caixa-taxas" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Taxas do Caixa</a>
         <a href="#config-loja" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Loja</a>
         <a href="#config-pedidos" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Pedidos</a>
         <a href="#config-checkout" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Checkout</a>
@@ -337,6 +340,7 @@ export function ConfigPage() {
       </nav>
 
       <section id="config-aparencia" className="scroll-mt-16" aria-label="Aparência"><InternalThemeSettings /></section>
+      <CaixaFeeSettings />
 
       {(configError || tenantError) && (
         <Card className="max-w-4xl border-destructive/40 bg-destructive/5">

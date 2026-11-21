@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { caixaFeeSelection } from '@/lib/caixa-fees'
 import { prisma } from '@/lib/db'
 import { calcularLiquidoPedido, getPedidoFinanceiroStatus } from '@/lib/finance'
 import { getCurrentMonthRangeInSaoPaulo } from '@/lib/sao-paulo'
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     const { from, to, status } = parsed.data
     const { start, end } = getPeriodRange(from, to)
 
-    const [pedidos, movimentosCaixa] = await Promise.all([
+    const [pedidos, movimentosCaixa, caixaRates] = await Promise.all([
       prisma.pedido.findMany({
       where: {
         tenantId: admin.tenantId,
@@ -53,12 +54,13 @@ export async function GET(request: NextRequest) {
       orderBy: [{ encomendaPara: 'desc' }, { criadoEm: 'desc' }],
       }),
       caixaFinanceMovements(admin.tenantId, start, end),
+      prisma.configuracao.findUnique({ where: { tenantId: admin.tenantId }, select: caixaFeeSelection }),
     ])
 
     const contas = pedidos
       .map((pedido) => {
         const statusFinanceiro = getPedidoFinanceiroStatus(pedido)
-        const { taxa, liquido } = calcularLiquidoPedido(pedido)
+        const { taxa, liquido } = calcularLiquidoPedido(pedido, caixaRates ?? undefined)
         const dataCompetencia =
           pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara ? pedido.encomendaPara : (pedido.entregueEm ?? pedido.criadoEm)
 

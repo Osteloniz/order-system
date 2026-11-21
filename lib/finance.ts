@@ -1,3 +1,4 @@
+import { calcularTaxaCaixa, type CaixaFeeRates } from '@/lib/caixa-fees'
 import { calcularTaxaCartao, isPedidoRealizadoFinanceiramente, normalizeTipoCartao } from '@/lib/order-finance'
 import type { ContaPagar, Pedido, StatusContaPagar } from '@/lib/types'
 
@@ -27,10 +28,12 @@ export function getPedidoFinanceiroStatus(pedido: Pick<Pedido, 'pagamento' | 'st
   return isPedidoRealizadoFinanceiramente(pedido) ? 'REALIZADO' : 'PREVISTO'
 }
 
-export function calcularLiquidoPedido(pedido: Pick<Pedido, 'pagamento' | 'tipoCartao' | 'total'>) {
+export function calcularLiquidoPedido(pedido: Pick<Pedido, 'pagamento' | 'tipoCartao' | 'total'> & Partial<Pick<Pedido, 'origem'>>, caixaRates?: CaixaFeeRates) {
   if (pedido.pagamento !== 'CARTAO') return { taxa: 0, liquido: pedido.total }
   const tipoCartao = normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)
-  const taxa = calcularTaxaCartao(pedido.total, tipoCartao)
+  const taxa = pedido.origem === 'CAIXA_EXPRESS'
+    ? calcularTaxaCaixa(pedido.total, tipoCartao, caixaRates)
+    : calcularTaxaCartao(pedido.total, tipoCartao)
   return { taxa, liquido: Math.max(0, pedido.total - taxa) }
 }
 

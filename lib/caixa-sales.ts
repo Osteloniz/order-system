@@ -6,7 +6,7 @@ import { agregarItensCaixa, expressSalesEnabled, meioCaixaLabel, type ItemCaixa,
 import { CaixaError } from '@/lib/caixa-error'
 import { prisma } from '@/lib/db'
 import { numeroPedidoCurto } from '@/lib/operation-log'
-import { calcularTaxaCartao } from '@/lib/order-finance'
+import { caixaFeeSelection, calcularTaxaCaixa } from '@/lib/caixa-fees'
 import { loadShadowCommittedQuantityMapTx } from '@/lib/stock-commitments'
 import { isValidPhone } from '@/lib/phone'
 import { addAvailableStock, consumeAvailableStock } from '@/lib/stock'
@@ -118,7 +118,7 @@ export async function concluirVendaCaixa(actor: CaixaActor, input: VendaCaixa) {
       throw new CaixaError(422, 'Selecione um cliente com nome e telefone válido para a venda pendente.')
     }
 
-    const config = await tx.configuracao.findUnique({ where: { tenantId }, select: { enderecoRetirada: true } })
+    const config = await tx.configuracao.findUnique({ where: { tenantId }, select: { enderecoRetirada: true, ...caixaFeeSelection } })
     const now = new Date()
     const pagamento = paymentColumns(meio)
     const pedido = await tx.pedido.create({
@@ -144,7 +144,7 @@ export async function concluirVendaCaixa(actor: CaixaActor, input: VendaCaixa) {
       data: {
         tenantId, pedidoId: pedido.id, operacao: 'VENDA', tentativa, intencaoHash, atorId,
         efetivoEm: pago ? now : null, bruto: pedido.total,
-        taxa: pagamento.tipoCartao ? calcularTaxaCartao(pedido.total, pagamento.tipoCartao) : 0,
+        taxa: calcularTaxaCaixa(pedido.total, meio, config ?? undefined),
         ...pagamento, detalhes: { statusPagamento: pedido.statusPagamento },
       },
     })
@@ -206,8 +206,9 @@ export async function movimentarVendaCaixa(actor: CaixaActor, input: OperacaoCai
             : 'Esta venda não tem recebível aberto.', { meioConfirmado })
         }
         const pagamento = paymentColumns(intencao.meio)
+        const rates = await tx.configuracao.findUnique({ where: { tenantId: actor.tenantId }, select: caixaFeeSelection })
         dados = { ...base, ...pagamento, bruto: pedido.total, efetivoEm: now,
-          taxa: pagamento.tipoCartao ? calcularTaxaCartao(pedido.total, pagamento.tipoCartao) : 0,
+          taxa: calcularTaxaCaixa(pedido.total, intencao.meio, rates ?? undefined),
           detalhes: { meioPrevisto: pedido.caixaPagamentoPrevisto, tipoCartaoPrevisto: pedido.caixaTipoCartaoPrevisto } }
         update = { statusPagamento: 'APROVADO', pagamento: pagamento.meio, tipoCartao: pagamento.tipoCartao }
         break
@@ -221,7 +222,8 @@ export async function movimentarVendaCaixa(actor: CaixaActor, input: OperacaoCai
         dados = { ...base, bruto: pedido.total, motivo: intencao.motivo, recebimentoId: anterior.recebimentoId ?? anterior.id }
         if (intencao.operacao === 'CORRECAO') {
           const pagamento = paymentColumns(intencao.meio)
-          const taxa = intencao.taxa ?? (pagamento.tipoCartao ? calcularTaxaCartao(pedido.total, pagamento.tipoCartao) : 0)
+          const rates = await tx.configuracao.findUnique({ where: { tenantId: actor.tenantId }, select: caixaFeeSelection })
+          const taxa = intencao.taxa ?? calcularTaxaCaixa(pedido.total, intencao.meio, rates ?? undefined)
           if (taxa > pedido.total || (!pagamento.tipoCartao && taxa > 0)) throw new CaixaError(422, 'Taxa inválida para o meio informado.')
           dados = { ...dados, ...pagamento, taxa, efetivoEm: anterior.efetivoEm,
             detalhes: { anteriorId: anterior.id, meio: anterior.meio, tipoCartao: anterior.tipoCartao, taxa: anterior.taxa } }

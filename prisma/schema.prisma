@@ -130,6 +130,7 @@ enum AuthAuditAction {
   MFA_RECOVERY_CODE_USED
   CAIXA_ACCOUNT_CHANGED
   TEMA_VISUAL_ALTERADO
+  CAIXA_TAXAS_ALTERADAS
 }
 
 enum LogOperacaoTipo {
@@ -147,6 +148,8 @@ enum LogOperacaoTipo {
 }
 
 model Configuracao {
+  caixaTaxaCreditoBp                      Int                   @default(309)
+  caixaTaxaDebitoBp                       Int                   @default(89)
   temaVisual                              TemaVisual            @default(PADRAO)
   id                                      String                @id @default(uuid())
   nomeEstabelecimento                     String
