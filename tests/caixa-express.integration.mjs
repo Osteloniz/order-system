@@ -186,10 +186,11 @@ try {
   assert.notEqual(precoMudou.novaCotacao.cotacao, cotacaoAntes.cotacao)
   await db.produto.update({ where: { id: item.id }, data: { preco: 777 } })
 
+  const { caixaTaxaCreditoBp, caixaTaxaDebitoBp } = await expect(admin.send('/api/admin/caixa-taxas'), 200, 'taxas da loja')
   const paidMethods = [
     { meio: 'PIX', pagamento: 'PIX', tipoCartao: null, taxa: 0 },
-    { meio: 'CREDITO', pagamento: 'CARTAO', tipoCartao: 'CREDITO', taxa: Math.round(777 * 0.0309) },
-    { meio: 'DEBITO', pagamento: 'CARTAO', tipoCartao: 'DEBITO', taxa: Math.round(777 * 0.0089) },
+    { meio: 'CREDITO', pagamento: 'CARTAO', tipoCartao: 'CREDITO', taxa: Math.round(777 * caixaTaxaCreditoBp / 10_000) },
+    { meio: 'DEBITO', pagamento: 'CARTAO', tipoCartao: 'DEBITO', taxa: Math.round(777 * caixaTaxaDebitoBp / 10_000) },
     { meio: 'DINHEIRO', pagamento: 'DINHEIRO', tipoCartao: null, taxa: 0 },
   ]
   const getContas = (data) => admin.send('/api/admin/financeiro/contas-receber?from=' + data + '&to=' + data)
@@ -297,7 +298,7 @@ try {
   assert.equal(contasHoje.contas.find((row) => row.numero === pendencia.numero)?.tipoCartao, confirmado.meio)
   const contasOntem = await expect(getContas(yesterday), 200, 'previsto encerrado no dia da entrega')
   assert.equal(contasOntem.contas.some((row) => row.numero === pendencia.numero), false)
-  const taxaEfetiva = Math.round(777 * (confirmado.meio === 'CREDITO' ? 0.0309 : 0.0089))
+  const taxaEfetiva = paidMethods.find(({ meio }) => meio === confirmado.meio).taxa
   const contaQuitada = contasHoje.contas.find((row) => row.numero === pendencia.numero)
   assert.equal(contaQuitada.taxa, taxaEfetiva)
   assert.equal(contaQuitada.liquido, 777 - taxaEfetiva)

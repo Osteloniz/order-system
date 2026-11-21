@@ -1,0 +1,7 @@
+ALTER TABLE "Configuracao"
+ADD COLUMN "caixaTaxaCreditoBp" INTEGER NOT NULL DEFAULT 309,
+ADD COLUMN "caixaTaxaDebitoBp" INTEGER NOT NULL DEFAULT 89,
+ADD CONSTRAINT "Configuracao_caixaTaxas_validas"
+CHECK ("caixaTaxaCreditoBp" BETWEEN 0 AND 10000 AND "caixaTaxaDebitoBp" BETWEEN 0 AND 10000);
+
+ALTER TYPE "AuthAuditAction" ADD VALUE 'CAIXA_TAXAS_ALTERADAS';
