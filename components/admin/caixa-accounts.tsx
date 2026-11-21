@@ -1,5 +1,7 @@
 'use client'
 
+import { CAIXA_PASSWORD_MIN_LENGTH } from '@/lib/admin-credential-policy'
+
 import { useState, type FormEvent } from 'react'
 import useSWR from 'swr'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
@@ -67,8 +69,8 @@ export function CaixaAccounts() {
           <Label htmlFor="caixa-conta-login">Login</Label>
           <Input id="caixa-conta-login" name="login" required minLength={3} maxLength={40} autoComplete="off" />
           <Label htmlFor="caixa-conta-senha">Senha individual</Label>
-          <Input id="caixa-conta-senha" name="senha" type="password" required minLength={12} autoComplete="new-password" aria-describedby="caixa-senha-requisitos" />
-          <p id="caixa-senha-requisitos" className="text-xs text-muted-foreground">Use 12 ou mais caracteres com maiúscula, minúscula e número.</p>
+          <Input id="caixa-conta-senha" name="senha" type="password" required minLength={CAIXA_PASSWORD_MIN_LENGTH} autoComplete="new-password" aria-describedby="caixa-senha-requisitos" />
+          <p id="caixa-senha-requisitos" className="text-xs text-muted-foreground">Use {CAIXA_PASSWORD_MIN_LENGTH} ou mais caracteres com maiúscula, minúscula e número.</p>
           <Button className="justify-self-start" disabled={busy}>Criar conta</Button>
         </form>
       </details>
