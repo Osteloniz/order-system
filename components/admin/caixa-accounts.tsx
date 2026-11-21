@@ -1,7 +1,5 @@
 'use client'
 
-import { CAIXA_PASSWORD_MIN_LENGTH } from '@/lib/admin-credential-policy'
-
 import { useState, type FormEvent } from 'react'
 import useSWR from 'swr'
 import { useAdminAuth } from '@/contexts/admin-auth-context'
@@ -9,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { getAdminUsernamePolicyError, getPasswordPolicyError } from '@/lib/admin-credential-policy'
+import { CAIXA_PASSWORD_MIN_LENGTH, getAdminUsernamePolicyError, getCaixaPasswordPolicyError } from '@/lib/admin-credential-policy'
 
 type Conta = { id: string; nome: string; username: string; ativo: boolean }
 
@@ -51,7 +49,7 @@ export function CaixaAccounts() {
     const dados = new FormData(form)
     const login = String(dados.get('login') ?? '')
     const senha = String(dados.get('senha') ?? '')
-    const invalid = getAdminUsernamePolicyError(login) ?? getPasswordPolicyError(senha)
+    const invalid = getAdminUsernamePolicyError(login) ?? getCaixaPasswordPolicyError(senha)
     if (invalid) return setMessage(invalid)
     if (await change('POST', Object.fromEntries(dados))) form.reset()
   }
