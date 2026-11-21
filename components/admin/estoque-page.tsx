@@ -205,10 +205,13 @@ export function EstoquePage() {
     }
   }
 
+  const [saldoConfirmado, setSaldoConfirmado] = useState(0)
+
   const openStockConfirmation = (produtoId: string) => {
     const quantidade = Number(stockDrafts[produtoId] ?? 0)
     if (!Number.isFinite(quantidade) || quantidade < 0) return
 
+    setSaldoConfirmado(data?.estoque.find((item) => item.produtoId === produtoId)?.quantidadeDisponivel ?? 0)
     setStockConfirmProductId(produtoId)
     setAdminPassword('')
     setStockConfirmError('')
@@ -233,11 +236,19 @@ export function EstoquePage() {
           action: 'SET_STOCK',
           produtoId,
           quantidadeDisponivel: Math.floor(quantidade),
+          saldoConfirmado,
           adminPassword,
         }),
       })
       const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Erro ao ajustar estoque')
+      if (!response.ok) {
+        if (response.status === 409 && typeof result.saldo === 'number') {
+          setSaldoConfirmado(result.saldo)
+          setAdminPassword('')
+          await mutate()
+        }
+        throw new Error(result.error || 'Erro ao ajustar estoque')
+      }
       setMessage('Saldo atual do estoque ajustado.')
       setStockConfirmOpen(false)
       setStockConfirmProductId(null)
@@ -546,7 +557,7 @@ export function EstoquePage() {
           <DialogHeader className="text-left">
             <DialogTitle className="text-base">Confirmar ajuste de saldo</DialogTitle>
             <DialogDescription className="text-xs">
-              Esse ajuste altera o saldo disponivel do produto manualmente. Para evitar erro operacional, confirme com a senha do admin.
+              Saldo disponível atual: {saldoConfirmado}. Confirme a alteração com a senha do admin.
             </DialogDescription>
           </DialogHeader>
 

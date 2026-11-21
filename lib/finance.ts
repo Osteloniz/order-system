@@ -13,15 +13,16 @@ export const statusContaPagarStyles: Record<StatusContaPagar, string> = {
   CANCELADO: 'border-destructive/25 bg-destructive/10 text-destructive',
 }
 
-export type ContaReceberResumoStatus = 'PREVISTO' | 'REALIZADO' | 'CANCELADO'
+export type ContaReceberResumoStatus = 'PREVISTO' | 'REALIZADO' | 'CANCELADO' | 'ESTORNADO'
 
 export const contaReceberStatusLabels: Record<ContaReceberResumoStatus, string> = {
   PREVISTO: 'Previsto',
   REALIZADO: 'Realizado',
   CANCELADO: 'Cancelado',
+  ESTORNADO: 'Estornado',
 }
 
-export function getPedidoFinanceiroStatus(pedido: Pick<Pedido, 'pagamento' | 'status' | 'statusPagamento'>): ContaReceberResumoStatus {
+export function getPedidoFinanceiroStatus(pedido: Pick<Pedido, 'pagamento' | 'status' | 'statusPagamento' | 'origem'>): ContaReceberResumoStatus {
   if (pedido.status === 'CANCELADO') return 'CANCELADO'
   return isPedidoRealizadoFinanceiramente(pedido) ? 'REALIZADO' : 'PREVISTO'
 }

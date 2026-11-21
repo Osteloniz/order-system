@@ -87,6 +87,27 @@ enum InviteStatus {
 enum AdminRole {
   MASTER
   ADMIN
+  CAIXA
+}
+
+enum OrigemPedido {
+  LEGADO
+  CAIXA_EXPRESS
+}
+
+enum TemaVisual {
+  PADRAO
+  NATAL
+  ANO_NOVO
+}
+
+enum CaixaOperacao {
+  VENDA
+  BAIXA
+  CORRECAO
+  ESTORNO
+  CANCELAMENTO
+  DEVOLUCAO
 }
 
 enum AuthAuditAction {
@@ -107,6 +128,8 @@ enum AuthAuditAction {
   MFA_CHALLENGE_SUCCESS
   MFA_CHALLENGE_FAILURE
   MFA_RECOVERY_CODE_USED
+  CAIXA_ACCOUNT_CHANGED
+  TEMA_VISUAL_ALTERADO
 }
 
 enum LogOperacaoTipo {
@@ -124,6 +147,7 @@ enum LogOperacaoTipo {
 }
 
 model Configuracao {
+  temaVisual                              TemaVisual            @default(PADRAO)
   id                                      String                @id @default(uuid())
   nomeEstabelecimento                     String
   enderecoRetirada                        String
@@ -205,6 +229,12 @@ model Produto {
 }
 
 model Pedido {
+  origem                    OrigemPedido        @default(LEGADO)
+  entregueEm                DateTime?
+  caixaPagamentoPrevisto    TipoPagamento?
+  caixaTipoCartaoPrevisto    TipoCartao?
+  caixaRecebimentoAtualId   String?
+  caixaEventos              CaixaEvento[]
   id                        String              @id @default(uuid())
   clienteId                 String?
   status                    StatusPedido        @default(FEITO)
@@ -267,6 +297,44 @@ model Pedido {
   @@index([asaasPaymentId])
   @@index([criadoEm])
   @@index([encomendaPara])
+  @@index([tenantId, origem, statusPagamento, entregueEm])
+}
+
+model CaixaEvento {
+  id              String        @id @default(uuid())
+  tenantId        String
+  pedidoId        String
+  pedido          Pedido        @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+  operacao        CaixaOperacao
+  tentativa       String
+  intencaoHash    String
+  atorId          String
+  criadoEm        DateTime      @default(now())
+  efetivoEm       DateTime?
+  recebimentoId   String?
+  bruto           Int?
+  taxa            Int?
+  meio            TipoPagamento?
+  tipoCartao      TipoCartao?
+  motivo          String?
+  detalhes        Json?
+
+  @@unique([tenantId, operacao, tentativa])
+  @@index([tenantId, operacao, efetivoEm])
+  @@index([pedidoId, recebimentoId])
+}
+
+model CaixaSessao {
+  tokenHash       String     @id
+  adminUserId     String
+  adminUser       AdminUser  @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  tenantId        String
+  sessionVersion  Int
+  expiraEm        DateTime
+  atividadeEm     DateTime
+
+  @@index([adminUserId])
+  @@index([expiraEm])
 }
 
 model AsaasWebhookEvent {
@@ -309,6 +377,7 @@ model Cliente {
 }
 
 model ItemPedido {
+  caixaElegivelFidelidade Boolean @default(false)
   id                    String    @id @default(uuid())
   pedidoId              String
   produtoId             String
@@ -494,6 +563,7 @@ model Tenant {
 }
 
 model AdminUser {
+  caixaSessoes CaixaSessao[]
   id                         String    @id @default(uuid())
   tenantId                   String
   nome                       String

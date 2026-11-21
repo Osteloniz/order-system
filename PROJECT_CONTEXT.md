@@ -69,6 +69,16 @@
 - The login background now switches between the official dark bitten-cookie artwork on the light theme and the light artwork on the dark theme. The public menu also uses the official compact logo, denser mobile spacing and the current Brookie palette without changing cart, availability or checkout rules.
 - Structured financial suppliers now accept optional address and contact fields while keeping only the name required. Payable accounts can record an optional payment method (`PIX`, `CREDITO`, `DEBITO` or `BOLETO`), preserving old rows without a value.
 
+## Caixa Express V1
+
+- `/caixa` é a frente de retirada imediata. Usa `Pedido.origem = CAIXA_EXPRESS`, entrega e baixa no mesmo commit, cotação por preço unitário e tentativa idempotente. O histórico do Caixa é interno.
+- `CaixaEvento` registra venda, baixa, correção, estorno, cancelamento e devolução. Entrega, data de recebimento e data de estorno governam competências diferentes. A origem `LEGADO` preserva a regra de dinheiro entregue.
+- A identificação é opcional na venda paga. O Caixa busca por nome ou telefone e permite ao administrativo vincular posteriormente uma venda de balcão paga a um cadastro existente. O vínculo é auditado e segue a elegibilidade de fidelidade.
+- `CaixaSessao` cobre a conta operacional com turno e ociosidade. Contas administrativas mantêm MFA e governam correções, tema e provisionamento conforme o papel.
+- Identidade `PADRAO`, `NATAL` ou `ANO_NOVO` é aplicada no ambiente interno após identificar o tenant. Modo claro/escuro continua independente. As artes oficiais ficam em `public/brand/themes/`.
+- Na branch de entrega, as identidades internas usam Padrão azul, Natal vinho e Ano Novo dourado, com modo claro/escuro independente. A revalidação visual em HML cobriu 90 combinações de rota, identidade, modo e viewport. A restauração e a reconciliação foram ensaiadas em PostgreSQL LOCAL isolado. A comprovação de capacidade, o ensaio em loja e a restauração no Neon seguem nos gates da SPEC.
+- As duas migrations de 20/11/2026 foram aplicadas em LOCAL e HML. A operação nova fica desativada em PRD enquanto os gates da SPEC estiverem abertos. O roteiro está em `docs/caixa-express-v1.md`.
+
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.
 - Stock and production: reservation, release, stock adjustments, and production logs.

@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
@@ -125,7 +126,7 @@ export async function GET(
     const accessToken = getPublicOrderAccessToken(request, id)
     const customerAccessPhone = getPublicCustomerAccessPhone(request, tenant.id)
     let pedido = await prisma.pedido.findFirst({
-      where: { id, tenantId: tenant.id },
+      where: { id, tenantId: tenant.id, origem: 'LEGADO' },
       select: publicPedidoSelect,
     })
 
@@ -151,7 +152,7 @@ export async function GET(
         })
 
         pedido = await prisma.pedido.findFirst({
-          where: { id, tenantId: tenant.id },
+          where: { id, tenantId: tenant.id, origem: 'LEGADO' },
           select: publicPedidoSelect,
         })
       } catch (error) {
@@ -191,7 +192,7 @@ export async function PATCH(
     const accessToken = getPublicOrderAccessToken(request, id)
     const customerAccessPhone = getPublicCustomerAccessPhone(request, tenant.id)
     const pedido = await prisma.pedido.findFirst({
-      where: { id, tenantId: tenant.id },
+      where: { id, tenantId: tenant.id, origem: 'LEGADO' },
       include: {
         itens: {
           select: {
@@ -238,6 +239,12 @@ export async function PATCH(
     }
 
     const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, tenant.id)
+      const estado = await tx.pedido.findFirst({
+        where: { id, tenantId: tenant.id, origem: 'LEGADO' },
+        select: { atualizadoEm: true },
+      })
+      if (!estado || estado.atualizadoEm.getTime() !== pedido.atualizadoEm.getTime()) return null
       if (pedido.tipoEntrega === 'ENCOMENDA') {
         for (const item of pedido.itens) {
           if (item.quantidadePreparada > 0) {
@@ -285,6 +292,7 @@ export async function PATCH(
       return atualizado
     })
 
+    if (!pedidoAtualizado) return NextResponse.json({ error: 'O pedido mudou. Consulte o status atual.' }, { status: 409 })
     const response = NextResponse.json(serializePublicPedido(pedidoAtualizado))
     if (hasOrderTokenAccess) {
       setPublicOrderAccessCookie(response, pedido.id, accessToken)

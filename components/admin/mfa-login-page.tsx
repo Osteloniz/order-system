@@ -55,11 +55,11 @@ export function MfaLoginPage() {
 
   return (
     <div className="brookie-login-background relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
-      <Card className="relative z-10 w-full max-w-[390px] border-[#E7DBB3]/35 bg-[#FFF8EE]/95 shadow-2xl backdrop-blur-md">
+      <Card className="relative z-10 w-full max-w-[390px] border-border bg-card text-card-foreground shadow-2xl backdrop-blur-md">
         <CardHeader className="space-y-2 p-5 pb-3 text-center">
-          <Image src="/brand/brookie-mark-color.jpg" alt="Brookie Pregiato" width={72} height={72} className="mx-auto h-16 w-16 rounded-full border-2 border-[#E7DBB3] object-cover" />
-          <CardTitle className="text-[#421C14]">Confirme o segundo fator</CardTitle>
-          <CardDescription className="text-[#421C14]/70">
+          <Image src="/brand/brookie-mark-color.jpg" alt="Brookie Pregiato" width={72} height={72} className="mx-auto h-16 w-16 rounded-full border-2 border-border object-cover" />
+          <CardTitle className="text-card-foreground">Confirme o segundo fator</CardTitle>
+          <CardDescription className="text-muted-foreground">
             {status === 'ready' ? `Senha confirmada para ${loginHint}.` : 'A verificacao anterior expirou.'}
           </CardDescription>
         </CardHeader>
@@ -80,7 +80,7 @@ export function MfaLoginPage() {
                 <p className="text-[11px] leading-relaxed text-muted-foreground">Use o codigo atual do Google Authenticator ou um codigo de recuperacao.</p>
               </div>
               {error ? <p className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
-              <Button type="submit" className="w-full bg-[#40631A] hover:bg-[#365416]" disabled={busy || code.length < 6}>
+              <Button type="submit" className="w-full min-h-11" disabled={busy || code.length < 6}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}Confirmar e entrar
               </Button>
               <Button type="button" variant="ghost" className="w-full" onClick={goBack}><ArrowLeft className="mr-2 h-4 w-4" />Trocar e-mail</Button>

@@ -61,6 +61,7 @@ export interface SeparacaoResponsavelPessoa {
 }
 
 export interface Pedido {
+  origem?: 'LEGADO' | 'CAIXA_EXPRESS'
   id: string
   clienteId?: string | null
   status: StatusPedido

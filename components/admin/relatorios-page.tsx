@@ -78,6 +78,8 @@ type RelatorioData = {
   valorMimosConcedidos: number
   recebimentoPrevisto: number
   recebimentoRealizado: number
+  recebimentoLiquido?: number
+  estornosCaixa?: number
   recebimentoEmAberto: number
   valorCancelado: number
   taxaCartaoPrevista: number
@@ -360,7 +362,7 @@ export function RelatoriosPage() {
       iconClass: 'text-success',
       title: 'Resultado realizado',
       value: formatarMoeda(data?.resultadoRealizado ?? 0),
-      detail: 'Recebido menos custos pagos no periodo',
+      detail: 'Estornos no período: {formatarMoeda(data?.estornosCaixa ?? 0)} no periodo',
     },
   ]
 
@@ -453,7 +455,7 @@ export function RelatoriosPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Previsto para receber</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoPrevisto ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Ainda nao realizado</p></div>
-              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Pagamento aprovado ou dinheiro entregue</p></div>
+              <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Realizado</p><p className="text-xl font-bold">{formatarMoeda(data?.recebimentoRealizado ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Líquido: {formatarMoeda(data?.recebimentoLiquido ?? 0)}</p></div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-background/75 p-4"><p className="text-sm text-muted-foreground">Mimos no periodo</p><p className="text-xl font-bold">{data?.mimosConcedidos ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">Baixados no estoque sem entrar no contas a receber</p></div>

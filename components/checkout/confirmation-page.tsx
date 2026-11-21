@@ -39,7 +39,7 @@ const fetcher = async ([url, accessToken]: [string, string]) => {
 }
 
 const statusConfig: Record<StatusPedido, { label: string; color: string }> = {
-  FEITO: { label: 'Pedido Recebido', color: 'bg-warning text-warning-foreground' },
+  FEITO: { label: 'Pedido Recebido', color: 'bg-warning text-warning-solid-foreground' },
   ACEITO: { label: 'Aceito', color: 'bg-accent text-accent-foreground' },
   PREPARACAO: { label: 'Em Preparação', color: 'bg-primary text-primary-foreground' },
   PRONTO_ENTREGA: { label: 'Pronto para Entrega', color: 'bg-success/15 text-success dark:bg-success/20 dark:text-white' },

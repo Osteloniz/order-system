@@ -1,5 +1,4 @@
 import { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/db'
 import type { StatusPagamento, StatusPedido, TipoEntrega, TipoPagamento } from '@/lib/types'
 import { addAvailableStock, consumeAvailableStock, consumeReservedStock, releaseReservedToAvailableStock, reserveFromAvailableStock } from '@/lib/stock'
 
@@ -29,79 +28,12 @@ type TargetPedidoStockContext = Pick<PedidoStockContext, 'status' | 'statusPagam
 
 type StockLifecycleState = 'LIVRE' | 'RESERVADO' | 'CONSUMIDO'
 
-export const PUBLIC_ORDER_SOFT_HOLD_MINUTES = 10
-
 export function shouldReserveCommonOrderStock(context: Pick<PedidoStockContext, 'status' | 'statusPagamento' | 'pagamento'>) {
   if (context.status === 'ENTREGUE' || context.status === 'CANCELADO') {
     return false
   }
 
   return context.status !== 'FEITO'
-}
-
-function buildShadowCommittedOrderWhere(tenantId: string, now = new Date()): Prisma.PedidoWhereInput {
-  const recentSoftHoldCutoff = new Date(now.getTime() - PUBLIC_ORDER_SOFT_HOLD_MINUTES * 60 * 1000)
-
-  return {
-    tenantId,
-    estoqueReservadoEm: null,
-    estoqueBaixadoEm: null,
-    OR: [
-      {
-        tipoEntrega: { not: 'ENCOMENDA' },
-        status: 'FEITO',
-        criadoEm: { gte: recentSoftHoldCutoff },
-      },
-      {
-        tipoEntrega: { not: 'ENCOMENDA' },
-        status: { in: ['ACEITO', 'PREPARACAO', 'PRONTO_ENTREGA'] },
-      },
-      {
-        tipoEntrega: 'ENCOMENDA',
-        status: { in: ['PREPARACAO', 'PRONTO_ENTREGA'] },
-      },
-    ],
-  }
-}
-
-async function loadShadowCommittedQuantityMapFromClient(
-  client: {
-    pedido: Prisma.TransactionClient['pedido']
-  },
-  tenantId: string,
-  now = new Date(),
-) {
-  const pedidos = await client.pedido.findMany({
-    where: {
-      ...buildShadowCommittedOrderWhere(tenantId, now),
-    },
-    select: {
-      itens: {
-        select: {
-          produtoId: true,
-          quantidade: true,
-        },
-      },
-    },
-  })
-
-  const shadowMap = new Map<string, number>()
-
-  for (const pedido of pedidos) {
-    for (const item of pedido.itens) {
-      shadowMap.set(item.produtoId, (shadowMap.get(item.produtoId) ?? 0) + item.quantidade)
-    }
-  }
-
-  return shadowMap
-}
-
-export async function loadShadowCommittedQuantityMap(tenantId: string, now = new Date()) {
-  return loadShadowCommittedQuantityMapFromClient(prisma, tenantId, now)
-}
-
-export async function loadShadowCommittedQuantityMapTx(tx: Tx, tenantId: string, now = new Date()) {
-  return loadShadowCommittedQuantityMapFromClient(tx, tenantId, now)
 }
 
 export async function lockProductStockRows(tx: Tx, tenantId: string, productIds: string[]) {
@@ -114,6 +46,7 @@ export async function lockProductStockRows(tx: Tx, tenantId: string, productIds:
       FROM "ProdutoEstoque"
       WHERE "tenantId" = ${tenantId}
         AND "produtoId" IN (${Prisma.join(normalizedIds)})
+      ORDER BY "produtoId"
       FOR UPDATE
     `,
   )

@@ -1,3 +1,4 @@
+import { caixaDeliveryPeriod, caixaFinanceMovements, legacyFinancePeriod } from '@/lib/caixa-finance'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
@@ -11,7 +12,7 @@ export const runtime = 'nodejs'
 const querySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  status: z.enum(['TODOS', 'PREVISTO', 'REALIZADO', 'CANCELADO']).optional(),
+  status: z.enum(['TODOS', 'PREVISTO', 'REALIZADO', 'CANCELADO', 'ESTORNADO']).optional(),
 }).strict()
 
 function getPeriodRange(from: string, to: string) {
@@ -40,29 +41,26 @@ export async function GET(request: NextRequest) {
     const { from, to, status } = parsed.data
     const { start, end } = getPeriodRange(from, to)
 
-    const pedidos = await prisma.pedido.findMany({
+    const [pedidos, movimentosCaixa] = await Promise.all([
+      prisma.pedido.findMany({
       where: {
         tenantId: admin.tenantId,
         OR: [
-          {
-            tipoEntrega: { not: 'ENCOMENDA' },
-            criadoEm: { gte: start, lt: end },
-          },
-          {
-            tipoEntrega: 'ENCOMENDA',
-            encomendaPara: { gte: start, lt: end },
-          },
+          legacyFinancePeriod(start, end),
+          { ...caixaDeliveryPeriod(start, end), statusPagamento: { in: ['PENDENTE', 'CANCELADO'] } },
         ],
       },
       orderBy: [{ encomendaPara: 'desc' }, { criadoEm: 'desc' }],
-    })
+      }),
+      caixaFinanceMovements(admin.tenantId, start, end),
+    ])
 
     const contas = pedidos
       .map((pedido) => {
         const statusFinanceiro = getPedidoFinanceiroStatus(pedido)
         const { taxa, liquido } = calcularLiquidoPedido(pedido)
         const dataCompetencia =
-          pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara ? pedido.encomendaPara : pedido.criadoEm
+          pedido.tipoEntrega === 'ENCOMENDA' && pedido.encomendaPara ? pedido.encomendaPara : (pedido.entregueEm ?? pedido.criadoEm)
 
         return {
           id: pedido.id,
@@ -81,6 +79,16 @@ export async function GET(request: NextRequest) {
           statusFinanceiro,
         }
       })
+      .concat(movimentosCaixa.map((movimento) => ({
+        id: movimento.id, numero: movimento.pedidoId.slice(-8).toUpperCase(),
+        clienteNome: movimento.pedido.clienteNome, clienteTelefone: movimento.pedido.clienteTelefone,
+        pagamento: movimento.meio, tipoCartao: movimento.tipoCartao, statusPedido: movimento.pedido.status,
+        statusPagamento: movimento.pedido.statusPagamento, tipoEntrega: 'RETIRADA' as const,
+        dataCompetencia: movimento.efetivoEm, total: movimento.saida ? -movimento.bruto : movimento.bruto,
+        taxa: movimento.taxa, liquido: movimento.saida ? -movimento.liquido : movimento.liquido,
+        statusFinanceiro: movimento.saida ? 'ESTORNADO' as const : 'REALIZADO' as const,
+      })))
+      .sort((a, b) => b.dataCompetencia.getTime() - a.dataCompetencia.getTime())
       .filter((conta) => (status === 'TODOS' ? true : conta.statusFinanceiro === status))
 
     const resumo = contas.reduce(
@@ -95,6 +103,8 @@ export async function GET(request: NextRequest) {
         } else if (conta.statusFinanceiro === 'REALIZADO') {
           acc.realizado += conta.total
           acc.realizadoLiquido += conta.liquido
+        } else if (conta.statusFinanceiro === 'ESTORNADO') {
+          acc.estornado -= conta.total
         } else {
           acc.cancelado += conta.total
         }
@@ -110,6 +120,7 @@ export async function GET(request: NextRequest) {
         realizado: 0,
         realizadoLiquido: 0,
         cancelado: 0,
+        estornado: 0,
       }
     )
 

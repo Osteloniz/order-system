@@ -3,9 +3,23 @@ import { MIMO_COOKIE_THRESHOLD } from './mimos.ts'
 type PedidoResumoItem = {
   nomeProdutoSnapshot: string
   quantidade: number
+  totalItem?: number
+  caixaElegivelFidelidade?: boolean
 }
 
-type PedidoResumo = {
+export type PedidoFidelidade = {
+  origem?: 'LEGADO' | 'CAIXA_EXPRESS'
+  status?: string
+  statusPagamento?: string
+}
+
+export function itensFidelidade<T extends { quantidade: number; totalItem?: number; caixaElegivelFidelidade?: boolean }>(pedido: PedidoFidelidade & { itens: T[] }) {
+  if (pedido.origem !== 'CAIXA_EXPRESS') return pedido.itens
+  if (pedido.status !== 'ENTREGUE' || pedido.statusPagamento !== 'APROVADO') return []
+  return pedido.itens.filter((item) => item.caixaElegivelFidelidade && (item.totalItem ?? 0) > 0)
+}
+
+type PedidoResumo = PedidoFidelidade & {
   itens: PedidoResumoItem[]
 }
 
@@ -14,7 +28,7 @@ export function buildClienteResumoConsumo(pedidos: PedidoResumo[]) {
   let totalCookies = 0
 
   for (const pedido of pedidos) {
-    for (const item of pedido.itens) {
+    for (const item of itensFidelidade(pedido)) {
       totalCookies += item.quantidade
       sabores.set(item.nomeProdutoSnapshot, (sabores.get(item.nomeProdutoSnapshot) ?? 0) + item.quantidade)
     }
@@ -36,7 +50,8 @@ export function buildClienteFidelidade(totalCookies: number, mimosEntregues: num
   const mimosDisponiveis = Math.max(totalMimosGerados - mimosEntregues, 0)
   const cookiesDesdeUltimoMimoEntregue = Math.max(totalCookies - mimosEntregues * MIMO_COOKIE_THRESHOLD, 0)
   const progressoAtual = cookiesDesdeUltimoMimoEntregue % MIMO_COOKIE_THRESHOLD
-  const faltamParaProximo = progressoAtual === 0 ? MIMO_COOKIE_THRESHOLD : MIMO_COOKIE_THRESHOLD - progressoAtual
+  const deficit = Math.max(mimosEntregues * MIMO_COOKIE_THRESHOLD - totalCookies, 0)
+  const faltamParaProximo = MIMO_COOKIE_THRESHOLD - progressoAtual + deficit
 
   return {
     totalMimosGerados,

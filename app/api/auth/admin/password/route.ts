@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   }) : null
   const passwordOk = await verifyPassword(parsed.data.password, user?.passwordHash || DUMMY_PASSWORD_HASH)
 
-  if (!tenant || !user || !user.ativo || !passwordOk) {
+  if (!tenant || !user || !user.ativo || user.role === 'CAIXA' || !passwordOk) {
     await createAuthAuditLog({
       tenantId: tenant?.id,
       adminUserId: user?.id,

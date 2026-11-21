@@ -1,3 +1,4 @@
+import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { appLogger } from '@/lib/app-logger'
 import { prisma } from '@/lib/db'
@@ -37,7 +38,7 @@ export async function PATCH(
     }
 
     const pedidoAtual = await prisma.pedido.findFirst({
-      where: { id, tenantId: admin.tenantId },
+      where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
       include: { itens: true },
     })
     if (!pedidoAtual) {
@@ -68,8 +69,9 @@ export async function PATCH(
 
     try {
       const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+      await lockTenantStock(tx, admin.tenantId)
         const pedidoAtualTransacao = await tx.pedido.findFirst({
-          where: { id, tenantId: admin.tenantId },
+          where: { id, tenantId: admin.tenantId, origem: 'LEGADO' },
           include: { itens: true },
         })
 

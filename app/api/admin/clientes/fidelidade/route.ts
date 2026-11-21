@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
-import { buildClienteFidelidade, ordenarClientesPorFidelidade } from '@/lib/clientes-summary'
+import { buildClienteFidelidade, itensFidelidade, ordenarClientesPorFidelidade } from '@/lib/clientes-summary'
 import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
@@ -31,8 +31,11 @@ export async function GET() {
         select: {
           clienteId: true,
           criadoEm: true,
+          origem: true,
+          status: true,
+          statusPagamento: true,
           itens: {
-            select: { quantidade: true },
+            select: { quantidade: true, totalItem: true, caixaElegivelFidelidade: true },
           },
         },
         orderBy: { criadoEm: 'desc' },
@@ -44,7 +47,7 @@ export async function GET() {
     for (const pedido of pedidos) {
       if (!pedido.clienteId) continue
       const atual = consumoPorCliente.get(pedido.clienteId) ?? { totalCookies: 0, ultimoPedidoEm: null }
-      atual.totalCookies += pedido.itens.reduce((total, item) => total + item.quantidade, 0)
+      atual.totalCookies += itensFidelidade(pedido).reduce((total, item) => total + item.quantidade, 0)
       atual.ultimoPedidoEm ??= pedido.criadoEm
       consumoPorCliente.set(pedido.clienteId, atual)
     }

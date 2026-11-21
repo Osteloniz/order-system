@@ -1,5 +1,7 @@
 ﻿'use client'
 
+import { InternalThemeSettings } from '@/components/admin/internal-theme'
+
 import React from "react"
 
 import { useState, useEffect, useRef } from 'react'
@@ -325,6 +327,7 @@ export function ConfigPage() {
       </header>
 
       <nav className="flex gap-1.5 overflow-x-auto rounded-xl border border-border/70 bg-card p-1.5 text-xs" aria-label="Seções das configurações">
+        <a href="#config-aparencia" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Aparência</a>
         <a href="#config-loja" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Loja</a>
         <a href="#config-pedidos" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Pedidos</a>
         <a href="#config-checkout" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Checkout</a>
@@ -332,6 +335,8 @@ export function ConfigPage() {
         <a href="#config-links" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Links</a>
         <a href="#config-alertas" className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-muted">Alertas</a>
       </nav>
+
+      <section id="config-aparencia" className="scroll-mt-16" aria-label="Aparência"><InternalThemeSettings /></section>
 
       {(configError || tenantError) && (
         <Card className="max-w-4xl border-destructive/40 bg-destructive/5">
