@@ -1,10 +1,12 @@
 'use client'
 
+import { toast } from 'sonner'
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { caixaFeeRate, calcularTaxaCaixa, defaultCaixaFeeRates, type CaixaFeeRates } from '@/lib/caixa-fees'
 import { formatarMoeda } from '@/lib/calc'
 import { meiosCaixa, meioCaixaLabel, operacaoCaixa, type MeioCaixa, type OperacaoCaixa } from '@/lib/caixa-contract'
 import { CaixaRequestError, requestCaixa, type ClienteCaixa } from '@/components/admin/caixa-client'
@@ -34,6 +36,7 @@ export function CaixaGestao({ storageKey, expire, initialNumber }: {
   storageKey: string; expire: () => void; initialNumber?: string
 }) {
   const [numero, setNumero] = useState(initialNumber ?? '')
+  const [rates, setRates] = useState(defaultCaixaFeeRates)
   const [vendas, setVendas] = useState<VendaDetalhe[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [searching, setSearching] = useState(false)
@@ -46,8 +49,9 @@ export function CaixaGestao({ storageKey, expire, initialNumber }: {
     setSearching(true)
     setAlert('')
     try {
-      const result = await requestCaixa<{ vendas: VendaDetalhe[] }>('gestao?numero=' + encodeURIComponent(value.trim()))
+      const result = await requestCaixa<{ vendas: VendaDetalhe[]; taxas: CaixaFeeRates }>('gestao?numero=' + encodeURIComponent(value.trim()))
       setVendas(result.vendas)
+      setRates(result.taxas)
       if (!result.vendas.length) setAlert('Venda do Caixa não encontrada.')
     } catch (error) {
       if (error instanceof CaixaRequestError && error.status === 401) expire()
@@ -90,9 +94,9 @@ export function CaixaGestao({ storageKey, expire, initialNumber }: {
         </ul>
         {!venda.clienteId && venda.status === 'ENTREGUE' && venda.statusPagamento === 'APROVADO' &&
           <VinculoCliente key={venda.id} pedidoId={venda.id} expire={expire} disabled={movement.busy || Boolean(movement.pending)}
-            onSaved={async () => { await buscar(venda.numero); setAlert('Cliente vinculado à venda.') }} />}
+            onSaved={() => buscar(venda.numero)} />}
         <MovementForm key={JSON.stringify([venda.id, venda.statusPagamento, venda.caixaRecebimentoAtualId, venda.caixaEventos.length])}
-          venda={venda} disabled={movement.busy || Boolean(movement.pending)} run={movement.run} />
+          venda={venda} rates={rates} disabled={movement.busy || Boolean(movement.pending)} run={movement.run} />
       </div>}
     </section>
   )
@@ -111,6 +115,7 @@ function VinculoCliente({ pedidoId, expire, onSaved, disabled }: {
     setError('')
     try {
       await requestCaixa('gestao', 'POST', { pedidoId, clienteId: selecionado.id })
+      toast.success('Cliente vinculado à venda.')
       await onSaved()
     } catch (error) {
       if (error instanceof CaixaRequestError && error.status === 401) expire()
@@ -136,7 +141,9 @@ function VinculoCliente({ pedidoId, expire, onSaved, disabled }: {
   )
 }
 
-function MovementForm({ venda, disabled, run }: { venda: VendaDetalhe; disabled: boolean; run: (operacao: OperacaoCaixa) => void }) {
+function MovementForm({ venda, rates, disabled, run }: { venda: VendaDetalhe; rates: CaixaFeeRates; disabled: boolean; run: (operacao: OperacaoCaixa) => void }) {
+  const [meio, setMeio] = useState(venda.meio)
+  const [taxaManual, setTaxaManual] = useState('')
   const [operacao, setOperacao] = useState<OperacaoCaixa['operacao']>('DEVOLUCAO')
   const [apto, setApto] = useState(false)
   const [error, setError] = useState('')
@@ -144,17 +151,19 @@ function MovementForm({ venda, disabled, run }: { venda: VendaDetalhe; disabled:
   if (venda.statusPagamento === 'PENDENTE') opcoes.unshift('BAIXA', 'CANCELAMENTO')
   if (venda.statusPagamento === 'APROVADO') opcoes.unshift('CORRECAO', 'ESTORNO')
   const hasMeio = operacao === 'BAIXA' || operacao === 'CORRECAO'
+  const cartao = meio === 'CREDITO' || meio === 'DEBITO'
+  const taxaInformada = operacao === 'CORRECAO' && cartao && taxaManual !== ''
+  const taxa = taxaInformada ? Number(taxaManual) : calcularTaxaCaixa(venda.total, meio, rates)
+  const percentual = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 2 }).format(caixaFeeRate(meio, rates) / 10_000)
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const fields = new FormData(event.currentTarget)
     const base = { operacao, pedidoId: venda.id, tentativa: crypto.randomUUID() }
     const motivo = fields.get('motivo')
-    const meio = fields.get('meio')
-    const taxa = fields.get('taxa')
     const versao = venda.caixaRecebimentoAtualId
     const payload = operacao === 'BAIXA' ? { ...base, meio }
-      : operacao === 'CORRECAO' ? { ...base, motivo, meio, versao, ...(taxa ? { taxa: Number(taxa) } : {}) }
+      : operacao === 'CORRECAO' ? { ...base, motivo, meio, versao, ...(taxaInformada ? { taxa } : {}) }
       : operacao === 'ESTORNO' ? { ...base, motivo, versao, reabrir: fields.get('destino') === 'reabrir' }
       : operacao === 'CANCELAMENTO' ? { ...base, motivo }
       : { ...base, motivo, aptoParaVenda: apto, itens: venda.itens.map(({ produtoId }) => ({
@@ -170,20 +179,26 @@ function MovementForm({ venda, disabled, run }: { venda: VendaDetalhe; disabled:
     <form onSubmit={submit} className="mt-3 max-w-md border-t pt-3">
       <fieldset disabled={disabled} className="grid gap-2">
         <Label htmlFor="gestao-acao">Operação</Label>
-        <select id="gestao-acao" value={operacao} onChange={(event) => setOperacao(event.target.value as OperacaoCaixa['operacao'])}
+        <select id="gestao-acao" value={operacao} onChange={(event) => { setOperacao(event.target.value as OperacaoCaixa['operacao']); setTaxaManual('') }}
           className="h-10 rounded-md border bg-background px-2">
           {opcoes.map((opcao) => <option key={opcao} value={opcao}>{actions[opcao]}</option>)}
         </select>
         {hasMeio && <>
           <Label htmlFor="gestao-meio">Meio efetivo</Label>
-          <select name="meio" id="gestao-meio" defaultValue={venda.meio} className="h-10 rounded-md border bg-background px-2">
+          <select id="gestao-meio" value={meio} onChange={(event) => { setMeio(event.target.value as MeioCaixa); setTaxaManual('') }} className="h-10 rounded-md border bg-background px-2">
             {meiosCaixa.map((meio) => <option key={meio} value={meio}>{meioCaixaLabel[meio]}</option>)}
           </select>
+          <p role="status" className="rounded-lg bg-muted px-3 py-2 text-sm">
+            {taxaInformada ? 'Taxa informada' : 'Taxa calculada'}: <strong>{formatarMoeda(taxa)}</strong>{!taxaInformada && ' (' + percentual + ')'} · Líquido: <strong>{formatarMoeda(venda.total - taxa)}</strong>
+          </p>
         </>}
-        {operacao === 'CORRECAO' && <>
-          <Label htmlFor="gestao-taxa">Taxa corrigida em centavos (opcional)</Label>
-          <Input id="gestao-taxa" name="taxa" type="number" min={0} max={venda.total} step={1} />
-        </>}
+        {operacao === 'CORRECAO' && cartao && <details key={meio} className="rounded-lg border p-2 text-sm">
+          <summary className="cursor-pointer">Informar outra taxa</summary>
+          <div className="mt-2 grid gap-2">
+            <Label htmlFor="gestao-taxa">Taxa em centavos (opcional)</Label>
+            <Input id="gestao-taxa" type="number" min={0} max={venda.total} step={1} value={taxaManual} onChange={(event) => setTaxaManual(event.target.value)} />
+          </div>
+        </details>}
         {operacao === 'ESTORNO' && <>
           <Label htmlFor="gestao-destino">Após devolver o pagamento</Label>
           <select id="gestao-destino" name="destino" defaultValue="" required className="h-10 rounded-md border bg-background px-2">

@@ -77,7 +77,9 @@
 - `CaixaSessao` cobre a conta operacional com turno e ociosidade. Contas administrativas mantêm MFA e governam correções, tema e provisionamento conforme o papel.
 - Identidade `PADRAO`, `NATAL` ou `ANO_NOVO` é aplicada no ambiente interno após identificar o tenant. Modo claro/escuro continua independente. As artes oficiais ficam em `public/brand/themes/`.
 - Na branch de entrega, as identidades internas usam Padrão azul, Natal vinho e Ano Novo dourado, com modo claro/escuro independente. A revalidação visual em HML cobriu 90 combinações de rota, identidade, modo e viewport. A restauração e a reconciliação foram ensaiadas em PostgreSQL LOCAL isolado. A comprovação de capacidade, o ensaio em loja e a restauração no Neon seguem nos gates da SPEC.
-- As duas migrations de 20/11/2026 foram aplicadas em LOCAL e HML. A operação nova fica desativada em PRD enquanto os gates da SPEC estiverem abertos. O roteiro está em `docs/caixa-express-v1.md`.
+- As duas migrations de 20/11/2026 foram aplicadas em LOCAL e HML, e em PRD em 21/11/2026 após o merge do PR #27. A operação nova fica desativada em PRD enquanto os gates da SPEC estiverem abertos. O roteiro está em `docs/caixa-express-v1.md`.
+
+- Taxas de crédito e débito do Caixa são configuráveis por tenant, com prévia na gestão e taxa efetiva registrada nos eventos. A migration de taxas foi aplicada em LOCAL e HML, aguardando autorização para PRD.
 
 ## Important Business Areas
 - Orders: creation, status updates, cancellation, payment status, delivery or pickup, scheduled `ENCOMENDA`.

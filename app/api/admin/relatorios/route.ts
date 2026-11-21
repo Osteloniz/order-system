@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { calcularLiquidoPedido } from '@/lib/finance'
+import { caixaFeeSelection } from '@/lib/caixa-fees'
 import { prisma } from '@/lib/db'
 import { hasFornecedorFinanceiroSchema } from '@/lib/fornecedores-financeiros'
 import { getMimoLogMetadata } from '@/lib/mimos'
@@ -51,13 +53,16 @@ export async function GET(request: NextRequest) {
     }
 
     const hasStructuredSchema = await hasFornecedorFinanceiroSchema()
-    const [pedidos, contasPagar, logsOperacionais, movimentosCaixa] = await Promise.all([
+    const [pedidos, contasPagar, logsOperacionais, movimentosCaixa, caixaRates] = await Promise.all([
       prisma.pedido.findMany({
         where: {
           tenantId: admin.tenantId,
           OR: [legacyFinancePeriod(start, end), caixaDeliveryPeriod(start, end)],
         },
-        include: { itens: true },
+        include: { itens: true, caixaEventos: {
+          where: { operacao: { in: ['VENDA', 'BAIXA', 'CORRECAO'] } },
+          select: { id: true, taxa: true },
+        } },
         orderBy: [{ encomendaPara: 'asc' }, { criadoEm: 'asc' }],
       }),
       hasStructuredSchema
@@ -94,6 +99,7 @@ export async function GET(request: NextRequest) {
         },
       }),
       caixaFinanceMovements(admin.tenantId, start, end),
+      prisma.configuracao.findUnique({ where: { tenantId: admin.tenantId }, select: caixaFeeSelection }),
     ])
 
     const porStatus = {
@@ -159,7 +165,10 @@ export async function GET(request: NextRequest) {
     const totalCancelado = cancelados.reduce((acc, pedido) => acc + pedido.total, 0)
     const receitaCartaoBruta = cartaoEntregue.reduce((acc, pedido) => acc + pedido.total, 0)
     const taxaCartao = cartaoEntregue.reduce(
-      (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
+      (acc, pedido) => {
+        const taxaRegistrada = pedido.caixaEventos.find((evento) => evento.id === pedido.caixaRecebimentoAtualId)?.taxa
+        return acc + (taxaRegistrada ?? calcularLiquidoPedido(pedido, caixaRates ?? undefined).taxa)
+      },
       0
     )
     const receitaCartaoLiquida = Math.max(0, receitaCartaoBruta - taxaCartao)
@@ -170,7 +179,7 @@ export async function GET(request: NextRequest) {
       + entradasCaixa.reduce((acc, movimento) => acc + movimento.bruto, 0)
     const recebimentoEmAberto = pedidosPrevistos.reduce((acc, pedido) => acc + pedido.total, 0)
     const taxaCartaoPrevista = cartaoPrevisto.reduce(
-      (acc, pedido) => acc + calcularTaxaCartao(pedido.total, normalizeTipoCartao(pedido.pagamento, pedido.tipoCartao)),
+      (acc, pedido) => acc + calcularLiquidoPedido(pedido, caixaRates ?? undefined).taxa,
       0
     )
     const taxaCartaoRealizada = cartaoRealizado.reduce(

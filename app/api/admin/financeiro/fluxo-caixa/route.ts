@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
+import { caixaFeeSelection } from '@/lib/caixa-fees'
 import { prisma } from '@/lib/db'
 import { calcularLiquidoPedido, getContaPagarStatusFinanceiro, getPedidoFinanceiroStatus, groupByDateKey } from '@/lib/finance'
 import { todayInSaoPaulo } from '@/lib/sao-paulo'
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     const { from, to } = parsed.data
     const { start, end } = getPeriodRange(from, to)
 
-    const [pedidos, contasPagar, movimentosCaixa] = await Promise.all([
+    const [pedidos, contasPagar, movimentosCaixa, caixaRates] = await Promise.all([
       prisma.pedido.findMany({
         where: {
           tenantId: admin.tenantId,
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
         orderBy: [{ vencimento: 'asc' }, { criadoEm: 'asc' }],
       }),
       caixaFinanceMovements(admin.tenantId, start, end),
+      prisma.configuracao.findUnique({ where: { tenantId: admin.tenantId }, select: caixaFeeSelection }),
     ])
 
     const rows = new Map<
@@ -106,7 +108,7 @@ export async function GET(request: NextRequest) {
       if (!row) continue
 
       const statusFinanceiro = getPedidoFinanceiroStatus(pedido)
-      const { taxa, liquido } = calcularLiquidoPedido(pedido)
+      const { taxa, liquido } = calcularLiquidoPedido(pedido, caixaRates ?? undefined)
       if (statusFinanceiro === 'PREVISTO') {
         row.entradasPrevistas += liquido
         row.taxasPrevistas += taxa

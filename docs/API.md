@@ -235,8 +235,9 @@ Relatorios:
 | POST `/api/caixa/vendas` | Concluir venda com `{ itens, clienteId, pago, meio, cotacao, tentativa, observacao? }`. A observação opcional da venda tem até 1.000 caracteres, é interna e faz parte da tentativa idempotente. Preço, total e status são definidos no servidor. |
 | POST `/api/caixa/movimentos` | Movimento integral. Comum `{ operacao, pedidoId, tentativa }`. Baixa recebe `meio`. Correção recebe `meio`, `versao`, `motivo` e taxa opcional em centavos. Estorno recebe `versao`, `reabrir` e `motivo`. Cancelamento recebe `motivo`. Devolução exige `aptoParaVenda: true`, itens e motivo. |
 | POST `/api/caixa/gestao` | MASTER/ADMIN com MFA vinculam `{ pedidoId, clienteId }` para venda Caixa entregue, paga e anônima. Repete com sucesso para o mesmo cliente, rejeita troca e grava autoria. |
-| GET `/api/caixa/gestao?numero=...` | Busca de venda e eventos pelo número curto, apenas MASTER/ADMIN com MFA. |
+| GET `/api/caixa/gestao?numero=...` | Busca de venda e eventos pelo número curto e devolve as taxas em pontos-base. Apenas MASTER/ADMIN com MFA. |
 | GET, POST, PATCH `/api/admin/caixa-contas` | MASTER com MFA. Lista, cria conta `{ nome, login, senha }` e desativa por `{ id, ativo: false }`. |
+| GET / PUT `/api/admin/caixa-taxas` | Consulta e atualização de `{ caixaTaxaCreditoBp, caixaTaxaDebitoBp }` no tenant sob MFA. PUT exige origem válida, aceita inteiros de 0 a 10000 e audita a alteração. |
 | GET, PATCH `/api/admin/tema` | MASTER/ADMIN com MFA. Lê e grava `{ temaVisual }` no tenant da sessão. |
 
 Os meios de entrada são `PIX`, `CREDITO`, `DEBITO` e `DINHEIRO`. Internamente, cartões usam `CARTAO` e subtipo. A cotação é o SHA-256 do JSON da lista ordenada por produto de triplas `[produtoId, quantidadeAgregada, preçoUnitárioEmCentavos]`. O servidor reconstrói a referência e devolve conflito com nova cotação quando o preço muda. Uma tentativa idêntica retorna o resultado original. Mudança de intenção com a mesma chave retorna conflito.
