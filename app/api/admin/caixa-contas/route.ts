@@ -2,13 +2,13 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { caixaJson } from '@/lib/caixa-http'
 import { caixaRoute } from '@/lib/caixa-route'
-import { getAdminUsernamePolicyError, getPasswordPolicyError, normalizeAdminUsername } from '@/lib/admin-credential-policy'
+import { getAdminUsernamePolicyError, getCaixaPasswordPolicyError, normalizeAdminUsername } from '@/lib/admin-credential-policy'
 import { hashPassword } from '@/lib/auth-security'
 
 const conta = z.object({
   nome: z.string().trim().min(2).max(80),
   login: z.string().trim().refine((value) => !getAdminUsernamePolicyError(value), 'Login inválido.'),
-  senha: z.string().refine((value) => !getPasswordPolicyError(value), 'Senha fora da política.'),
+  senha: z.string().refine((value) => !getCaixaPasswordPolicyError(value), 'Senha fora da política.'),
 }).strict()
 const estado = z.object({ id: z.string().uuid(), ativo: z.literal(false) }).strict()
 const select = { id: true, nome: true, username: true, ativo: true } as const

@@ -127,7 +127,7 @@ Os testes cobrem TOTP, tolerancia temporal, criptografia e adulteracao, URI do a
 
 ## Sessão operacional do Caixa
 
-A conta CAIXA pertence ao tenant, usa senha forte individual com bcrypt e autentica em `/caixa/login` por uma rota dedicada. MASTER e ADMIN continuam no fluxo administrativo com MFA. O modo legado de enrollment continua restrito ao cadastro de MFA.
+A conta CAIXA pertence ao tenant, usa senha individual com bcrypt, com mínimo de 6 caracteres e exigência de maiúscula, minúscula e número e autentica em `/caixa/login` por uma rota dedicada. MASTER e ADMIN continuam no fluxo administrativo com MFA. O modo legado de enrollment continua restrito ao cadastro de MFA.
 
 O token aleatório operacional usa cookie `HttpOnly`, `SameSite=Strict` e `Secure` no runtime de produção. O banco guarda somente o hash. A cada request, o servidor verifica expiração absoluta de oito horas, quinze minutos de ociosidade, tenant, papel atual, conta ativa e `sessionVersion`. A desativação incrementa a versão e remove sessões. Logout remove o token armazenado, inclusive para bloquear reapresentação. Login operacional limpa o cookie administrativo do navegador.
 
