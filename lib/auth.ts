@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from 'next-auth'
+import { randomUUID } from 'node:crypto'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/db'
 import { createAuthAuditLog } from '@/lib/auth-audit'
@@ -210,6 +211,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.adminSessionId = randomUUID()
         token.id = (user as any).id
         token.email = (user as any).email
         token.tenantId = (user as any).tenantId

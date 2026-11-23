@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
@@ -139,12 +140,24 @@ export async function DELETE(_: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const conta = await prisma.contaPagar.findFirst({
       where: { id, tenantId: admin.tenantId },
+      select: { id: true, _count: { select: { documentosFinanceiros: true } } },
     })
     if (!conta) return NextResponse.json({ error: 'Conta nao encontrada' }, { status: 404 })
+    if (conta._count.documentosFinanceiros) {
+      return NextResponse.json({ error: 'Esta conta tem documento fiscal vinculado. Use o cancelamento da conta.' }, { status: 409 })
+    }
 
-    await prisma.contaPagar.delete({ where: { id: conta.id } })
+    const deleted = await prisma.contaPagar.deleteMany({
+      where: { id: conta.id, tenantId: admin.tenantId, documentosFinanceiros: { none: {} } },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'A conta mudou. Atualize a lista antes de excluir.' }, { status: 409 })
+    }
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      return NextResponse.json({ error: 'Esta conta tem documento fiscal vinculado. Use o cancelamento da conta.' }, { status: 409 })
+    }
     return handleApiError('api/admin/financeiro/contas-pagar/[id] DELETE', error, 'Erro ao excluir conta a pagar')
   }
 }

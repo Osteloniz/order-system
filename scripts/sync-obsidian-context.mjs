@@ -25,6 +25,7 @@ const sources = [
   ['BROOKIE_BRAND_UI.md', join(projectRoot, 'docs', 'BROOKIE_BRAND_UI.md')],
   ['BROOKIE_TECHNICAL_HANDOFF.md', join(projectRoot, 'docs', 'BROOKIE_TECHNICAL_HANDOFF.md')],
   ['caixa-express-v1.md', join(projectRoot, 'docs', 'caixa-express-v1.md')],
+  ['captura-documentos-financeiros.md', join(projectRoot, 'docs', 'captura-documentos-financeiros.md')],
   ['admin-mobile-order-flow-handoff.md', join(projectRoot, 'docs', 'admin-mobile-order-flow-handoff.md')],
   ['hml-checklist-checkout-publico-seguranca.md', join(projectRoot, 'docs', 'hml-checklist-checkout-publico-seguranca.md')],
   ['hml-mercado-pago-checkout-pro.md', join(projectRoot, 'docs', 'hml-mercado-pago-checkout-pro.md')],

@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { CalendarClock, Clock3, Pencil, Plus, ReceiptText, RefreshCw, Save, Search, Tag, Trash2, WalletCards } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ImportarDocumento } from '@/components/admin/documentos-financeiros'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
@@ -375,6 +376,8 @@ export function ContasPagarPage() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button className="h-11 rounded-2xl" onClick={iniciarNovaConta}><Plus className="mr-2 h-4 w-4" />Nova conta</Button>
+            <ImportarDocumento fornecedores={fornecedoresFinanceiros?.filter((f) => !f.legacy) ?? []}
+              categorias={categoriasFinanceiras ?? []} atualizarFinanceiro={() => { void mutate(); void mutateFornecedores() }} />
             <Button className="h-11 rounded-2xl" variant="outline" onClick={() => mutate()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button>
           </div>
         </div>

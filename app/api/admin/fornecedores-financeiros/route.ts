@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { handleApiError } from '@/lib/api-error'
 import { getAdminSession } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/db'
 import { hasFornecedorFinanceiroSchema, listFornecedoresFinanceiros } from '@/lib/fornecedores-financeiros'
+import { normalizarCnpj, normalizarNomeFinanceiro } from '@/lib/documento-financeiro-arquivo'
 
 export const runtime = 'nodejs'
 
 const fornecedorFinanceiroSchema = z
   .object({
     nome: z.string().trim().min(2).max(80),
+    razaoSocial: z.string().trim().min(2).max(160).optional(),
+    cnpj: z.string().max(32).transform(normalizarCnpj).pipe(z.string()).optional(),
     cep: z.string().trim().max(9).optional(),
     endereco: z.string().trim().max(120).optional(),
     numero: z.string().trim().max(20).optional(),
@@ -68,6 +72,9 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId: admin.tenantId,
         nome: parsed.data.nome.trim(),
+        nomeNormalizado: normalizarNomeFinanceiro(parsed.data.nome),
+        razaoSocial: parsed.data.razaoSocial,
+        cnpjNormalizado: parsed.data.cnpj,
         cep: optional(parsed.data.cep),
         endereco: optional(parsed.data.endereco),
         numero: optional(parsed.data.numero),
@@ -84,6 +91,8 @@ export async function POST(request: NextRequest) {
       {
         id: fornecedor.id,
         nome: fornecedor.nome,
+        razaoSocial: fornecedor.razaoSocial,
+        cnpj: fornecedor.cnpjNormalizado,
         cep: fornecedor.cep,
         endereco: fornecedor.endereco,
         numero: fornecedor.numero,
@@ -99,6 +108,9 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ error: 'Fornecedor ja cadastrado' }, { status: 409 })
+    }
     return handleApiError('api/admin/fornecedores-financeiros POST', error, 'Erro ao criar fornecedor')
   }
 }

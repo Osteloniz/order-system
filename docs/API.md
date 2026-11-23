@@ -203,14 +203,41 @@ Financeiro:
 - PATCH `/api/admin/financeiro/contas-pagar/:id`
   - Body: igual ao POST.
 - DELETE `/api/admin/financeiro/contas-pagar/:id`
+  - Retorna `409` quando há documento fiscal vinculado. A conta pode ser cancelada pelo fluxo financeiro.
 - GET `/api/admin/categorias-financeiras?escopo=PAGAR|RECEBER|AMBOS|TODOS`
 - POST `/api/admin/categorias-financeiras`
   - Body: `{ nome, escopo }`
 - GET `/api/admin/fornecedores-financeiros`
 - POST `/api/admin/fornecedores-financeiros`
-  - Body: `{ nome, cep?, endereco?, numero?, complemento?, estado?, cidade?, bairro?, telefone?, email? }`
+  - Body: `{ nome, razaoSocial?, cnpj?, cep?, endereco?, numero?, complemento?, estado?, cidade?, bairro?, telefone?, email? }`
   - Apenas `nome` e obrigatorio; e-mail, quando informado, deve ser valido.
-  - Observacao: fornecedor duplicado para o tenant retorna conflito.
+  - O CNPJ opcional é validado pelos dígitos verificadores, normalizado para 14 dígitos e único dentro do tenant. Fornecedor duplicado retorna `409`.
+
+### Documentos financeiros
+
+As rotas de rascunho exigem sessão `ADMIN` ou `MASTER` com MFA. O tenant vem da sessão e mutações validam a origem da aplicação. As respostas são privadas e usam `no-store`.
+
+| Método e rota | Contrato |
+| --- | --- |
+| GET `/api/admin/financeiro/documentos` | Lista até 40 documentos recentes do tenant. |
+| POST `/api/admin/financeiro/documentos` | Envia corpo binário com `Content-Type`, `X-Documento-Id` (UUID de tentativa) e `X-Nome-Arquivo` (nome codificado com `encodeURIComponent`). Limite do Preview de 4 MiB. |
+| GET `/api/admin/financeiro/documentos/:id` | Retorna metadados, extração, confiança, revisão, versão e sugestões de fornecedor do tenant. |
+| GET `/api/admin/financeiro/documentos/:id/conteudo` | Devolve o original como anexo após conferir referência, tamanho e SHA-256, com `no-store`. |
+| PATCH `/api/admin/financeiro/documentos/:id/revisao` | Recebe `{ versao, revisao }` e devolve o rascunho com nova versão. A revisão aceita `descricao`, `valor` em centavos, `vencimento` no formato `YYYY-MM-DD`, `fornecedor`, `categoriaFinanceiraId` e `observacoes`, todos opcionais nesta etapa. |
+| POST `/api/admin/financeiro/documentos/:id/confirmar` | Recebe `{ versao, duplicidade? }`. A confirmação lê a revisão salva e exige descrição, valor positivo, vencimento e decisão de fornecedor. Retorna `{ contaPagarId, repetido }` ou `409` com `{ duplicidades }` para conferência. |
+| POST `/api/admin/financeiro/documentos/:id/cancelar` | Recebe `{ versao, motivo }`. Cancela o rascunho e preserva o histórico. |
+
+Em `revisao.fornecedor`, escolha `{ tipo: 'EXISTENTE', id }`, `{ tipo: 'CADASTRAR', nome, razaoSocial?, cnpj? }` ou `{ tipo: 'SEM_FORNECEDOR' }`. Em `duplicidade`, escolha `{ tipo: 'USAR_EXISTENTE', contaPagarId }` ou `{ tipo: 'MANTER_NOVO', motivo }`. Confirmar cria a conta em `PENDENTE` ou vincula a conta existente indicada no alerta. A confirmação repetida retorna o mesmo vínculo.
+
+| Método e rota OneDrive | Contrato |
+| --- | --- |
+| GET `/api/admin/integracoes/onedrive` | Retorna estado e permissão de gerenciar. |
+| POST `/api/admin/integracoes/onedrive/conectar` | MASTER inicia OAuth delegado com PKCE e recebe URL de autorização. |
+| GET `/api/admin/integracoes/onedrive/callback` | Recebe o código da Microsoft, verifica o cookie de estado e prepara o retorno sem parâmetros OAuth. |
+| POST `/api/admin/integracoes/onedrive/concluir` | MASTER na mesma sessão conclui o retorno uma única vez. |
+| DELETE `/api/admin/integracoes/onedrive` | MASTER remove a autorização do Brookie e preserva arquivos e histórico. |
+
+Veja [captura de documentos financeiros](captura-documentos-financeiros.md) para configuração em HML e pendências.
 
 Relatorios:
 - GET `/api/admin/relatorios?from=YYYY-MM-DD&to=YYYY-MM-DD`
