@@ -175,6 +175,7 @@ export function EstoquePage() {
     setSavingProductionBatch(true)
     setMessage('')
     setProductionDialogError('')
+    const unconfirmedMessage = 'Não foi possível confirmar o registro. Confira o Histórico de produção antes de tentar novamente.'
     try {
       const response = await fetch('/api/admin/producao', {
         method: 'PATCH',
@@ -189,17 +190,25 @@ export function EstoquePage() {
           })),
         }),
       })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Erro ao registrar producao')
+      const result = await response.json().catch(() => null)
+      if (!response.ok || result?.totalProduzido !== Math.floor(totalProduzido) ||
+          result?.registrosCriados !== itens.length) {
+        const errorMessage = response.status >= 400 && response.status < 500 && typeof result?.error === 'string'
+          ? result.error
+          : unconfirmedMessage
+        setProductionDialogError(errorMessage)
+        setMessage(errorMessage)
+        void mutate().catch(() => undefined)
+        return
+      }
       setProductionDialogOpen(false)
       resetProductionBatchDrafts()
       setMessage(`Producao registrada com sucesso. Total do lote: ${result.totalProduzido} unidade(s).`)
-      await mutate()
-      await globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao'))
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao registrar producao'
-      setProductionDialogError(errorMessage)
-      setMessage(errorMessage)
+      void globalMutate((key) => typeof key === 'string' && key.startsWith('/api/admin/producao')).catch(() => undefined)
+    } catch {
+      setProductionDialogError(unconfirmedMessage)
+      setMessage(unconfirmedMessage)
+      void mutate().catch(() => undefined)
     } finally {
       setSavingProductionBatch(false)
     }
