@@ -217,6 +217,11 @@ Relatorios:
   - Observacao: agora inclui agregacao de custos por fornecedor no periodo.
 
 
+### Produção em lote
+
+- `PATCH /api/admin/producao` com `action: "ADD_PRODUCTION_BATCH"` registra o lote e atualiza o estoque disponível na mesma transação.
+- Sucesso retorna `totalProduzido` e `registrosCriados`. Se a API não conseguir confirmar a gravação, retorna `500` com uma mensagem em JSON. Em caso de resposta ausente ou falha de comunicação, confira o histórico da data do lote antes de reenviar.
+
 ## Caixa Express V1
 
 `/caixa` aceita sessão operacional ou sessão administrativa com MFA. Os dados ficam no tenant da sessão. As mutações exigem origem da aplicação e as respostas usam `Cache-Control: private, no-store`.

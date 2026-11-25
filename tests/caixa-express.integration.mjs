@@ -75,7 +75,7 @@ const day = (date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_
 const today = day(new Date())
 const yesterday = day(new Date(Date.now() - 86_400_000))
 
-try {
+async function runIntegration() {
   let tenant = await db.tenant.findUnique({ where: { slug: 'brookie-pregiato' } })
   if (!tenant) {
     tenant = await db.tenant.create({ data: { slug: 'brookie-pregiato', nome: 'Fixture Brookie' } })
@@ -107,6 +107,10 @@ try {
   }))
   assert([200, 302].includes(loginAdmin.status))
   await expect(admin.send('/api/admin/tema'), 200, 'MASTER com MFA')
+  if (process.argv.includes('--production-only')) {
+    await checkProductionBatch(admin, tenant)
+    return
+  }
 
   const legacyEnrollment = client()
   const enrollmentChallenge = await expect(legacyEnrollment.send('/api/auth/admin/password', 'POST', { identifier: enrollment.username, password: senha }), 200, 'senha ADMIN legado')
@@ -563,6 +567,64 @@ try {
     console.log('OK recuperação compatível: flag desligada, retry, revogação e baixa com MFA')
   }
   console.log('OK fidelidade, última unidade concorrente, temas por tenant, ociosidade, turno e revogação')
+}
+
+async function checkProductionBatch(admin, tenant) {
+  const category = await db.categoria.create({ data: { tenantId: tenant.id, nome: 'Produção fixture ' + suffix, ordem: 10000 } })
+  categoryIds.push(category.id)
+  const ids = []
+  for (const sabor of ['A', 'B']) {
+    const product = await db.produto.create({
+      data: { tenantId: tenant.id, categoriaId: category.id, nome: 'Produção fixture ' + suffix + sabor, preco: 100, ordem: 10000, ativo: false },
+    })
+    ids.push(product.id)
+    productIds.push(product.id)
+    await db.produtoEstoque.create({ data: { tenantId: tenant.id, produtoId: product.id, quantidadeDisponivel: 0 } })
+  }
+  const producao = {
+    action: 'ADD_PRODUCTION_BATCH',
+    dataProducao: today,
+    totalProduzido: 4,
+    itens: ids.map((produtoId) => ({ produtoId, quantidade: 2 })),
+  }
+  const productionState = async () => {
+    const where = { tenantId: tenant.id, produtoId: { in: ids } }
+    return {
+      saldos: await db.produtoEstoque.findMany({
+        where, orderBy: { produtoId: 'asc' },
+        select: { produtoId: true, quantidadeDisponivel: true, quantidadeReservada: true },
+      }),
+      registros: await db.producaoRegistro.count({ where }),
+      logs: await db.logOperacao.count({ where: { ...where, tipo: 'REGISTRO_PRODUCAO' } }),
+    }
+  }
+  const antesDoLote = await productionState()
+  const saveProduction = () => admin.send('/api/admin/producao', 'PATCH', producao)
+  assert.deepEqual(await expect(saveProduction(), 200, 'produção de dois sabores'),
+    { totalProduzido: 4, registrosCriados: 2 })
+  const depoisDoLote = await productionState()
+  assert.equal(depoisDoLote.registros, antesDoLote.registros + 2)
+  assert.equal(depoisDoLote.logs, antesDoLote.logs + 2)
+  assert.deepEqual(depoisDoLote.saldos, antesDoLote.saldos.map((saldo) => ({
+    ...saldo, quantidadeDisponivel: saldo.quantidadeDisponivel + 2,
+  })))
+  const { historicoProducao } = await expect(admin.send('/api/admin/producao?date=' + today), 200, 'histórico do lote')
+  const itensDoDia = historicoProducao.find((dia) => dia.data === today)?.itens ?? []
+  assert.deepEqual(itensDoDia.filter((sabor) => ids.includes(sabor.produtoId)).map((sabor) => sabor.quantidade), [2, 2])
+  // Force the second stock write to fail after the first has succeeded.
+  await db.produtoEstoque.update({
+    where: { tenantId_produtoId: { tenantId: tenant.id, produtoId: ids[1] } },
+    data: { quantidadeDisponivel: 2_147_483_647 },
+  })
+  const antesDaFalha = await productionState()
+  const falha = await expect(saveProduction(), 500, 'erro JSON no lançamento')
+  assert.match(falha.error, /Confira o Histórico de produção/)
+  assert.deepEqual(await productionState(), antesDaFalha, 'lote inteiro revertido na falha')
+  console.log('OK produção em lote: estoque, histórico, auditoria e rollback com erro JSON')
+}
+
+try {
+  await runIntegration()
 } finally {
   const scopedSales = { OR: [{ id: { in: [...saleIds, ...legacySaleIds] } }, { origem: 'CAIXA_EXPRESS', itens: { some: { produtoId: { in: productIds } } } }] }
   const sales = (await db.pedido.findMany({ where: scopedSales, select: { id: true } })).map((pedido) => pedido.id)

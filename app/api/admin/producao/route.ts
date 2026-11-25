@@ -1,6 +1,7 @@
 import { reservedInShadow } from '@/lib/stock-commitments'
 import { lockTenantStock } from '@/lib/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
@@ -476,66 +477,64 @@ export async function PATCH(request: NextRequest) {
     }
 
     const produtoIds = Array.from(new Set(itensNormalizados.map((item) => item.produtoId)))
-    const produtos = await prisma.produto.findMany({
-      where: {
-        tenantId: admin.tenantId,
-        descontinuado: false,
-        id: { in: produtoIds },
-      },
-      select: {
-        id: true,
-        nome: true,
-      },
-    })
-    const produtosMap = new Map(produtos.map((produto) => [produto.id, produto]))
-
-    if (produtosMap.size !== produtoIds.length) {
-      return NextResponse.json({ error: 'Um ou mais produtos da producao nao foram encontrados.' }, { status: 404 })
-    }
-
     const actorNome = admin.session.user?.name?.toString().trim() || null
 
-    const result = await prisma.$transaction(async (tx) => {
-      await lockTenantStock(tx, admin.tenantId)
-      const registros = []
+    try {
+      const produtos = await prisma.produto.findMany({
+        where: {
+          tenantId: admin.tenantId,
+          descontinuado: false,
+          id: { in: produtoIds },
+        },
+        select: { id: true, nome: true },
+      })
+      const produtosMap = new Map(produtos.map((produto) => [produto.id, produto]))
 
-      for (const item of itensNormalizados) {
-        const produto = produtosMap.get(item.produtoId)
-        if (!produto) continue
+      if (produtosMap.size !== produtoIds.length) {
+        return NextResponse.json({ error: 'Um ou mais produtos da producao nao foram encontrados.' }, { status: 404 })
+      }
 
-        const registro = await tx.producaoRegistro.create({
-          data: {
+      const result = await prisma.$transaction(async (tx) => {
+        await lockTenantStock(tx, admin.tenantId)
+        const registros = await tx.producaoRegistro.createMany({
+          data: itensNormalizados.map((item) => ({
             tenantId: admin.tenantId,
             produtoId: item.produtoId,
             quantidade: item.quantidade,
             dataProducao: parseProductionDate(data.dataProducao),
-          },
+          })),
         })
 
-        await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, {
-          tipo: 'REGISTRO_PRODUCAO',
-          descricao: `Registro de producao em lote do dia ${data.dataProducao}.`,
-          actorNome,
-          pedidoId: null,
-          pedidoNumero: null,
-          metadata: {
-            dataProducao: data.dataProducao,
-            totalProduzido: data.totalProduzido,
-            modo: 'LOTE',
-          },
-          nomeProduto: produto.nome,
-        })
+        for (const item of itensNormalizados) {
+          await addAvailableStock(tx, admin.tenantId, item.produtoId, item.quantidade, {
+            tipo: 'REGISTRO_PRODUCAO',
+            descricao: `Registro de producao em lote do dia ${data.dataProducao}.`,
+            actorNome,
+            metadata: {
+              atorId: admin.adminUserId,
+              dataProducao: data.dataProducao,
+              totalProduzido: data.totalProduzido,
+              modo: 'LOTE',
+            },
+            nomeProduto: produtosMap.get(item.produtoId)?.nome,
+          })
+        }
 
-        registros.push(registro)
-      }
+        return { totalProduzido: data.totalProduzido, registrosCriados: registros.count }
+      }, { timeout: 15_000 })
 
-      return {
-        totalProduzido: data.totalProduzido,
-        registrosCriados: registros.length,
-      }
-    })
-
-    return NextResponse.json(result)
+      return NextResponse.json(result)
+    } catch (error) {
+      console.error('[admin/producao] ADD_PRODUCTION_BATCH falhou', {
+        tipo: error instanceof Error ? error.name : 'UnknownError',
+        codigo: error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined,
+        sabores: itensNormalizados.length,
+      })
+      return NextResponse.json(
+        { error: 'Não foi possível confirmar o registro. Confira o Histórico de produção antes de tentar novamente.' },
+        { status: 500 },
+      )
+    }
   }
 
   if (parsed.data.action === 'SYNC_LEGACY_STOCK') {
