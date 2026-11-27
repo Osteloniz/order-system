@@ -68,6 +68,7 @@
 - Existing active PRD administrators without a TOTP secret use a one-time migration path after password validation: the resulting session is restricted to `/admin/seguranca` until authenticator enrollment is confirmed, preventing a production lockout without exposing any other admin route.
 - The login background now switches between the official dark bitten-cookie artwork on the light theme and the light artwork on the dark theme. The public menu also uses the official compact logo, denser mobile spacing and the current Brookie palette without changing cart, availability or checkout rules.
 - Structured financial suppliers now accept optional address and contact fields while keeping only the name required. Payable accounts can record an optional payment method (`PIX`, `CREDITO`, `DEBITO` or `BOLETO`), preserving old rows without a value.
+- Financial document capture includes NF-e XML extraction, tenant-scoped supplier matching, idempotent payable confirmation, and a OneDrive Personal integration prepared for the protected `develop` Preview. The Preview accepts files up to 4 MiB and supports manual review for photos and PDF while OCR is pending. Real Microsoft consent and end-to-end HML acceptance require Preview secrets and an authenticated MASTER session. See `docs/captura-documentos-financeiros.md`.
 
 ## Caixa Express V1
 

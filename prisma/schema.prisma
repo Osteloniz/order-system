@@ -493,7 +493,9 @@ model ContaPagar {
   tenant               Tenant                @relation(fields: [tenantId], references: [id])
   categoriaFinanceira  CategoriaFinanceira?  @relation(fields: [categoriaFinanceiraId], references: [id])
   fornecedorFinanceiro FornecedorFinanceiro? @relation(fields: [fornecedorFinanceiroId], references: [id])
+  documentosFinanceiros DocumentoFinanceiro[]
 
+  @@unique([tenantId, id])
   @@index([tenantId, vencimento])
   @@index([tenantId, status, vencimento])
   @@index([categoriaFinanceiraId])
@@ -520,6 +522,9 @@ model FornecedorFinanceiro {
   id           String   @id @default(uuid())
   tenantId     String
   nome         String
+  cnpjNormalizado String?
+  razaoSocial String?
+  nomeNormalizado String?
   cep          String?
   endereco     String?
   numero       String?
@@ -536,7 +541,91 @@ model FornecedorFinanceiro {
   contasPagar ContaPagar[]
 
   @@unique([tenantId, nome])
+  @@unique([tenantId, cnpjNormalizado])
+  @@index([tenantId, nomeNormalizado])
   @@index([tenantId, nome])
+}
+
+enum StatusDocumentoFinanceiro {
+  PRONTO_PARA_REVISAO
+  FALHA_LEITURA
+  CONFIRMADO
+  CANCELADO
+}
+
+enum OrigemLeituraFinanceira {
+  XML
+  OCR
+}
+
+enum AcaoDocumentoFinanceiro {
+  ENVIO
+  LEITURA
+  FALHA_LEITURA
+  REVISAO
+  DUPLICIDADE
+  CONFIRMACAO
+  CANCELAMENTO
+  ACESSO_ANEXO
+}
+
+model DocumentoFinanceiro {
+  id                String @id @default(uuid())
+  tenantId          String
+  driveId           String
+  driveItemId       String
+  nomeOriginal      String
+  mimeType          String
+  tamanhoBytes      Int
+  sha256            String @db.Char(64)
+  enviadoPorId      String
+  status            StatusDocumentoFinanceiro
+  origemLeitura     OrigemLeituraFinanceira
+  dadosExtraidos    Json?
+  extraidoEm        DateTime?
+  cnpjEmissor       String?
+  chaveAcesso       String?
+  numeroDocumento   String?
+  serie             String?
+  dataEmissao       DateTime? @db.Date
+  valorTotalExtraido Int?
+  revisao           Json?
+  versao            Int @default(0)
+  contaPagarId      String?
+  confirmadoPorId   String?
+  confirmadoEm      DateTime?
+  canceladoPorId    String?
+  canceladoEm       DateTime?
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contaPagar ContaPagar? @relation(fields: [tenantId, contaPagarId], references: [tenantId, id], onDelete: Restrict)
+  eventos DocumentoFinanceiroEvento[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, driveId, driveItemId])
+  @@index([tenantId, status, criadoEm])
+  @@index([tenantId, chaveAcesso])
+  @@index([tenantId, cnpjEmissor, numeroDocumento, serie])
+  @@index([tenantId, sha256])
+  @@index([tenantId, dataEmissao, valorTotalExtraido])
+  @@index([tenantId, contaPagarId])
+}
+
+model DocumentoFinanceiroEvento {
+  id            String @id @default(uuid())
+  tenantId      String
+  documentoId   String
+  atorId        String
+  acao          AcaoDocumentoFinanceiro
+  contaPagarId  String?
+  motivo        String?
+  criadoEm      DateTime @default(now())
+
+  documento DocumentoFinanceiro @relation(fields: [tenantId, documentoId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([tenantId, documentoId, criadoEm])
 }
 
 model Tenant {
@@ -558,11 +647,59 @@ model Tenant {
   producaoRegistros       ProducaoRegistro[]
   logsOperacao            LogOperacao[]
   contasPagar             ContaPagar[]
+  documentosFinanceiros   DocumentoFinanceiro[]
+  oneDriveFinanceiro       OneDriveFinanceiro?
+  oneDriveAutorizacoes     OneDriveAutorizacao[]
+  oneDriveEventos          OneDriveEvento[]
   categoriasFinanceiras   CategoriaFinanceira[]
   fornecedoresFinanceiros FornecedorFinanceiro[]
   userInvites             UserInvite[]
   authAuditLogs           AuthAuditLog[]
   asaasWebhookEvents      AsaasWebhookEvent[]
+}
+
+model OneDriveFinanceiro {
+  tenantId              String @id
+  driveId               String
+  pastaId               String
+  acessoCifrado         String?
+  renovacaoCifrada      String?
+  acessoExpiraEm        DateTime?
+  atualizadoEm          DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+}
+
+model OneDriveAutorizacao {
+  stateHash       String @id @db.Char(64)
+  tenantId        String
+  adminId         String
+  sessaoId        String
+  verifierCifrado String
+  codigoCifrado   String?
+  expiraEm        DateTime
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, expiraEm])
+}
+
+enum OneDriveAcao {
+  CONECTADO
+  DESCONECTADO
+  RENOVACAO_INVALIDA
+}
+
+model OneDriveEvento {
+  id        String @id @default(uuid())
+  tenantId  String
+  adminId   String
+  acao      OneDriveAcao
+  criadoEm  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, criadoEm])
 }
 
 model AdminUser {

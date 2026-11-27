@@ -292,6 +292,7 @@ export interface CategoriaFinanceira {
 export interface FornecedorFinanceiro {
   id: string
   nome: string
+  legacy?: boolean
   cep?: string | null
   endereco?: string | null
   numero?: string | null

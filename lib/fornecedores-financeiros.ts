@@ -1,9 +1,12 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
+import { normalizarNomeFinanceiro } from '@/lib/documento-financeiro-arquivo'
 
 export type FornecedorFinanceiroOption = {
   id: string
   nome: string
+  razaoSocial?: string | null
+  cnpj?: string | null
   cep?: string | null
   endereco?: string | null
   numero?: string | null
@@ -70,6 +73,8 @@ export async function listFornecedoresFinanceiros(tenantId: string): Promise<For
     return fornecedores.map((fornecedor) => ({
       id: fornecedor.id,
       nome: fornecedor.nome,
+      razaoSocial: fornecedor.razaoSocial,
+      cnpj: fornecedor.cnpjNormalizado,
       cep: fornecedor.cep,
       endereco: fornecedor.endereco,
       numero: fornecedor.numero,
@@ -196,6 +201,7 @@ export async function resolveFornecedorFinanceiro(input: ResolveFornecedorFinanc
     data: {
       tenantId: input.tenantId,
       nome: fornecedorNomeInformado,
+      nomeNormalizado: normalizarNomeFinanceiro(fornecedorNomeInformado),
     },
   })
 
